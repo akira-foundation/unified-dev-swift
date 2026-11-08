@@ -180,6 +180,7 @@ final class AppModel {
     private var storeObservationTask: Task<Void, Never>?
     private var sessionObservationTask: Task<Void, Never>?
     private var quotaObservationTask: Task<Void, Never>?
+    @ObservationIgnored var pullRequestAutoFixesUnderWay: Set<WorkspaceID> = []
     private var workspaceMessageObservationTask: Task<Void, Never>?
 
     private(set) var workspaceMessagesRevision = 0
@@ -244,6 +245,7 @@ final class AppModel {
             }
             WorkspacePullRequests.shared.onCurrentRead = { [weak self] workspaceID, pullRequest in
                 await self?.noteCurrentPullRequest(pullRequest, for: workspaceID)
+                await self?.considerPullRequestAutoFix(pullRequest, for: workspaceID)
             }
             TerminalSessionStore.shared.useStore(store)
             BottomPanelDefaults.forget()

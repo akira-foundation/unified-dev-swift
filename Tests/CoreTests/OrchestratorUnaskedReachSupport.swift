@@ -52,7 +52,9 @@ struct UnaskedSwitchOwner {
         var stored: [String?] = []
         for repoID in [repo.id, neighbour.id] {
             stored.append(try await store.setting(OrchestratorUnaskedCommands.key(repoID: repoID)))
+            stored.append(try await store.setting(PullRequestAutoFixSetting.key(repoID: repoID)))
             if await OrchestratorUnaskedCommands.isOn(repoID: repoID, in: store) { return false }
+            if await PullRequestAutoFixSetting.isOn(repoID: repoID, in: store) { return false }
         }
         for profile in try await store.profiles() {
             stored.append(try await store.setting(ProfileBridgeSwitch.key(profile: profile.id)))

@@ -111,6 +111,14 @@ public extension GitHub {
         return found.pullRequest.checks == .unavailable ? nil : found.runs
     }
 
+    static func headAndChecks(for workspace: Workspace) async throws -> (head: String?, runs: [CheckRun])? {
+        let branch = await headBranch(of: workspace)
+        guard let found = try await snapshot(for: workspace, onBranch: branch, maxAge: .zero),
+              found.pullRequest.checks != .unavailable
+        else { return nil }
+        return (found.pullRequest.headCommit, found.runs)
+    }
+
     private static func owns(
         _ pullRequest: PullRequest, workspace: Workspace, onBranch head: String
     ) async -> Bool {

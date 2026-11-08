@@ -67,10 +67,16 @@ private struct PullRequestPayload: Decodable {
     let statusCheckRollup: [CheckPayload]?
     let closedAt: String?
     let headCommit: String?
+    let author: Author?
+    let isCrossRepository: Bool?
+
+    struct Author: Decodable {
+        let login: String?
+    }
 
     enum CodingKeys: String, CodingKey {
         case number, title, url, state, isDraft, mergeable, mergeStateStatus, reviewDecision
-        case headRefName, baseRefName, statusCheckRollup, closedAt
+        case headRefName, baseRefName, statusCheckRollup, closedAt, author, isCrossRepository
         case headCommit = "headRefOid"
     }
 }
@@ -188,7 +194,7 @@ public enum GitHub {
     private static let fieldList = [
         "number", "title", "url", "state", "isDraft", "mergeable",
         "mergeStateStatus", "reviewDecision", "headRefName", "baseRefName", "statusCheckRollup",
-        "closedAt", "headRefOid",
+        "closedAt", "headRefOid", "author", "isCrossRepository",
     ]
     static let fields = fieldList.joined(separator: ",")
     static let fieldsWithoutChecks = fieldList.filter { $0 != "statusCheckRollup" }
@@ -221,8 +227,8 @@ public enum GitHub {
         )?.pullRequest
     }
 
-    public static func decodePullRequest(from data: Data) throws -> PullRequest {
-        try decodeSnapshot(from: data).pullRequest
+    public static func decodePullRequest(from data: Data, checksReadable: Bool = true) throws -> PullRequest {
+        try decodeSnapshot(from: data, checksReadable: checksReadable).pullRequest
     }
 
     public static func decodeChecks(from data: Data) throws -> [CheckRun] {
@@ -555,6 +561,7 @@ public enum GitHub {
         }
 
         let runs = checksReadable ? (payload.statusCheckRollup ?? []).map(normalize) : []
+        let checksKnown = checksReadable && payload.statusCheckRollup != nil
         let (checks, summary) = checksReadable
             ? rollup(runs) : (.unavailable, checksUnavailableSummary)
         return PullRequestSnapshot(
@@ -571,7 +578,11 @@ public enum GitHub {
                 branch: payload.headRefName ?? "",
                 baseBranch: payload.baseRefName ?? "",
                 closedAt: parseDate(payload.closedAt),
-                headCommit: payload.headCommit
+                headCommit: payload.headCommit,
+                author: payload.author?.login,
+                isFromFork: payload.isCrossRepository,
+                hasUnfinishedChecks: checksKnown ? runs.contains(where: \.isPending) : nil,
+                hasFixableCheckFailure: checksKnown ? runs.contains(where: \.isFixableFailure) : nil
             ),
             runs: runs
         )
@@ -641,6 +652,11 @@ private extension CheckRun {
             "FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED",
             "STARTUP_FAILURE", "STALE",
         ].contains(conclusion.uppercased())
+    }
+
+    var isFixableFailure: Bool {
+        guard let conclusion else { return false }
+        return ["FAILURE", "ERROR", "TIMED_OUT", "STARTUP_FAILURE"].contains(conclusion.uppercased())
     }
 }
 

@@ -663,6 +663,13 @@ if hits="$(git grep --untracked -n -I -e 'OrchestratorUnaskedCommands\.save' -e 
   echo "$hits" | show
   report "OrchestratorUnaskedCommands is saved from RepoOrchestratorSection and nowhere else."
 fi
+echo "==> only the project's settings pane turns the pull request auto fix switch"
+# Sending a request built from CI output with nobody looking is what this switch
+# allows, so an agent must not be able to reach it either.
+if hits="$(git grep --untracked -n -I -e 'PullRequestAutoFixSetting\.save' -e 'PullRequestAutoFixSetting\.key' -e 'pullRequestAutoFix"' -- 'Sources' ':!Sources/Core/GitHub/PullRequestAutoFixSetting.swift' ':!Sources/UnifiedDev/Views/RepoSettings/RepoPullRequestAutoFixSection.swift' || true)" && [ -n "$hits" ]; then
+  echo "$hits" | show
+  report "PullRequestAutoFixSetting is saved from RepoPullRequestAutoFixSection and nowhere else."
+fi
 bridge_files="$(git grep --untracked -l -I -e 'ForBridge(' -e ': BridgeToolHandling' -e 'BridgeToolbox(' -- 'Sources' || true)"
 if hits="$( { git grep --untracked -n -I 'setSetting(' -- 'Sources/Core/Bridge' 'Sources/UnifiedDev/State/AppModel*.swift'; [ -z "$bridge_files" ] || echo "$bridge_files" | xargs grep -n -H 'setSetting(' ; } || true)" && [ -n "$hits" ]; then
   echo "$hits" | sort -u | show

@@ -176,6 +176,15 @@ final class NotificationService {
         )
     }
 
+    func pullRequestFixStopped(_ pullRequest: PullRequest, in workspace: Workspace) {
+        submit(NotificationDraft(
+            event: .pullRequestFixStopped,
+            workspaceID: workspace.id,
+            workspaceName: workspace.name,
+            detail: PullRequestAutoFix.stoppedSentence(number: pullRequest.number)
+        ))
+    }
+
     private func submit(_ draft: NotificationDraft) {
         app?.notificationInbox.record(draft, context: context)
 
