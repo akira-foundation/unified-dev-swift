@@ -47,8 +47,6 @@ struct WindowToolbar: ToolbarContent {
             ToolbarItem(placement: .primaryAction) {
                 NewTabMenu(model: model)
             }
-
-            ToolbarSpacer(.fixed, placement: .primaryAction)
         }
 
         if app.selection == .home {
@@ -65,16 +63,6 @@ struct WindowToolbar: ToolbarContent {
                 .help("Start a new Ask Unified Dev conversation")
                 .accessibilityLabel("Start a new Ask Unified Dev conversation")
             }
-        }
-
-        ToolbarItem(placement: .primaryAction) {
-            Button {
-                SearchPanelModel.shared.open(app: app)
-            } label: {
-                Image(systemName: "magnifyingglass")
-            }
-            .help("Search workspaces, profiles, transcripts and commands")
-            .accessibilityLabel("Search workspaces, profiles, transcripts and commands")
         }
 
         ToolbarSpacer(.fixed, placement: .primaryAction)
