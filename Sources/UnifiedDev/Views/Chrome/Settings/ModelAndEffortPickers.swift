@@ -5,6 +5,7 @@ struct ModelAndEffortPickers: View {
     @Binding var model: String
     @Binding var effort: String
     @Binding var backend: AgentKind
+    var offersAgentDefault = false
 
     private var catalog: ComposerModelCatalog { .shared }
 
@@ -33,7 +34,7 @@ struct ModelAndEffortPickers: View {
     }
 
     private var efforts: [ComposerOption] {
-        catalog.efforts(for: backend, model: model)
+        catalog.efforts(for: backend, model: model, offeringAgentDefault: offersAgentDefault)
     }
 
     private var chosenModel: Binding<String> {

@@ -342,6 +342,7 @@ id_type_allowed_lines=(
   'Sources/Core/Agent/Codex/CodexModelCatalog.swift'         # a model name the CLI offers
   'Sources/Core/Agent/Grok/GrokModelCatalog.swift'           # a model name the CLI offers
   'Sources/Core/Agent/AgentModel.swift'                      # model and effort names the CLIs offer
+  'Sources/Core/Presentation/ComposerEffort.swift'           # the same effort names, and the empty one that means none
   'Sources/Core/System/EditorCatalog.swift'             # an application, by bundle id
   'Sources/UnifiedDev/Views/Center/Composer/ComposerOption.swift'   # a picker entry, "opus" and friends
   'Sources/UnifiedDev/Views/Center/Panes/CenterTab.swift'       # a tab: a terminal row, a browser or the review pane

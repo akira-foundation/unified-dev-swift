@@ -13,13 +13,14 @@ struct ModelSettingsView: View {
             Section {
                 SettingsRow("New sessions") {
                     ModelAndEffortPickers(
-                        model: $defaults.model, effort: $defaults.effort, backend: $defaults.backend
+                        model: $defaults.model, effort: $defaults.effort, backend: $defaults.backend,
+                        offersAgentDefault: false
                     )
                 }
                 SettingsRow("Reviews") {
                     ModelAndEffortPickers(
                         model: $defaults.reviewModel, effort: $defaults.reviewEffort,
-                        backend: $defaults.reviewBackend
+                        backend: $defaults.reviewBackend, offersAgentDefault: false
                     )
                 }
             } header: {

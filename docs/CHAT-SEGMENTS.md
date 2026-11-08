@@ -18,7 +18,7 @@ rest of the app reads a chat the way it always did.
 | Column | Meaning |
 | --- | --- |
 | `agent_kind`, `account_id`, `agent_session_id` | who ran it, under which account, and the id its CLI stores the conversation under |
-| `model`, `effort` | what it was last asked to run |
+| `model`, `effort` | what it was last asked to run; an empty `effort` means nothing was asked, and the CLI runs its own |
 | `cursor_seq` | the `seq` of the last `messages` row this native session knows, `-1` when it knows none |
 | `entered_seq` | the `seq` of the divider that made it active, `0` for the first segment |
 | `is_active` | one per chat, held by a partial unique index |

@@ -617,7 +617,9 @@ What it becomes:
 - **The effort picker follows the model, within the chat.** Codex efforts differ per model, so
   choosing `gpt-5.5` after `gpt-5.6-sol` has to drop `max` and `ultra` from the effort list, and an
   effort the new model does not take falls back to that model's own default rather than to
-  Unified Dev's `high`. `CodexModel.resolvedEffort(preferring:)` already does the fallback.
+  Unified Dev's `high`. `CodexModel.resolvedEffort(preferring:)` already does the fallback, and
+  `DefaultBackend.effort` gates it: an effort nobody chose is not an effort the model refuses, so
+  it passes through and the chat keeps running on whatever the CLI defaults to.
 - **`ComposerOption.adding(_:to:)` stays.** The open-set behaviour it exists for is still right: a
   settings file can pin an id nothing else knows, and it must remain selectable.
 - The picker keeps working with an empty catalog. `CodexModelCatalog.lastKnown` returns the last

@@ -268,7 +268,9 @@ extension AppModel {
                 throw BridgeWorkspaceModelFailure.noneAvailable(agent)
             }
             controls.model = chosen.id
-            controls.effort = chosen.resolvedEffort(preferring: controls.effort)
+            controls.effort = DefaultBackend.effort(
+                controls.effort, on: agent, model: chosen.id, models: [agent: models]
+            )
         }
 
         return controls

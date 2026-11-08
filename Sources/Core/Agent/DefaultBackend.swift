@@ -53,6 +53,9 @@ public struct DefaultBackend: Equatable, Sendable {
         model: String,
         models: [AgentKind: [AgentModel]] = [:]
     ) -> String {
-        models[kind]?.first { $0.id == model }?.resolvedEffort(preferring: wanted) ?? wanted
+        guard !ComposerEffort.isUnset(wanted) else { return ComposerEffort.unsetID }
+        guard kind.announcesModelEfforts else { return wanted }
+        guard let found = models[kind]?.first(where: { $0.id == model }) else { return wanted }
+        return found.resolvedEffort(preferring: wanted)
     }
 }

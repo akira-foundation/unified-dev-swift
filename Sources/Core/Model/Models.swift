@@ -538,6 +538,13 @@ public enum AgentKind: String, Sendable, Codable, CaseIterable, Identifiable {
         }
     }
 
+    public var announcesModelEfforts: Bool {
+        switch self {
+        case .codex, .grok: true
+        case .claudeCode, .cursor, .openCode: false
+        }
+    }
+
     public var acceptsMidTurnMessage: Bool {
         switch self {
         case .claudeCode, .codex: true
