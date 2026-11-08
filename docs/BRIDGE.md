@@ -1561,6 +1561,12 @@ Anything the decision cannot establish counts as no: the fork flag, the pull req
 account and the author GitHub attributes every commit on the head to. That attribution comes from what a commit
 declares, so it narrows who can put text in front of the agent and does not close it. A failed check's log is still text the agent reads with nobody reading it first.
 
+The request goes through `submitAppRequest`, as the click does, into the chat the click would choose, and it never
+creates a chat or changes the tab on screen. A turn in progress holds it back rather than queueing it, a chat
+that runs without asking for permission never receives one, and the conflict request carries only the app's own
+steps, leaving out `.unifieddev/conflict-instructions.md`. The log it attaches is re-read and has to belong to the
+head the attempt was claimed for.
+
 ## 6. How each CLI is told the bridge exists
 
 Two completely different mechanisms, both verified against the installed binaries.

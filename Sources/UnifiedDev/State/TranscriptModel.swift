@@ -1128,6 +1128,16 @@ final class TranscriptModel {
         workspace.map { app.isArchiving($0.id) } ?? false
     }
 
+    var pullRequestAutoFixReading: PullRequestAutoFix.ChatReading {
+        PullRequestAutoFix.ChatReading(
+            runsInTerminal: !acceptsMessages,
+            isBusy: isRunning || sending != nil || !pendingDeliveries.isEmpty || queuesNextMessage,
+            isAwaitingAnswer: isAwaitingPermission || !pendingPermissionAsks.isEmpty,
+            wasStoppedByOwner: wasStoppedByHand,
+            skipsPermissions: session.permissionMode == .bypassPermissions
+        )
+    }
+
     var acceptsMessages: Bool {
         !usesInteractiveTerminal && !isWorkspaceArchiving
     }

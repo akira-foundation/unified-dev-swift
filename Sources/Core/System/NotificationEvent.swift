@@ -7,6 +7,7 @@ public enum NotificationEvent: String, CaseIterable, Sendable, Hashable, Codable
     case setupFailed
     case checksFinished
     case quotaExhausted
+    case pullRequestFixStopped
 
     public var title: String {
         switch self {
@@ -16,6 +17,7 @@ public enum NotificationEvent: String, CaseIterable, Sendable, Hashable, Codable
         case .setupFailed: "A setup script fails"
         case .checksFinished: "Checks finish on a pull request"
         case .quotaExhausted: "An agent reaches its usage limit"
+        case .pullRequestFixStopped: "Automatic fixes stop on a pull request"
         }
     }
 
@@ -33,6 +35,8 @@ public enum NotificationEvent: String, CaseIterable, Sendable, Hashable, Codable
             "CI on the workspace's pull request went from pending to a result."
         case .quotaExhausted:
             "The account the agent runs under has used all of a usage window."
+        case .pullRequestFixStopped:
+            "A pull request's conflicts or failed checks were sent to its agent three times in a row without the checks passing."
         }
     }
 
@@ -44,6 +48,7 @@ public enum NotificationEvent: String, CaseIterable, Sendable, Hashable, Codable
         case .setupFailed: "Setup failed"
         case .checksFinished: "Checks finished"
         case .quotaExhausted: "Limit reached"
+        case .pullRequestFixStopped: "Automatic fixes stopped"
         }
     }
 
@@ -55,6 +60,7 @@ public enum NotificationEvent: String, CaseIterable, Sendable, Hashable, Codable
         case .setupFailed: "The setup script failed. The agent was started anyway."
         case .checksFinished: "The checks finished."
         case .quotaExhausted: "The agent reached a usage limit."
+        case .pullRequestFixStopped: "Stopped asking the agent to fix a pull request."
         }
     }
 
@@ -66,6 +72,7 @@ public enum NotificationEvent: String, CaseIterable, Sendable, Hashable, Codable
         case .setupFailed: "Setup failed in \(count) workspaces"
         case .checksFinished: "Checks finished in \(count) workspaces"
         case .quotaExhausted: "\(count) agents reached a limit"
+        case .pullRequestFixStopped: "Automatic fixes stopped in \(count) workspaces"
         }
     }
 }

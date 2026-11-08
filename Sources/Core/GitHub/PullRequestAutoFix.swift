@@ -30,11 +30,22 @@ public enum PullRequestAutoFix {
         }
     }
 
+    public struct CommitAuthors: Sendable, Hashable {
+        public let headCommit: String
+        public let logins: Set<String>
+
+        public init(headCommit: String, logins: Set<String>) {
+            self.headCommit = headCommit
+            self.logins = logins
+        }
+    }
+
     public enum Chat: Sendable, Hashable {
         case absent
         case terminal
         case busy
         case awaitingAnswer
+        case unattended
         case ready
     }
 
@@ -58,6 +69,7 @@ public enum PullRequestAutoFix {
         case terminal
         case busy
         case awaitingAnswer
+        case unattended
         case stopped
         case alreadyTried
         case noAccount
@@ -79,7 +91,7 @@ public enum PullRequestAutoFix {
         public var checkedOutBranch: String?
         public var checkedOutHead: String?
         public var viewerLogin: String?
-        public var headCommitAuthors: Set<String>?
+        public var commitAuthors: CommitAuthors?
         public var isArchived: Bool
         public var chat: Chat
         public var account: Account
@@ -93,7 +105,7 @@ public enum PullRequestAutoFix {
             checkedOutBranch: String?,
             checkedOutHead: String?,
             viewerLogin: String?,
-            headCommitAuthors: Set<String>?,
+            commitAuthors: CommitAuthors?,
             isArchived: Bool,
             chat: Chat,
             account: Account,
@@ -106,7 +118,7 @@ public enum PullRequestAutoFix {
             self.checkedOutBranch = checkedOutBranch
             self.checkedOutHead = checkedOutHead
             self.viewerLogin = viewerLogin
-            self.headCommitAuthors = headCommitAuthors
+            self.commitAuthors = commitAuthors
             self.isArchived = isArchived
             self.chat = chat
             self.account = account
@@ -149,9 +161,10 @@ public enum PullRequestAutoFix {
         guard situation.pullRequest.isFromFork == false,
               let author = situation.pullRequest.author,
               let viewer = situation.viewerLogin, !viewer.isEmpty,
-              let commitAuthors = situation.headCommitAuthors, !commitAuthors.isEmpty
+              let commits = situation.commitAuthors, !commits.logins.isEmpty,
+              situation.pullRequest.headCommit.map({ $0 == commits.headCommit }) ?? true
         else { return false }
-        return ([author] + commitAuthors).allSatisfy { $0.caseInsensitiveCompare(viewer) == .orderedSame }
+        return ([author] + commits.logins).allSatisfy { $0.caseInsensitiveCompare(viewer) == .orderedSame }
     }
 
     private static func isOnWorkspaceBranch(_ situation: Situation) -> Bool {
@@ -179,6 +192,7 @@ public enum PullRequestAutoFix {
         case .terminal: .terminal
         case .busy: .busy
         case .awaitingAnswer: .awaitingAnswer
+        case .unattended: .unattended
         case .ready: nil
         }
     }

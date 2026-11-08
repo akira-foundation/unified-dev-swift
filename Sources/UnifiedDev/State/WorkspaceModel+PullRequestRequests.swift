@@ -154,7 +154,10 @@ extension WorkspaceModel {
         let chat = transcript(for: session)
         guard chat.acceptsMessages else { return Self.cannotTakeRequest }
         activeSessionID = session.id
+        return await deliver(await checkFailureRequest(for: failed, number: pullRequest.number), to: session)
+    }
 
+    func checkFailureRequest(for failed: [CheckRun], number: Int) async -> String {
         let carried = Array(failed.prefix(CheckFailureHandoff.mentionsCarried))
         var gathered: [CheckFailureHandoff.Mention] = []
         var logs: [AttachmentSource] = []
@@ -182,7 +185,6 @@ extension WorkspaceModel {
 
         let mentions = gathered
         let more = failed.count - carried.count
-        let number = pullRequest.number
 
         let sources = logs
         let folder = workspace.path
@@ -190,12 +192,11 @@ extension WorkspaceModel {
             AttachmentFiles.save(sources, workspace: folder)
         }.value
 
-        let text = CheckFailureHandoff.request(
+        return CheckFailureHandoff.request(
             CheckFailureHandoff.carrying(mentions, logPaths: paths),
             moreFailed: more,
             number: number
         )
-        return await deliver(text, to: session)
     }
 
     private static let cannotTakeRequest =

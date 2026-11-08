@@ -32,7 +32,7 @@ struct PullRequestAutoFixTests {
         checkedOutBranch: String? = "feat/work",
         checkedOutHead: String? = Self.head,
         viewerLogin: String? = "owner",
-        headCommitAuthors: Set<String>? = ["owner"],
+        commitAuthors: PullRequestAutoFix.CommitAuthors? = PullRequestAutoFix.CommitAuthors(headCommit: Self.head, logins: ["owner"]),
         isArchived: Bool = false,
         chat: PullRequestAutoFix.Chat = .ready,
         account: PullRequestAutoFix.Account = .usable,
@@ -46,7 +46,7 @@ struct PullRequestAutoFixTests {
             checkedOutBranch: checkedOutBranch,
             checkedOutHead: checkedOutHead,
             viewerLogin: viewerLogin,
-            headCommitAuthors: headCommitAuthors,
+            commitAuthors: commitAuthors,
             isArchived: isArchived,
             chat: chat,
             account: account,
@@ -147,10 +147,27 @@ struct PullRequestAutoFixTests {
         #expect(PullRequestAutoFix.decide(situation(pullRequest: draft)) == .leave(.nothingToFix))
     }
 
-    @Test("a head the app could not read does not fire", arguments: [String?.none, .some("")])
-    func noHead(headCommit: String?) {
-        let unknown = pullRequest(headCommit: headCommit)
+    @Test("a head the app could not read does not fire")
+    func noHead() {
+        let unknown = pullRequest(headCommit: nil)
         #expect(PullRequestAutoFix.decide(situation(pullRequest: unknown)) == .leave(.unknownHead))
+    }
+
+    @Test("an empty head does not match the commits that were read")
+    func emptyHead() {
+        let unknown = pullRequest(headCommit: "")
+        #expect(PullRequestAutoFix.decide(situation(pullRequest: unknown)) == .leave(.notTheOwners))
+    }
+
+    @Test("a chat that skips permissions is left alone and spends nothing")
+    func unattended() {
+        #expect(PullRequestAutoFix.decide(situation(chat: .unattended)) == .leave(.unattended))
+    }
+
+    @Test("authors read at another head prove nothing about this one")
+    func authorsOfAnotherHead() {
+        let older = PullRequestAutoFix.CommitAuthors(headCommit: "older", logins: ["owner"])
+        #expect(PullRequestAutoFix.decide(situation(commitAuthors: older)) == .leave(.notTheOwners))
     }
 
     @Test("work on disk that GitHub does not have holds a conflict back")
@@ -170,6 +187,7 @@ struct PullRequestAutoFixTests {
         (.terminal, .terminal),
         (.busy, .busy),
         (.awaitingAnswer, .awaitingAnswer),
+        (.unattended, .unattended),
     ])
     func chatHolds(chat: PullRequestAutoFix.Chat, expected: PullRequestAutoFix.Leave) {
         #expect(PullRequestAutoFix.decide(situation(chat: chat)) == .leave(expected))
@@ -332,13 +350,14 @@ struct PullRequestAutoFixTests {
         .some([]),
         nil,
     ])
-    func otherCommitAuthors(authors: Set<String>?) {
-        #expect(PullRequestAutoFix.decide(situation(headCommitAuthors: authors)) == .leave(.notTheOwners))
+    func otherCommitAuthors(logins: Set<String>?) {
+        let authors = logins.map { PullRequestAutoFix.CommitAuthors(headCommit: Self.head, logins: $0) }
+        #expect(PullRequestAutoFix.decide(situation(commitAuthors: authors)) == .leave(.notTheOwners))
     }
 
     @Test("commit authors compare without regard to case")
     func commitAuthorCase() {
-        #expect(PullRequestAutoFix.decide(situation(headCommitAuthors: ["OWNER"])) == .send(attempt(.checks)))
+        #expect(PullRequestAutoFix.decide(situation(commitAuthors: PullRequestAutoFix.CommitAuthors(headCommit: Self.head, logins: ["OWNER"]))) == .send(attempt(.checks)))
     }
 
     @Test("an empty branch on both sides is not a match")
