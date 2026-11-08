@@ -39,6 +39,104 @@ struct WorkspaceManagerTests {
         #expect(try await store.workspace(id: earlier.id)?.path == earlier.path)
     }
 
+    private func legacyProject(
+        named name: String, branch: String, under root: URL, in store: Store, archived: Bool = false
+    ) async throws -> String {
+        let path = root.appendingPathComponent(name).appendingPathComponent(branch).path
+        let legacy = try await store.upsert(Repo(name: name, path: TestScratch.unique("legacy-repo")))
+        var workspace = Workspace(repoID: legacy.id, name: branch, branch: branch, path: path, baseBranch: "main")
+        if archived {
+            workspace.archive()
+        } else {
+            try FileManager.default.createDirectory(atPath: path, withIntermediateDirectories: true)
+        }
+        try await store.upsert(workspace)
+        return path
+    }
+
+    @Test("a profile folder never lands inside a worktree of a project with that name")
+    func profileFolderAvoidsLegacyWorktree() async throws {
+        let repo = try await TempRepo()
+        defer { repo.cleanUp() }
+        let store = try makeTestStore("wm")
+        let root = URL(fileURLWithPath: TestScratch.unique("wm-root"), isDirectory: true)
+        let manager = WorkspaceManager(store: store, workspacesRoot: root)
+        let added = try await manager.addRepository(at: repo.path, profileID: .initial)
+        let legacy = try await legacyProject(named: "unified", branch: added.name, under: root, in: store)
+
+        let created = try await manager.createWorkspace(repo: added, prompt: "New work")
+
+        #expect(created.path.hasPrefix(root.path + "/unified-2/" + added.name + "/"))
+        #expect(FileManager.default.fileExists(atPath: legacy))
+    }
+
+    @Test("a profile's own worktrees do not move its folder for the next one")
+    func secondWorktreeStaysInTheProfileFolder() async throws {
+        let repo = try await TempRepo()
+        defer { repo.cleanUp() }
+        let store = try makeTestStore("wm")
+        let root = URL(fileURLWithPath: TestScratch.unique("wm-root"), isDirectory: true)
+        let manager = WorkspaceManager(store: store, workspacesRoot: root)
+        let added = try await manager.addRepository(at: repo.path, profileID: .initial)
+
+        let first = try await manager.createWorkspace(repo: added, prompt: "First work")
+        let second = try await manager.createWorkspace(repo: added, prompt: "Second work")
+
+        #expect(first.path.hasPrefix(root.path + "/unified/" + added.name + "/"))
+        #expect(second.path.hasPrefix(root.path + "/unified/" + added.name + "/"))
+    }
+
+    @Test("a checkout on disk with no record also moves the profile folder")
+    func profileFolderAvoidsUnrecordedCheckout() async throws {
+        let repo = try await TempRepo()
+        defer { repo.cleanUp() }
+        let store = try makeTestStore("wm")
+        let root = URL(fileURLWithPath: TestScratch.unique("wm-root"), isDirectory: true)
+        let manager = WorkspaceManager(store: store, workspacesRoot: root)
+        let added = try await manager.addRepository(at: repo.path, profileID: .initial)
+        let checkout = root.appendingPathComponent("unified/older", isDirectory: true)
+        try FileManager.default.createDirectory(at: checkout, withIntermediateDirectories: true)
+        try Data().write(to: checkout.appendingPathComponent(".git"))
+
+        let created = try await manager.createWorkspace(repo: added, prompt: "New work")
+
+        #expect(created.path.hasPrefix(root.path + "/unified-2/"))
+    }
+
+    @Test("the numbered folder skips the folder of another profile")
+    func profileFolderSkipsAnotherProfile() async throws {
+        let repo = try await TempRepo()
+        defer { repo.cleanUp() }
+        let store = try makeTestStore("wm")
+        let root = URL(fileURLWithPath: TestScratch.unique("wm-root"), isDirectory: true)
+        let manager = WorkspaceManager(store: store, workspacesRoot: root)
+        let other = try await store.createProfile(
+            name: "Unified", colour: "blue", symbol: "star", occupiedFolders: []
+        )
+        #expect(other.folder == "unified-2")
+        let added = try await manager.addRepository(at: repo.path, profileID: .initial)
+        _ = try await legacyProject(named: "unified", branch: "older", under: root, in: store)
+
+        let created = try await manager.createWorkspace(repo: added, prompt: "New work")
+
+        #expect(created.path.hasPrefix(root.path + "/unified-3/"))
+    }
+
+    @Test("a profile folder stays out of the worktree directory of a project even when nothing nests")
+    func profileFolderAvoidsLegacyDirectory() async throws {
+        let repo = try await TempRepo()
+        defer { repo.cleanUp() }
+        let store = try makeTestStore("wm")
+        let root = URL(fileURLWithPath: TestScratch.unique("wm-root"), isDirectory: true)
+        let manager = WorkspaceManager(store: store, workspacesRoot: root)
+        let added = try await manager.addRepository(at: repo.path, profileID: .initial)
+        _ = try await legacyProject(named: "unified", branch: "older-branch", under: root, in: store, archived: true)
+
+        let created = try await manager.createWorkspace(repo: added, prompt: "New work")
+
+        #expect(!created.path.hasPrefix(root.path + "/unified/"))
+    }
+
     @Test("a repository already registered keeps its profile")
     func registeredRepositoryKeepsProfile() async throws {
         let repo = try await TempRepo()
