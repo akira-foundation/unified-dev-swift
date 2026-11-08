@@ -63,7 +63,8 @@ public enum OnboardingAgentChoice {
             return (AppDefaults.fallbackModel, AppDefaults.fallbackEffort)
         }
         guard let chosen = AgentModel.selection(requested: nil, from: models[kind] ?? []) else { return nil }
-        return (chosen.id, settled(chosen.resolvedEffort(preferring: current.effort), or: current.effort))
+        let resolved = DefaultBackend.effort(current.effort, on: kind, model: chosen.id, models: models)
+        return (chosen.id, settled(resolved, or: current.effort))
     }
 
     private static func settled(_ effort: String, or previous: String) -> String {

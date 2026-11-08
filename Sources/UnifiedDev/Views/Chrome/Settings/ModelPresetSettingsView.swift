@@ -169,7 +169,8 @@ struct ModelPresetSettingsView: View {
             in: catalog.sections(includingCurrent: preset.model, on: preset.backend).flatMap(\.options)
         )
         let effort = ComposerOption.effortLabel(
-            for: preset.effort, in: catalog.efforts(for: preset.backend, model: preset.model)
+            for: preset.effort,
+            in: catalog.efforts(for: preset.backend, model: preset.model, offeringAgentDefault: true)
         )
         return "\(model) \u{00B7} \(effort) \u{00B7} \(preset.permissionMode.label(on: preset.backend))"
     }

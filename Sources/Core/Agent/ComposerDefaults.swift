@@ -43,9 +43,7 @@ public struct ComposerDefaults: Equatable {
     }
 
     static func effort(repo: RepoSettings, app: AppDefaults) -> String {
-        if let project = repo.defaultEffort, !project.trimmingCharacters(in: .whitespaces).isEmpty {
-            return project
-        }
+        if let project = repo.defaultEffort, !ComposerEffort.isUnset(project) { return project }
         if let stored = app.storedEffort { return stored }
         return firstNonEmpty(repo.homeDefaultEffort, fallback: app.effort)
     }

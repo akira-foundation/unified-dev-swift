@@ -27,10 +27,6 @@ public struct AgentModel: Sendable, Hashable, Identifiable {
         self.unavailable = unavailable
     }
 
-    public var declaresEfforts: Bool {
-        !supportedEfforts.isEmpty || !defaultEffort.isEmpty
-    }
-
     public func resolvedEffort(preferring wanted: String) -> String {
         if supportedEfforts.contains(where: { $0.id == wanted }) { return wanted }
         if !defaultEffort.isEmpty { return defaultEffort }

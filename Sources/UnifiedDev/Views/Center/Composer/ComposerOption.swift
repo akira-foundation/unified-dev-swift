@@ -33,10 +33,7 @@ struct ComposerOption: Identifiable, Hashable {
     }
 
     static func effortLabel(for id: String, in options: [ComposerOption]) -> String {
-        ComposerEffort.label(
-            for: id,
-            among: options.map { ComposerEffortChoice(id: $0.id, label: $0.label) }
-        )
+        ComposerEffort.label(for: id, among: options.map { AgentModelEffort(id: $0.id, label: $0.label) })
     }
 
     static func label(for id: String, in options: [ComposerOption]) -> String {

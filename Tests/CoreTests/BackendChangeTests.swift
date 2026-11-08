@@ -88,6 +88,21 @@ import Foundation
 
         #expect(opening.agentKind == .codex)
         #expect(opening.model == "chosen")
+        #expect(opening.effort == "")
+    }
+
+    @Test func aNewChatKeepsTheLevelWhenTheNewModelAnnouncesOne() throws {
+        let models: [AgentKind: [AgentModel]] = [.codex: [
+            AgentModel(
+                id: "chosen", displayName: "Chosen", isDefault: true,
+                supportedEfforts: [AgentModelEffort(id: "high", label: "High")], defaultEffort: "low"
+            ),
+        ]]
+        let controls = ComposerControls(model: "opus", effort: "high", agentKind: .claudeCode)
+
+        let opening = try #require(BackendChange.newChatControls(from: controls, on: .codex, models: models))
+
+        #expect(opening.effort == "high")
     }
 
     @Test func aNewChatOnAProviderWithNoDefaultTakesItsFirstVisibleModel() throws {

@@ -1,15 +1,5 @@
 import Foundation
 
-public struct ComposerEffortChoice: Sendable, Equatable {
-    public let id: String
-    public let label: String
-
-    public init(id: String, label: String) {
-        self.id = id
-        self.label = label
-    }
-}
-
 public enum ComposerEffort {
     public static let unsetID = ""
     public static let unsetLabel = "Agent default"
@@ -19,14 +9,14 @@ public enum ComposerEffort {
     }
 
     public static func choices(
-        _ supported: [ComposerEffortChoice],
+        _ supported: [AgentModelEffort],
         offeringUnset: Bool
-    ) -> [ComposerEffortChoice] {
+    ) -> [AgentModelEffort] {
         guard offeringUnset, !supported.contains(where: { isUnset($0.id) }) else { return supported }
-        return [ComposerEffortChoice(id: unsetID, label: unsetLabel)] + supported
+        return [AgentModelEffort(id: unsetID, label: unsetLabel)] + supported
     }
 
-    public static func label(for id: String, among choices: [ComposerEffortChoice]) -> String {
+    public static func label(for id: String, among choices: [AgentModelEffort]) -> String {
         guard !isUnset(id) else { return unsetLabel }
         return choices.first { $0.id == id }?.label ?? ModelLabel.readable(id)
     }
