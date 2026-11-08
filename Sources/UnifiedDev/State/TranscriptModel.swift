@@ -1827,7 +1827,9 @@ final class TranscriptModel {
                 message: failure.message.isEmpty ? "It exited without finishing the turn." : failure.message
             )
             if let workspaceNow {
-                NotificationService.shared.agentFailed(workspace: workspaceNow, message: failure.message)
+                NotificationService.shared.agentFailed(
+                    workspace: workspaceNow, sessionID: session.id, message: failure.message
+                )
             }
             await reportToOrchestrator(
                 CrewMessage.failed(name: session.title, reason: failure.message)
@@ -1879,7 +1881,7 @@ final class TranscriptModel {
             refreshAwaitingPermission()
             await refreshSession()
             if let workspaceNow {
-                NotificationService.shared.agentNeedsPermission(workspace: workspaceNow)
+                NotificationService.shared.agentNeedsPermission(workspace: workspaceNow, sessionID: session.id)
             }
             if !isReconcilingPresentation, !isReplayingPastTurn, let ask = pendingPermissionAsks.last {
                 await app.noteWorkspaceTurnEnded(.ofAsk(ask), in: session)
@@ -1895,6 +1897,9 @@ final class TranscriptModel {
 
         case .rateLimit(let raw):
             await app.recordQuotas(AgentQuotaAdapters.quotas(fromRateLimitEvent: raw))
+            if let workspaceNow {
+                NotificationService.shared.rateLimitReported(raw, workspace: workspaceNow, sessionID: session.id)
+            }
 
         case .subagent(let signal):
             subagents.apply(signal)
@@ -2089,6 +2094,7 @@ final class TranscriptModel {
 
         NotificationService.shared.turnFinished(
             workspace: workspaceNow,
+            sessionID: session.id,
             result: result,
             wasCancelled: session.state == .cancelled,
             hookRefusedCalls: rows.hookRefusedCalls

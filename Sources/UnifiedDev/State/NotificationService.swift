@@ -28,6 +28,7 @@ final class NotificationService {
     @ObservationIgnored private var flushTasks: [NotificationEvent: Task<Void, Never>] = [:]
     @ObservationIgnored private var checksTask: Task<Void, Never>?
     @ObservationIgnored private var lastSeenChecks: [WorkspaceID: PullRequest.Checks] = [:]
+    @ObservationIgnored private var quotaWatch = QuotaExhaustionWatch()
 
     private init() {}
 
@@ -99,6 +100,7 @@ final class NotificationService {
 
     func turnFinished(
         workspace: Workspace,
+        sessionID: SessionID?,
         result: AgentResult,
         wasCancelled: Bool,
         hookRefusedCalls: Set<String>
@@ -109,27 +111,42 @@ final class NotificationService {
         submit(NotificationDraft(
             event: outcome.event,
             workspaceID: workspace.id,
+            sessionID: sessionID,
             workspaceName: workspace.name,
             detail: result.summary
         ))
     }
 
-    func agentNeedsPermission(workspace: Workspace, detail: String = "") {
+    func agentNeedsPermission(workspace: Workspace, sessionID: SessionID?, detail: String = "") {
         submit(NotificationDraft(
             event: .needsInput,
             workspaceID: workspace.id,
+            sessionID: sessionID,
             workspaceName: workspace.name,
             detail: detail
         ))
     }
 
-    func agentFailed(workspace: Workspace, message: String) {
+    func agentFailed(workspace: Workspace, sessionID: SessionID?, message: String) {
         submit(NotificationDraft(
             event: .agentFailed,
             workspaceID: workspace.id,
+            sessionID: sessionID,
             workspaceName: workspace.name,
             detail: message
         ))
+    }
+
+    func rateLimitReported(_ event: Data, workspace: Workspace, sessionID: SessionID?) {
+        for quota in quotaWatch.newlyExhausted(fromRateLimitEvent: event, in: workspace.id) {
+            submit(NotificationDraft(
+                event: .quotaExhausted,
+                workspaceID: workspace.id,
+                sessionID: sessionID,
+                workspaceName: workspace.name,
+                detail: QuotaExhaustionWatch.sentence(for: quota)
+            ))
+        }
     }
 
     func setupFailed(workspace: Workspace) {
@@ -154,11 +171,14 @@ final class NotificationService {
     private var context: NotificationContext {
         NotificationContext(
             isAppActive: NSApp?.isActive ?? false,
-            selectedWorkspaceID: app?.selection.workspaceID
+            selectedWorkspaceID: app?.selection.workspaceID,
+            selectedSessionID: app?.selectedModel?.activeSessionID
         )
     }
 
     private func submit(_ draft: NotificationDraft) {
+        app?.notificationInbox.record(draft, context: context)
+
         let verdict = NotificationPolicy.verdict(
             for: draft.event,
             workspaceID: draft.workspaceID,
@@ -189,7 +209,7 @@ final class NotificationService {
         content.body = prepared.body
         content.sound = .default
         content.threadIdentifier = prepared.threadIdentifier
-        content.userInfo = BannerUserInfo.encode(workspaceID: prepared.workspaceID)
+        content.userInfo = BannerUserInfo.encode(workspaceID: prepared.workspaceID, sessionID: prepared.sessionID)
         content.categoryIdentifier = prepared.threadIdentifier == prepared.workspaceID.rawValue
             ? Self.workspaceCategory
             : Self.summaryCategory
@@ -223,6 +243,10 @@ final class NotificationService {
         BannerUserInfo.workspaceID(from: response.notification.request.content.userInfo)
     }
 
+    nonisolated static func sessionID(from response: UNNotificationResponse) -> SessionID? {
+        BannerUserInfo.sessionID(from: response.notification.request.content.userInfo)
+    }
+
     private func startWatchingChecks() {
         checksTask?.cancel()
         checksTask = Task { [weak self] in
@@ -235,9 +259,7 @@ final class NotificationService {
     }
 
     private func pollChecks() async {
-        guard let app,
-              preferences.isEnabled,
-              preferences.isEnabled(.checksFinished) else { return }
+        guard let app else { return }
 
         let onScreen = context.isAppActive ? context.selectedWorkspaceID : nil
 

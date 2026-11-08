@@ -68,6 +68,10 @@ struct WindowToolbar: ToolbarContent {
         }
 
         ToolbarItem(placement: .primaryAction) {
+            NotificationBellButton(inbox: app.notificationInbox, profiles: app.profiles)
+        }
+
+        ToolbarItem(placement: .primaryAction) {
             Button {
                 SearchPanelModel.shared.open(app: app)
             } label: {

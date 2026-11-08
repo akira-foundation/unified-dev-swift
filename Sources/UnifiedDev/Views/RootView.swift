@@ -164,6 +164,9 @@ struct RootView: View {
             guard was != now else { return }
             app.homeFilter.scope = HomeScope.settle(app.homeFilter.scope, searching: now)
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            app.notificationInbox.noteOnScreen()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .unifieddevToggleSidebar)) { _ in
             toggleSidebar()
         }
