@@ -79,7 +79,10 @@ extension MarkdownSelectionProbe {
             check(false, "a command's output never opened under the pointer")
         }
         button(in: bar)?.performClick(nil)
-        await settle(host)
+        for _ in 0..<150 where !bar.selectableText.isNull {
+            host.layoutSubtreeIfNeeded()
+            try? await Task.sleep(for: .milliseconds(100))
+        }
         check(bar.selectableText.isNull, "the closed output kept its rect: \(bar.selectableText)")
 
         view.scrollToVisible(foldFooter.frame)

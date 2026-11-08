@@ -44,15 +44,10 @@ struct CodeBlockRunStatus: View {
             .font(Typo.code)
             .foregroundStyle(Palette.textPrimary)
             .textSelection(.enabled)
-            .onGeometryChange(for: CGRect.self, of: Self.visibleFrame, action: onOutput)
+            .onGeometryChange(for: CGRect.self, of: {
+                MarkdownChromeHit.visibleText(frame: $0.frame(in: .named(markdownChromeSpace)), scrollBounds: $0.bounds(of: .scrollView))
+            }, action: onOutput)
             .onDisappear { onOutput(.null) }
-    }
-
-    nonisolated private static func visibleFrame(_ proxy: GeometryProxy) -> CGRect {
-        let frame = proxy.frame(in: .named(markdownChromeSpace))
-        let whole = CGRect(origin: .zero, size: proxy.size)
-        let visible = proxy.bounds(of: .scrollView).map(whole.intersection) ?? whole
-        return visible.offsetBy(dx: frame.minX, dy: frame.minY)
     }
 
     @ViewBuilder
