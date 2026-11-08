@@ -30,7 +30,8 @@ public struct WorkspaceListTool: BridgeToolHandling {
 
             The worktree path is the most useful thing here. It is an ordinary git checkout, so \
             read the diff, the log and the files in it with your own tools rather than asking \
-            Unified Dev for them.
+            Unified Dev for them. For a workspace in another profile, use chat_read and \
+            workspace_diff instead, whose answers are marked as coming from outside.
 
             agent_running is about right now, and a workspace with nothing running is still a \
             workspace: most of them sit idle most of the time, waiting to be read and merged. \
@@ -95,6 +96,12 @@ public struct WorkspaceListTool: BridgeToolHandling {
             case .success(let resolved): choice = resolved
             }
             let reached = choice.profiles
+            if includeGitHub, case .every = choice {
+                return .failure(
+                    "include_github cannot be used with profile 'all', because it starts a gh and a git "
+                        + "process per workspace. Name one profile to ask GitHub about it."
+                )
+            }
             let every = try await store.repos()
             let projects = reached.isEmpty
                 ? try await BridgeProfileScope.repos(for: identity, store: store)
@@ -106,7 +113,7 @@ public struct WorkspaceListTool: BridgeToolHandling {
                 if let refusal = BridgeProjectLookup.refusal(
                     for: named, outcome: outcome, projects: projects
                 ) {
-                    return .failure(refusal)
+                    return .failure(reached.isEmpty ? refusal : Self.noProjectThere(named))
                 }
                 guard case .found(let found) = outcome else {
                     return .failure("Unified Dev has no project called '\(named)'.")
@@ -152,6 +159,11 @@ public struct WorkspaceListTool: BridgeToolHandling {
         }
     }
 
+    private static func noProjectThere(_ named: String) -> String {
+        "No project called '\(WorkspaceMessage.oneLine(named))' can be listed there, or the name is shared. "
+            + "Call project_list with the same profile for its ids."
+    }
+
     private func note(
         count: Int,
         project: Repo?,
@@ -163,7 +175,7 @@ public struct WorkspaceListTool: BridgeToolHandling {
         if count == 0 {
             sentences.append(
                 project.map { "Unified Dev has no workspaces in '\($0.name)'." }
-                    ?? "This profile has no workspaces."
+                    ?? "There are no workspaces here."
             )
             if !includeArchived {
                 sentences.append("Archived ones were not counted. Pass include_archived to see them.")

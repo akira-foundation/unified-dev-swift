@@ -28,7 +28,7 @@ public struct ProjectListTool: BridgeToolHandling {
             Call it before naming a project in any other tool, workspace_start included, because \
             Unified Dev will only act on repositories it already has and this is the list of them. Every project here can be \
             worked in, hidden or not: hidden is a view preference of the owner's sidebar and \
-            says nothing about whether the project is finished with. Takes no arguments, reads \
+            says nothing about whether the project is finished with. Reads \
             nothing but Unified Dev's own database, changes nothing and costs nothing.
 
             Only the projects in the caller's profile are listed, unless profile names another \

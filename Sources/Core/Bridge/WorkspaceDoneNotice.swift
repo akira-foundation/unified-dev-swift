@@ -44,7 +44,8 @@ public enum WorkspaceDoneNotice {
         case .finished(let lastMessage):
             return "The agent in \(site) has finished \(caused), and is idle. "
                 + lastWords(lastMessage) + "\n" + once
-                + " To ask it for anything else, use workspace_say."
+                + " To ask it for anything else, use workspace_say"
+                + (watch.target.profile == nil ? "." : " with its profile.")
 
         case .stoppedByOwner:
             return "The owner stopped the agent in \(site) before it finished \(caused), so it may "
@@ -77,6 +78,9 @@ public enum WorkspaceDoneNotice {
     private static func place(of target: WorkspaceMessageEnd) -> String {
         var place = "the workspace \"\(WorkspaceMessage.oneLine(target.workspace))\""
         if let id = target.workspaceID { place += " (id \(id.rawValue))" }
+        if let profile = target.profile {
+            place += ", in the profile \"\(WorkspaceMessage.oneLine(profile))\", which is another organisation"
+        }
         return place
     }
 

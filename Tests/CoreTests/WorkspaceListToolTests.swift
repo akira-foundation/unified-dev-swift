@@ -24,7 +24,13 @@ struct WorkspaceListToolTests {
     func roleGate() async throws {
         let store = try makeTestStore("workspace-list-gate")
         let toolbox = BridgeToolbox(handlers: [WorkspaceListTool()])
-        let agent = BridgeIdentity(sessionID: SessionID("s"), workspaceID: WorkspaceID("w"), role: .workspace)
+        let repo = try await store.upsert(Repo(name: "r", path: TestScratch.unique("gate")))
+        let workspace = try await store.upsert(Workspace(
+            repoID: repo.id, name: "w", branch: "b", path: TestScratch.unique("gate-tree"), baseBranch: "main"
+        ))
+        let chat = try await store.upsert(Session(workspaceID: workspace.id, title: "c"))
+        try await ProfileBridgeSwitch.save(true, profile: .initial, to: store)
+        let agent = BridgeIdentity(sessionID: chat.id, workspaceID: workspace.id, role: .workspace)
 
         #expect(await toolbox.tools(for: agent, store: store).isEmpty)
         #expect(await toolbox.tools(for: .owner, store: store).map(\.name) == ["workspace_list"])
@@ -44,7 +50,7 @@ struct WorkspaceListToolTests {
 
         #expect(!result.isError)
         #expect(try workspaces(result).isEmpty)
-        #expect(result.text.contains("This profile has no workspaces."))
+        #expect(result.text.contains("There are no workspaces here."))
     }
 
     @Test("a workspace answers with the columns a caller can act on")

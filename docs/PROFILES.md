@@ -145,18 +145,19 @@ names the profile, and leaves the window where it is. Anything in another profil
 `project_add` name the profile they landed in. The scope and its exceptions are in
 [BRIDGE.md](BRIDGE.md), under "The profile a caller is limited to".
 
-### Reachable from other profiles
+### Connected to other profiles
 
-Profile Settings carries a switch, **Reachable from other profiles**, off by default. Turned on, a
+Profile Settings carries a switch, **Connected to other profiles**, off by default. Turned on, a
 project's orchestrator can list that profile's projects and workspaces, read its chats and changes, and
-send a message to one of its chats, if its own profile is open too. The owner's Ask chat and client need
-only the destination open. Ordinary workspaces and subagents never cross, and nothing can be started in
-another profile.
+send a message to one of its chats, if its own profile is on too, and the owner approves every such call.
+The owner's Ask chat and client need only the destination on, and do not stop to ask. Ordinary workspaces,
+subagents and an orchestrator on Codex never cross, and nothing can be started in another profile.
 
 Every crossing names the profile, through a `profile` argument, or `all` on the two lists. A message
 from another profile says where it came from and does not carry the owner's authority, whoever sent it. The
-turn it wakes runs on the destination project's account. Only the end of that turn comes back, and only if
-`notify_when_done` asked for it. [BRIDGE.md](BRIDGE.md) has the rules, under "Reaching another profile".
+turn it wakes runs on the destination project's account. A chat cannot be answered across profiles except by
+a caller that may cross, so what comes back to anyone else is the end of that turn, if `notify_when_done`
+asked for it. [BRIDGE.md](BRIDGE.md) has the rules, under "Reaching another profile".
 
 ## In a preview scenario
 

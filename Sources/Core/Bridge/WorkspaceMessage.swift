@@ -109,8 +109,8 @@ public struct WorkspaceMessage: Identifiable, Sendable, Hashable {
         guard let workspaceID = source.workspaceID else { return replyLine }
         return "Only a project's orchestrator can answer across profiles, and only when the owner has "
             + "opened both, by calling workspace_say with workspace \"\(workspaceID.rawValue)\" and "
-            + "profile \"\(Self.oneLine(profile))\". Any other agent cannot answer it. Whoever sent it "
-            + "may be told how this turn ended."
+            + "profile \"\(source.profileID?.rawValue ?? Self.oneLine(profile))\". Any other agent cannot answer "
+            + "it. Whoever sent it may be told how this turn ended."
     }
 
     private var ownEnvelope: String {
@@ -142,6 +142,7 @@ public struct WorkspaceMessageEnd: Sendable, Hashable, Codable {
     public var sessionID: SessionID?
     public var chat: String
     public var profile: String?
+    public var profileID: ProfileID?
 
     public init(
         workspaceID: WorkspaceID?,

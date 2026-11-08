@@ -61,7 +61,10 @@ public struct WorkspaceSayTool: BridgeToolHandling {
 
             Pass profile to send it to a workspace in another profile, which a project's \
             orchestrator and the owner's own clients can do once the owner has opened that profile. \
-            Such a message arrives marked as coming from outside, without the owner's authority.
+            Such a message arrives marked as coming from outside, without the owner's authority, \
+            and the agent there is told to ask the owner before acting on it, whatever it asks for. \
+            Only a project's orchestrator can answer one, so pass notify_when_done to hear how the \
+            turn ended.
             """,
         inputSchema: .object([
             "type": .string("object"),
@@ -135,7 +138,7 @@ public struct WorkspaceSayTool: BridgeToolHandling {
                     from: source.id, to: target.id, since: now.addingTimeInterval(-WorkspaceSayThrottle.window)
                 )
                 if let trouble = WorkspaceSayThrottle.refusal(
-                    sending: text, to: target.name, recent: recent, now: now
+                    sending: text, to: Self.crossed(choice) ? target.id.rawValue : target.name, recent: recent, now: now
                 ) {
                     return .failure(trouble.sentence)
                 }
@@ -153,6 +156,7 @@ public struct WorkspaceSayTool: BridgeToolHandling {
             if case .other(let profile) = choice {
                 crossedTo = profile.name
                 sendEnd.profile = try await Self.originName(of: identity, store: store)
+                sendEnd.profileID = try await BridgeProfileScope.profile(of: identity, store: store)
             }
             let message = WorkspaceMessage(
                 source: sendEnd,
@@ -166,9 +170,12 @@ public struct WorkspaceSayTool: BridgeToolHandling {
 
             switch await deliver(message) {
             case .refused(let sentence):
-                return .failure(WorkspaceSayTrouble.appRefused(sentence).sentence)
+                let said = crossedTo == nil ? sentence : "Unified Dev could not put it in that workspace's chat."
+                return .failure(WorkspaceSayTrouble.appRefused(said).sentence)
             case .sent(let sent):
-                return .json(Self.answer(sent, noticeRequested: wantsNotice, crossedTo: crossedTo))
+                let answer = Self.answer(sent, noticeRequested: wantsNotice, crossedTo: crossedTo)
+                guard crossedTo != nil else { return .json(answer) }
+                return BridgeWorkspaceQuote.answer(answer, preamble: BridgeWorkspaceQuote.lists("where a message went"))
             }
         } catch {
             return .failure(WorkspaceSayTrouble.unexplained(error.readableMessage).sentence)
@@ -204,6 +211,11 @@ public struct WorkspaceSayTool: BridgeToolHandling {
             }
             return sender
         }
+    }
+
+    private static func crossed(_ choice: BridgeProfileChoice) -> Bool {
+        if case .other = choice { return true }
+        return false
     }
 
     private static func originName(of identity: BridgeIdentity, store: Store) async throws -> String {
@@ -245,7 +257,10 @@ public struct WorkspaceSayTool: BridgeToolHandling {
     static func answer(
         _ message: WorkspaceMessage, noticeRequested: Bool = false, crossedTo profile: String? = nil
     ) -> JSONValue {
-        let reply = message.source.workspaceID == nil
+        let reply = profile != nil
+            ? "It can only answer if it is a project's orchestrator and both profiles are open. Use "
+                + "notify_when_done to hear how its turn ended."
+            : message.source.workspaceID == nil
             ? "This connection is not a workspace, so the agent there cannot answer you with "
                 + "workspace_say. Call workspace_list to see what became of it."
             : "If it answers, it answers with workspace_say, and its message lands in this chat, "

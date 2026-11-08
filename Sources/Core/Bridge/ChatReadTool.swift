@@ -77,7 +77,8 @@ public struct ChatReadTool: BridgeToolHandling {
             guard let session = named.first else {
                 return .failure(
                     "No chat with that ID or title is open in \(Self.place(target)). "
-                        + "Call chat_list with the same workspace to see its chats."
+                        + "Call chat_list with the same workspace"
+                        + "\(target.profile == nil ? "" : " and profile") to see its chats."
                 )
             }
             guard named.count == 1 else {

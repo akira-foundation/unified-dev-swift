@@ -3,7 +3,7 @@
   "activeProfile": "Unified",
   "reachableProfiles": ["Unified", "Akira"],
   "profiles": [
-    { "name": "Akira", "colour": "4C8DF6", "symbol": "building.2", "accounts": "inherits" },
+    { "name": "Akira", "colour": "4C8DF6", "symbol": "building.2", "accounts": "own" },
     { "name": "Debtges", "colour": "E06C2A", "symbol": "briefcase", "accounts": "inherits" }
   ],
   "projects": [

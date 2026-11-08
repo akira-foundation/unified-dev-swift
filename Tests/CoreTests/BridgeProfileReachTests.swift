@@ -58,7 +58,7 @@ struct BridgeProfileReachTests {
 
         _ = try await w.store.setOrchestrator(false, workspaceID: try #require(w.lead.workspaceID))
 
-        #expect(await w.say(as: w.lead).isError)
+        #expect(await w.read(as: w.lead, profile: "Akira").text.contains("does not say whether one exists"))
     }
 
     @Test("an orchestrator needs both ends open, and the owner only the destination")

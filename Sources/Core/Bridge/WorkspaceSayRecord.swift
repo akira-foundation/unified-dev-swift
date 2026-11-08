@@ -8,7 +8,8 @@ public struct WorkspaceSayRecord: Sendable, Hashable {
     public init?(toolName: String, input: JSONValue, resultText: String) {
         guard Self.isWorkspaceSay(toolName),
               let text = input["message"]?.stringValue,
-              let answer = JSONValue.parse(resultText),
+              let answer = JSONValue.parse(resultText)
+                ?? BridgeWorkspaceQuote.json(inside: resultText).flatMap(JSONValue.parse),
               let id = answer[WorkspaceSayTool.Key.messageID]?.stringValue
         else { return nil }
 

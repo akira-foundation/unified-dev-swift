@@ -9,6 +9,7 @@ public enum BridgeReadTrouble: Error, Sendable, Equatable {
     case callerHasGone
     case callerArchived
     case profile(BridgeProfileTrouble)
+    case profileNeedsWorkspace
 
     public func sentence(tool: String) -> String {
         switch self {
@@ -36,6 +37,9 @@ public enum BridgeReadTrouble: Error, Sendable, Equatable {
 
         case .profile(let trouble):
             return trouble.sentence
+
+        case .profileNeedsWorkspace:
+            return "\(tool) needs 'workspace' as well when it is given 'profile': the id workspace_list reports for that profile."
 
         case .callerHasGone:
             return """

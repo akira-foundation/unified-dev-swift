@@ -50,7 +50,7 @@ public enum BridgeReadTarget: Sendable, Equatable {
         case .success(let resolved): choice = resolved
         }
         if case .other(let profile) = choice {
-            guard let given else { return .failure(.noWorkspaceNamed) }
+            guard let given else { return .failure(.profileNeedsWorkspace) }
             return crossed(try await BridgeWorkspaceLookup.activeTarget(given, in: profile, store: store), given, profile)
         }
         guard let given else {
