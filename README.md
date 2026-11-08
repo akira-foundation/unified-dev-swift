@@ -4,6 +4,7 @@
 
 <p align="center">
   <a href="https://github.com/akira-foundation/unified-dev-swift/releases/latest"><img src="https://img.shields.io/github/v/release/akira-foundation/unified-dev-swift" alt="Latest release"></a>
+  <a href="https://github.com/akira-foundation/unified-dev-swift/releases"><img src="https://img.shields.io/github/downloads/akira-foundation/unified-dev-swift/total" alt="Downloads"></a>
   <a href="https://github.com/akira-foundation/unified-dev-swift/actions/workflows/test.yml"><img src="https://github.com/akira-foundation/unified-dev-swift/actions/workflows/test.yml/badge.svg" alt="tests"></a>
   <img src="https://img.shields.io/badge/macOS-26-blue" alt="macOS 26">
   <img src="https://img.shields.io/badge/Swift-6.2-orange" alt="Swift 6.2">
