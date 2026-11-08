@@ -212,7 +212,7 @@ this Mac rather than a profile.
 A profile can be opened to the others, and a few callers can then cross into it. The default is closed:
 with every switch off, every tool answers as it does without this section.
 
-**Who.** `BridgeProfileReach.caller` reads it from the rows on every call.
+**Who.** `BridgeProfileReach.caller` reads it from the rows on every call, and from what the chat's bridge token recorded when it launched.
 
 | Caller | May cross when |
 | --- | --- |

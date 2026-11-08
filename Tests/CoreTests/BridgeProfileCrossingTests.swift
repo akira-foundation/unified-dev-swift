@@ -327,6 +327,25 @@ struct BridgeProfileCrossingTests {
         #expect(report.sent.contains(w.world.farWorkspace.id.rawValue))
     }
 
+    @Test("a notice of a blocked agent in another profile does not name the tool it asked for")
+    func noticeHidesTool() async throws {
+        let w = try await ProfileReachWorld.make("cross-notice-tool")
+        try await w.open(.initial, w.akira)
+        _ = await w.say(as: w.lead, notify: true)
+        let row = try #require(w.window.sent.first)
+        _ = try await w.store.markDelivered(id: try #require(row.deliveryID))
+        let farChat = try #require(try await w.store.sessions(workspaceID: w.world.farWorkspace.id).first)
+
+        _ = try await w.store.settleWorkspaceDoneWatches(
+            on: w.world.farWorkspace.id, ending: .waitingOnPermission(tool: "planted_tool_name"), in: farChat.id,
+            isSubagentChat: false
+        )
+
+        let report = try #require(try await w.store.pendingDeliveries(sessionID: w.leadChat.id).first?.crewMessage)
+        #expect(!report.sent.contains("planted_tool_name"))
+        #expect(report.sent.contains("permission to use a tool"))
+    }
+
     @Test("a message from another profile puts the sender's names inside the markers")
     func originInsideMarkers() async throws {
         let w = try await ProfileReachWorld.make("cross-origin")

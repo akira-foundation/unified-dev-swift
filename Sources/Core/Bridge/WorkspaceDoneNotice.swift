@@ -58,7 +58,7 @@ public enum WorkspaceDoneNotice {
 
         case .waitingOnPermission(let tool):
             return "The agent in \(site) is blocked, not working: while running \(caused) it asked "
-                + "the owner for permission to use \(WorkspaceMessage.oneLine(String(tool.prefix(80)))) "
+                + "the owner for permission to use \(watch.target.profile == nil ? WorkspaceMessage.oneLine(String(tool.prefix(80))) : "a tool") "
                 + "and is waiting for an answer. " + once + blocked
 
         case .waitingOnQuestion:
