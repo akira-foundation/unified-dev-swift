@@ -312,6 +312,20 @@ struct AppRequestTests {
         #expect(AppRequest.Source.allCases.filter(\.hidesTurn) == [.pullRequestBar])
     }
 
+    @Test("a merge from the bar is refused while the agent is busy, because it would wait out of sight")
+    func aHiddenMergeWaitsForTheTurn() {
+        #expect(AppRequest.mergeRefusal(from: .pullRequestBar, agentIsBusy: true)
+            == "The agent is still working here, so the merge was not queued out of sight."
+                + " Merge again when it finishes.")
+        #expect(AppRequest.mergeRefusal(from: .pullRequestBar, agentIsBusy: false) == nil)
+    }
+
+    @Test("a merge that stays visible may wait in the queue, where the owner can delete it")
+    func aVisibleMergeMayQueue() {
+        #expect(AppRequest.mergeRefusal(from: .agentThroughBridge, agentIsBusy: true) == nil)
+        #expect(AppRequest.mergeRefusal(from: .inspectorToolbar, agentIsBusy: true) == nil)
+    }
+
     @Test("the same conflict request pasted by the owner stays the owner's bubble")
     func thePastedConflictRequestStaysVisible() async throws {
         let store = try makeTestStore("app-request-conflicts-lookalike")

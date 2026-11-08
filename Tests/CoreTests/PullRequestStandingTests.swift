@@ -211,6 +211,10 @@ struct PullRequestStandingTests {
 
     @Test("Every request the bar sends says it leaves without a bubble")
     func everyRequestOfTheBarIsSilent() throws {
+        let openPullRequest = standing(pullRequest: nil).button
+        let failedCheck = standing(
+            pullRequest: pullRequest(checks: .failing, checksSummary: "1 of 12 checks failed")
+        ).button
         let draft = standing(
             pullRequest: pullRequest(isDraft: true, checks: .passing, checksSummary: "12 checks passed")
         ).button
@@ -222,6 +226,10 @@ struct PullRequestStandingTests {
         #expect(draft?.sentence.contains(PullRequestStanding.sentWithoutABubble) == true)
         #expect(push?.act == .push)
         #expect(push?.sentence.contains(PullRequestStanding.sentWithoutABubble) == true)
+        #expect(openPullRequest?.act == .openPullRequest)
+        #expect(openPullRequest?.sentence.contains(PullRequestStanding.sentWithoutABubble) == true)
+        #expect(failedCheck?.act == .askToFixChecks)
+        #expect(failedCheck?.sentence.contains(PullRequestStanding.sentWithoutABubble) == true)
         #expect(PullRequestStanding.sentWithoutABubble
             == "The request goes as soon as you click and does not appear in the conversation.")
     }

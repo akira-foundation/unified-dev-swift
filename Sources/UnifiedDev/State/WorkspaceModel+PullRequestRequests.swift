@@ -85,6 +85,9 @@ extension WorkspaceModel {
         guard let session = await sessionToWriteInto(titledIfNew: "Merge") else {
             return "Could not open a session in \(workspace.name) to send the request to."
         }
+        let chat = transcript(for: session)
+        let isBusy = chat.isRunning || chat.queuesNextMessage || chat.sending != nil
+        if let refusal = AppRequest.mergeRefusal(from: source, agentIsBusy: isBusy) { return refusal }
 
         let context = MergePromptContext(workspace: workspace, pullRequest: pullRequest, method: method)
         let render = context.render(template: overrides.template(for: .mergePullRequest))

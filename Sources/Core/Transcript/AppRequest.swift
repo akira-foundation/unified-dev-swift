@@ -17,6 +17,13 @@ public enum AppRequest {
     public static let unconfirmedSentence =
         "Unified Dev could not confirm that its request reached the agent. Send it again only if the agent did not answer."
 
+    public static let mergeWaitsForTheTurn =
+        "The agent is still working here, so the merge was not queued out of sight. Merge again when it finishes."
+
+    public static func mergeRefusal(from source: Source, agentIsBusy: Bool) -> String? {
+        source.hidesTurn && agentIsBusy ? mergeWaitsForTheTurn : nil
+    }
+
     public static let sentBy = "unified_dev"
 
     private static let eventMarker = Data("\"app_request\"".utf8)
