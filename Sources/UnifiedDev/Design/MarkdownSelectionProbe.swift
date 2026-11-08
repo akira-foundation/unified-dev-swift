@@ -269,7 +269,7 @@ enum MarkdownSelectionProbe {
     }
 
     private static func finish(_ failures: [String], window: NSWindow) -> Never {
-        let result: [String: Any] = ["diagnostics": diagnostics, "failures": failures, "passed": failures.isEmpty, "visible": window.isVisible]
+        let result: [String: Any] = ["failures": failures, "passed": failures.isEmpty, "visible": window.isVisible]
         if let data = try? JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys]) {
             FileHandle.standardOutput.write(data)
         }

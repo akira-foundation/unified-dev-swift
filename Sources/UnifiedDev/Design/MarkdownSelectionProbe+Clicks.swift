@@ -62,7 +62,7 @@ extension MarkdownSelectionProbe {
         window.close()
     }
 
-    static func press(at point: NSPoint, in window: NSWindow) {
+    private static func press(at point: NSPoint, in window: NSWindow) {
         NSApp.postEvent(mouseEvent(.leftMouseUp, at: point, in: window), atStart: false)
         window.sendEvent(mouseEvent(.leftMouseDown, at: point, in: window))
         window.sendEvent(mouseEvent(.leftMouseUp, at: point, in: window))
