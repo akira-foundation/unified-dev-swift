@@ -13,8 +13,32 @@ extension AppModel {
 
     func setOrchestrator(_ workspace: Workspace, _ isOrchestrator: Bool) async {
         guard let store else { return }
+        let terminalAgents = isOrchestrator ? await TerminalSessionStore.shared.agentsInTerminals(of: workspace.id) : []
+        let hasLiveWork = OrchestratorHandover.hasLiveWork(
+            isMidTurn: isAgentMidTurn(workspace),
+            hasBackgroundWork: workspaceModels[workspace.id]?.hasRunningBackgroundTasks ?? false,
+            terminalAgents: terminalAgents
+        )
         do {
-            try await store.setOrchestrator(isOrchestrator, workspaceID: workspace.id)
+            try await store.setOrchestrator(isOrchestrator, workspaceID: workspace.id, hasLiveWork: hasLiveWork)
+        } catch WorkspaceError.orchestratorHasLiveWork {
+            await handOverOrchestrator(from: workspace, terminalAgents: terminalAgents ?? [], store: store)
+        } catch {
+            notice = Notice(message: WorkspaceTrouble.complaint(about: error), tone: .warning)
+        }
+    }
+
+    private func handOverOrchestrator(from workspace: Workspace, terminalAgents: [AgentKind], store: Store) async {
+        do {
+            guard let repo = repos.first(where: { $0.id == workspace.repoID }),
+                  let prompt = try await store.orchestratorHandover(
+                      from: workspace.id, terminalAgents: terminalAgents
+                  ) else { return }
+            let orchestrator = try await startWorkspace(
+                in: repo, prompt: prompt, baseBranch: workspace.baseBranch,
+                name: OrchestratorHandover.name(from: workspace), orchestrates: true
+            )
+            notice = Notice(message: OrchestratorHandover.notice(from: workspace, to: orchestrator))
         } catch {
             notice = Notice(message: WorkspaceTrouble.complaint(about: error), tone: .warning)
         }

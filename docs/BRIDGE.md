@@ -229,8 +229,18 @@ an agent. `BridgeToolApproval.isSelfApproved(toolName:input:inWorkspace:)` decid
 decides how a stored card reads afterwards. This rule adds no card for an Ask chat or the owner's standalone client,
 which are the owner's own. Codex has no approval request for an MCP tool call, so nothing could stop it, and
 `BridgeProfileReach.caller` confines it instead. An orchestrator always launches in a mode that asks, and
-that launch is what the bridge token records: a chat already running when its workspace becomes the orchestrator
-cannot cross until its next start. An "always allow" the owner grants holds for that chat, by the owner's choice.
+that launch is what the bridge token records: a chat at rest when its workspace becomes the orchestrator
+cannot cross until its next start, which is its next message. An "always allow" the owner grants holds for that chat, by the owner's choice.
+
+**The role does not land on a workspace at work.** The limits on an orchestrator are applied when an agent
+launches, and a turn already running under `acceptEdits` or `bypassPermissions`, Codex's sandbox once its thread is
+open, and a terminal chat have nowhere to be stopped afterwards. So `Store.setOrchestrator` refuses, in the same
+write, when any chat of the workspace is running or waiting, crew included, and when the app says something is still at work there:
+a background task of a chat, or an agent process it finds in one of the workspace's terminals when asked, or it cannot tell.
+Make Orchestrator then leaves that workspace exactly as it is and starts a new one as the orchestrator, opened
+with `OrchestratorHandover`'s account: the workspace it stands in for, its chats, the most recent of their conversations, any agent
+found in a terminal, and the instruction to leave those agents running. Every name and transcript in that account is fenced as untrusted text. A workspace whose chats are all at rest takes the
+role where it stands.
 
 **What.** Reading and talking, and nothing that creates: `project_list`, `workspace_list`, `chat_list`,
 `chat_read`, `workspace_diff` and `workspace_say`. `workspace_start` stays inside the caller's profile, and
