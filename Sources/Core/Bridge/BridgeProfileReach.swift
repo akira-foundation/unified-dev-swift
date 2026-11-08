@@ -27,19 +27,23 @@ public enum BridgeProfileReach {
     static let schemaProperty: JSONValue = .object([
         "type": .string("string"),
         "description": .string(
-            "Another profile to act in, by its id or by a name no other profile shares. Leave it out "
-                + "to stay in your own. Only a project's orchestrator and the owner's own clients can "
-                + "reach another profile, and only one the owner has opened."
+            "Another profile to act in, by its id or by a name no other reachable profile shares. "
+                + "Leave it out to stay in your own. Only a project's orchestrator and the owner's own "
+                + "clients can reach another profile, only one the owner has opened, and an "
+                + "orchestrator's own profile must be open too. The owner approves an orchestrator's "
+                + "every call that names one."
         ),
     ])
 
     static let listSchemaProperty: JSONValue = .object([
         "type": .string("string"),
         "description": .string(
-            "Another profile to list, by its id or by a name no other profile shares, or 'all' for "
-                + "your own and every other you can reach. Leave it out to stay in your own. Only a "
-                + "project's orchestrator and the owner's own clients can reach another profile, and "
-                + "only one the owner has opened. Each row then says which profile it belongs to."
+            "Another profile to list, by its id or by a name no other reachable profile shares, or "
+                + "'all' for your own and every other you can reach. Leave it out to stay in your own. "
+                + "Only a project's orchestrator and the owner's own clients can reach another profile, "
+                + "only one the owner has opened, and an orchestrator's own profile must be open too. "
+                + "The owner approves an orchestrator's every call that names one. Each row then says "
+                + "which profile it belongs to."
         ),
     ])
 
@@ -60,7 +64,8 @@ public enum BridgeProfileReach {
                   let workspace = try await store.workspace(id: workspaceID),
                   workspace.isOrchestrator, workspace.state == .active,
                   let session = try await store.session(id: sessionID),
-                  session.workspaceID == workspaceID, session.parentSessionID == nil
+                  session.workspaceID == workspaceID, session.parentSessionID == nil,
+                  session.agentKind != .codex
             else { return .confined }
             return .orchestrator
         }

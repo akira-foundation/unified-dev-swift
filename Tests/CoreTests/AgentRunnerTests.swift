@@ -930,6 +930,24 @@ struct AgentRunnerPermissionTests {
         return event
     }
 
+    @Test("a call in a workspace chat that names another profile stops for the owner")
+    func crossingCallStopsForTheOwner() async throws {
+        let store = try makeTestStore("perm")
+        let session = try await makeSession(store)
+        let (runner, process) = try await running(store, session: session)
+        let line = askLine()
+            .replacingOccurrences(
+                of: #""tool_name":"Bash""#,
+                with: #""tool_name":"mcp__unifieddev-workspace-bridge__workspace_diff""#
+            )
+            .replacingOccurrences(of: #""command":"sudo -n true""#, with: #""profile":"Akira""#)
+
+        await runner.ingest(try #require(AgentEvent.decode(line: line)))
+
+        #expect(answers(on: process).isEmpty)
+        #expect(await runner.pendingAsks.count == 1)
+    }
+
     @Test("a self-approved bridge tool is answered without becoming a question")
     func selfApprovedLeavesNoCard() async throws {
         let store = try makeTestStore("perm")
@@ -983,17 +1001,17 @@ struct AgentRunnerPermissionTests {
         let stored = try #require(PermissionAsk.decode(payload: Data(line.utf8)))
 
         #expect(BridgeToolApproval.isSelfApproved(toolName: stored.toolName))
-        #expect(stored.standing(in: [:]) == nil)
+        #expect(stored.standing(in: [:], inWorkspace: false) == nil)
     }
 
     @Test("a stored ask for a self-approved tool reads as settled, and any other waits for its decision")
     func storedSelfApprovedAskIsSettled() throws {
         guard case .permissionAsk(let bridge) = try selfApprovedAsk() else { return }
 
-        #expect(bridge.standing(in: [:]) == PermissionAskOutcome.selfApproved)
-        #expect(bridge.standing(in: ["req-1": "deny"]) == "deny")
-        #expect(ask().standing(in: [:]) == nil)
-        #expect(ask().standing(in: ["req-1": "allow"]) == "allow")
+        #expect(bridge.standing(in: [:], inWorkspace: false) == PermissionAskOutcome.selfApproved)
+        #expect(bridge.standing(in: ["req-1": "deny"], inWorkspace: false) == "deny")
+        #expect(ask().standing(in: [:], inWorkspace: false) == nil)
+        #expect(ask().standing(in: ["req-1": "allow"], inWorkspace: false) == "allow")
     }
 
     @Test("the question is on the pile and in the transcript")

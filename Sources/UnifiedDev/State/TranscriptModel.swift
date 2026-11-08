@@ -306,6 +306,7 @@ final class TranscriptModel {
         SwitchTrace.mark("transcript.read.done", workspace: workspace?.id)
         let decisions = (try? await store.permissionAskDecisions(sessionID: session.id)) ?? [:]
         let answers = (try? await store.permissionAskAnswers(sessionID: session.id)) ?? [:]
+        let inWorkspace = session.workspaceID != nil
 
         let built = await Task.detached(priority: .userInitiated) {
             var rows: [TranscriptRow] = []
@@ -317,6 +318,7 @@ final class TranscriptModel {
                     message,
                     decisions: decisions,
                     answers: answers,
+                    inWorkspace: inWorkspace,
                     into: &rows,
                     indexByRefID: &index
                 )
@@ -357,6 +359,7 @@ final class TranscriptModel {
         _ message: Message,
         decisions: [String: String],
         answers: [String: [String: String]] = [:],
+        inWorkspace: Bool = false,
         into rows: inout [TranscriptRow],
         indexByRefID: inout [String: Int]
     ) {
@@ -375,7 +378,7 @@ final class TranscriptModel {
         row.parentToolUseID = ParentProbe.parentToolUseID(message.payload)
         if message.kind == .permissionAsk,
            let ask = PermissionAsk.decode(payload: message.payload) {
-            row.permissionDecision = ask.standing(in: decisions)
+            row.permissionDecision = ask.standing(in: decisions, inWorkspace: inWorkspace)
             row.isQuestion = ask.isQuestion
             row.permissionAnswers = answers[ask.requestID] ?? [:]
         }
@@ -399,7 +402,10 @@ final class TranscriptModel {
         let changedIndex = message.kind == .toolResult
             ? message.refID.flatMap { indexByRefID[$0] } ?? rows.count : rows.count
         foldCache.invalidate(row: changedIndex)
-        Self.absorb(message, decisions: decisions, into: &rows, indexByRefID: &indexByRefID)
+        Self.absorb(
+            message, decisions: decisions, inWorkspace: session.workspaceID != nil,
+            into: &rows, indexByRefID: &indexByRefID
+        )
         presentationRevision += 1
         if SendingSlot.retires(sending, onPersisting: message.kind) { sending = nil }
     }
