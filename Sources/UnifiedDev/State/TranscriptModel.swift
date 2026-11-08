@@ -1113,9 +1113,9 @@ final class TranscriptModel {
         }
     }
 
-    private var isOrchestratorWorkspace: Bool {
+    private func readOrchestratorRole(from store: Store) async -> Bool {
         guard let id = workspace?.id else { return false }
-        return app.workspaces.first { $0.id == id }?.isOrchestrator ?? false
+        return await store.orchestratesAtLaunch(workspaceID: id)
     }
 
     private var isWorkspaceArchiving: Bool {
@@ -1156,8 +1156,9 @@ final class TranscriptModel {
         }
         let account = resolved
         guard !usesInteractiveTerminal else { return nil }
+        let orchestrates = await readOrchestratorRole(from: store)
         let fingerprint = AgentRunnerFingerprint(
-            session: session, account: account, orchestrates: isOrchestratorWorkspace, segment: seat.segmentID
+            session: session, account: account, orchestrates: orchestrates, segment: seat.segmentID
         )
         let setup = AgentRunnerSetup.decide(
             gate: AgentDeliveryGate.decide(
@@ -1223,7 +1224,7 @@ final class TranscriptModel {
         )
         self.runner = runner
         runnerFingerprint = AgentRunnerFingerprint(
-            session: session, account: account, orchestrates: isOrchestratorWorkspace, segment: seat.segmentID
+            session: session, account: account, orchestrates: orchestrates, segment: seat.segmentID
         )
         startIdleEviction()
         startPump(on: runner)

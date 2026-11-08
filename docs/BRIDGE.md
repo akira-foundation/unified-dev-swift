@@ -1154,8 +1154,10 @@ fortnight, which is ordinary use; what is not ordinary is the rate. Neither numb
 limit. Six worktrees and six agents is already real money, and the point of both is that somebody
 notices at six or at eight instead of at forty.
 
-Both are counted from the database rather than kept in memory, so they survive a restart and two
-calls racing cannot both read the same stale number.
+Both are counted from the database rather than kept in memory, so they survive a restart. The count
+is a reading and not a reservation: a workspace's row is written only after `git worktree add` has finished,
+so two starts at the same moment can both pass on the same number. Nothing is taken back; the next start is
+refused until it holds fewer than the ceiling.
 
 Every start is deduplicated by a digest of the call, because a model retries and a retried spawn
 cuts a second worktree. A repeat answers with the workspace that already exists and a note saying
@@ -1345,6 +1347,16 @@ it through. "Allowed automatically" with no reason is the thing that makes peopl
 permission model.
 
 ### What an orchestrator's commands get
+
+**The role does not land on a workspace at work.** The limits on an orchestrator are applied when an agent
+launches, and a turn already running under `acceptEdits` or `bypassPermissions`, Codex's sandbox once its thread is
+open, and a terminal chat have nowhere to be stopped afterwards. So `Store.setOrchestrator` refuses, in the same
+write, when any chat of the workspace is running or waiting, crew included, and when the app says something is still at work there:
+a background task of a chat, or an agent process it finds in one of the workspace's terminals when asked, or it cannot tell.
+Make Orchestrator then leaves that workspace exactly as it is and starts a new one as the orchestrator, opened
+with `OrchestratorHandover`'s account: the workspace it stands in for, its chats, the most recent of their conversations, any agent
+found in a terminal, and the instruction to leave those agents running. Every name and transcript in that account is fenced as untrusted text. A workspace whose chats are all at rest takes the
+role where it stands.
 
 The project's orchestrator gets three answers to a shell command, and `OrchestratorToolGuard` picks
 one on every ask, reading the role from the store each time.

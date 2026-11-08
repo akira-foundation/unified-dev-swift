@@ -12,6 +12,7 @@ public enum WorkspaceError: Error, CustomStringConvertible {
     case archiveScriptIncomplete(ShellFailure)
     case workspaceGone(String)
     case orchestratorRefused(String)
+    case orchestratorHasLiveWork
 
     public var description: String {
         switch self {
@@ -29,6 +30,8 @@ public enum WorkspaceError: Error, CustomStringConvertible {
             "The archive script did not finish, so nothing was removed: \(failure.description)"
         case .workspaceGone(let name): "\(name) is no longer in the database"
         case .orchestratorRefused(let sentence): sentence
+        case .orchestratorHasLiveWork:
+            "An agent is working in this workspace or a chat is open in its terminal, so it cannot become the orchestrator."
         }
     }
 }
