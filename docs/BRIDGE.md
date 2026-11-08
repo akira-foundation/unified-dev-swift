@@ -1558,8 +1558,8 @@ It holds to the same rule as the switch above: it lives under `PullRequestAutoFi
 already running as this user can open the database.
 
 Anything the decision cannot establish counts as no: the fork flag, the pull request's author, the signed in
-account and the author of every commit on the head. That narrows who can put text in front of the agent and does
-not close it. A failed check's log is still text the agent reads with nobody reading it first.
+account and the author GitHub attributes every commit on the head to. That attribution comes from what a commit
+declares, so it narrows who can put text in front of the agent and does not close it. A failed check's log is still text the agent reads with nobody reading it first.
 
 ## 6. How each CLI is told the bridge exists
 
