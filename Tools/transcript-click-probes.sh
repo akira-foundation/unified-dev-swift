@@ -24,6 +24,7 @@ if b'--markdown-selection-probe' not in pathlib.Path(app, 'Contents/MacOS/Unifie
     raise SystemExit('Build the debug app with swift build before running these probes.')
 probes = {
     'markdown-selection': ['--markdown-selection-probe', '--markdown-selection-probe-out', root],
+    'selection-reply': ['--selection-reply-probe', f'{root}/selection-reply.json'],
 }
 for name, arguments in probes.items():
     stdout = f'{root}/{name}.stdout'

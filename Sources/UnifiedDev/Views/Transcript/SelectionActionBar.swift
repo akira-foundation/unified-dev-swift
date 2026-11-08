@@ -44,10 +44,10 @@ struct SelectionActionOverlay: View {
                     onSideChat: onSideChat.map { action in { reader.clear(); action(selection) } },
                     onReply: { reader.beginReply(to: selection) }
                 )
-                .position(position(for: selection.anchor, in: proxy.size))
                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(Self.space)) } action: {
                     reader.barFrame = $0
                 }
+                .position(position(for: selection.anchor, in: proxy.size))
                 .onDisappear { reader.barFrame = .null }
                 .transition(.opacity)
             }

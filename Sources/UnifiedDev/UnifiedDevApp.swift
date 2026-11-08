@@ -65,6 +65,9 @@ struct UnifiedDevApp: App {
         if StreamingRenderingProbe.isRequested { StreamingRenderingProbe.schedule() }
         if MergeContrastProbe.isRequested { MergeContrastProbe.schedule() }
         if ReplyQuoteProbe.isRequested { ReplyQuoteProbe.schedule() }
+        #if DEBUG
+        if SelectionReplyProbe.isRequested { SelectionReplyProbe.schedule() }
+        #endif
         if WelcomeRestartProbe.isRequested { WelcomeRestartProbe.schedule() }
 
         if IdleProbe.isRequested { IdleProbe.schedule() }
