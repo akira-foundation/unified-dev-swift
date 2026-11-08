@@ -14,6 +14,7 @@ struct RootView: View {
 
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var centreWidth: CGFloat = 0
+    @State private var sidebarWidth: CGFloat = 0
     @State private var isStartingProject = false
 
     var body: some View {
@@ -27,6 +28,10 @@ struct RootView: View {
                         ideal: Metrics.sidebarWidth,
                         max: columns.sidebarCeiling
                     )
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { sidebarWidth = $0 }
+                    .toolbar {
+                        ProfileSwitcherToolbar(app: app, drawsSidebar: columns.drawsSidebar, sidebarWidth: sidebarWidth)
+                    }
             } content: {
                 DetailColumn()
                     .navigationSplitViewColumnWidth(

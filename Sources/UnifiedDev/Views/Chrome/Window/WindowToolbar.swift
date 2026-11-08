@@ -12,13 +12,6 @@ struct WindowToolbar: ToolbarContent {
     @FocusedValue(\.notesFormatting) private var notesFormatting: NotesFormattingContext?
 
     var body: some ToolbarContent {
-        if showsProfileMark, let profile = app.activeProfile {
-            ToolbarItem(placement: .navigation) {
-                ProfileWindowMark(profile: profile)
-            }
-            .sharedBackgroundVisibility(.hidden)
-        }
-
         if app.selection == .home {
             ToolbarItemGroup(placement: .principal) {
                 homeScopePicker

@@ -22,6 +22,7 @@ struct UnifiedDevApp: App {
         if ArchiveRetentionProbe.isRequested { ArchiveRetentionProbe.runAndExit() }
         if ProfileProbe.isRequested { ProfileProbe.runAndExit() }
         if NotificationBellProbe.isRequested { NotificationBellProbe.runAndExit() }
+        if ProfileToolbarProbe.isRequested { ProfileToolbarProbe.runAndExit() }
         if SearchPanelProbe.isRequested { SearchPanelProbe.runAndExit() }
         if CanvasEditorProbe.isRequested { CanvasEditorProbe.runAndExit() }
         #endif

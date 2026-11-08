@@ -5,7 +5,7 @@ public enum ToolbarTabsWidth {
 
     public static let reservedForActions: CGFloat = 170
 
-    public static let reservedForProfileMark: CGFloat = 36
+    public static let reservedForProfileMark: CGFloat = 44
 
     public static func width(inColumn column: CGFloat, showingProfileMark: Bool = false) -> CGFloat {
         max(minimum, column - reservedForActions - (showingProfileMark ? reservedForProfileMark : 0))
