@@ -77,7 +77,9 @@ public enum PullRequestAutoFix {
         public var localWork: LocalWork?
         public var workspaceBranch: String
         public var checkedOutBranch: String?
+        public var checkedOutHead: String?
         public var viewerLogin: String?
+        public var headCommitAuthors: Set<String>?
         public var isArchived: Bool
         public var chat: Chat
         public var account: Account
@@ -89,7 +91,9 @@ public enum PullRequestAutoFix {
             localWork: LocalWork?,
             workspaceBranch: String,
             checkedOutBranch: String?,
+            checkedOutHead: String?,
             viewerLogin: String?,
+            headCommitAuthors: Set<String>?,
             isArchived: Bool,
             chat: Chat,
             account: Account,
@@ -100,7 +104,9 @@ public enum PullRequestAutoFix {
             self.localWork = localWork
             self.workspaceBranch = workspaceBranch
             self.checkedOutBranch = checkedOutBranch
+            self.checkedOutHead = checkedOutHead
             self.viewerLogin = viewerLogin
+            self.headCommitAuthors = headCommitAuthors
             self.isArchived = isArchived
             self.chat = chat
             self.account = account
@@ -113,7 +119,7 @@ public enum PullRequestAutoFix {
         guard situation.isEnabled else { return .leave(.switchedOff) }
         guard pullRequest.isOpen else { return .leave(.notOpen) }
         guard !situation.isArchived else { return .leave(.archived) }
-        guard isTheOwners(pullRequest, viewerLogin: situation.viewerLogin) else { return .leave(.notTheOwners) }
+        guard isTheOwners(situation) else { return .leave(.notTheOwners) }
         guard isOnWorkspaceBranch(situation) else { return .leave(.notThisBranch) }
 
         if isSettled(pullRequest), situation.ledger.inARow > 0 { return .forgiveRun }
@@ -121,7 +127,9 @@ public enum PullRequestAutoFix {
         guard let reason = reason(pullRequest, localWork: situation.localWork) else { return .leave(.nothingToFix) }
         guard let head = pullRequest.headCommit, !head.isEmpty else { return .leave(.unknownHead) }
         guard pullRequest.hasUnfinishedChecks == false else { return .leave(.checksUnfinished) }
-        guard let local = situation.localWork, !local.isAhead else { return .leave(.localWork) }
+        guard let local = situation.localWork, !local.isAhead, situation.checkedOutHead == head else {
+            return .leave(.localWork)
+        }
         if let held = held(by: situation.chat) { return .leave(held) }
 
         if situation.ledger.inARow >= attemptsInARow {
@@ -137,16 +145,18 @@ public enum PullRequestAutoFix {
         }
     }
 
-    private static func isTheOwners(_ pullRequest: PullRequest, viewerLogin: String?) -> Bool {
-        guard pullRequest.isFromFork == false,
-              let author = pullRequest.author, !author.isEmpty,
-              let viewerLogin, !viewerLogin.isEmpty
+    private static func isTheOwners(_ situation: Situation) -> Bool {
+        guard situation.pullRequest.isFromFork == false,
+              let author = situation.pullRequest.author,
+              let viewer = situation.viewerLogin, !viewer.isEmpty,
+              let commitAuthors = situation.headCommitAuthors, !commitAuthors.isEmpty
         else { return false }
-        return author.caseInsensitiveCompare(viewerLogin) == .orderedSame
+        return ([author] + commitAuthors).allSatisfy { $0.caseInsensitiveCompare(viewer) == .orderedSame }
     }
 
     private static func isOnWorkspaceBranch(_ situation: Situation) -> Bool {
-        situation.pullRequest.branch == situation.workspaceBranch
+        !situation.workspaceBranch.isEmpty
+            && situation.pullRequest.branch == situation.workspaceBranch
             && situation.checkedOutBranch == situation.workspaceBranch
     }
 
@@ -158,7 +168,7 @@ public enum PullRequestAutoFix {
         let status = pullRequest.status(local: localWork)
         switch PullRequestStanding.act(for: status.remedy, checks: pullRequest.checks) {
         case .askToFixConflicts: return .conflicts
-        case .askToFixChecks: return .checks
+        case .askToFixChecks: return pullRequest.hasFixableCheckFailure == true ? .checks : nil
         default: return nil
         }
     }

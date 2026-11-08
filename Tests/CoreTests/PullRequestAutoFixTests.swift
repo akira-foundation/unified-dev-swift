@@ -14,12 +14,14 @@ struct PullRequestAutoFixTests {
         headCommit: String? = Self.head,
         author: String? = "owner",
         isFromFork: Bool? = false,
-        hasUnfinishedChecks: Bool? = false
+        hasUnfinishedChecks: Bool? = false,
+        hasFixableCheckFailure: Bool? = true
     ) -> PullRequest {
         PullRequest(
             number: 7, title: "t", url: "u", state: state, mergeable: mergeable, checks: checks,
             branch: branch, baseBranch: "develop", headCommit: headCommit, author: author,
-            isFromFork: isFromFork, hasUnfinishedChecks: hasUnfinishedChecks
+            isFromFork: isFromFork, hasUnfinishedChecks: hasUnfinishedChecks,
+            hasFixableCheckFailure: hasFixableCheckFailure
         )
     }
 
@@ -28,7 +30,9 @@ struct PullRequestAutoFixTests {
         pullRequest: PullRequest? = nil,
         localWork: LocalWork? = LocalWork(),
         checkedOutBranch: String? = "feat/work",
+        checkedOutHead: String? = Self.head,
         viewerLogin: String? = "owner",
+        headCommitAuthors: Set<String>? = ["owner"],
         isArchived: Bool = false,
         chat: PullRequestAutoFix.Chat = .ready,
         account: PullRequestAutoFix.Account = .usable,
@@ -40,7 +44,9 @@ struct PullRequestAutoFixTests {
             localWork: localWork,
             workspaceBranch: "feat/work",
             checkedOutBranch: checkedOutBranch,
+            checkedOutHead: checkedOutHead,
             viewerLogin: viewerLogin,
+            headCommitAuthors: headCommitAuthors,
             isArchived: isArchived,
             chat: chat,
             account: account,
@@ -265,5 +271,80 @@ struct PullRequestAutoFixTests {
         let theirs = pullRequest(checks: .passing, author: "someone-else")
         let ledger = PullRequestAutoFix.Ledger(inARow: 2)
         #expect(PullRequestAutoFix.decide(situation(pullRequest: theirs, ledger: ledger)) == .leave(.notTheOwners))
+    }
+
+    @Test("a failure that only cancelled runs produced asks for nothing, and not knowing asks for nothing", arguments: [Bool?.some(false), nil])
+    func cancelledOnly(hasFixable: Bool?) {
+        let cancelled = pullRequest(hasFixableCheckFailure: hasFixable)
+        #expect(PullRequestAutoFix.decide(situation(pullRequest: cancelled)) == .leave(.nothingToFix))
+    }
+
+    @Test("a checkout that moved past the pull request's head holds it back", arguments: [String?.some("later"), nil])
+    func checkoutMoved(checkedOutHead: String?) {
+        #expect(PullRequestAutoFix.decide(situation(checkedOutHead: checkedOutHead)) == .leave(.localWork))
+    }
+
+    @Test("unpushed commits hold a conflict back")
+    func unpushedHoldsConflict() {
+        let conflicted = pullRequest(mergeable: "CONFLICTING", checks: .passing)
+        let unpushed = LocalWork(unpushedCommits: 1)
+        #expect(PullRequestAutoFix.decide(situation(pullRequest: conflicted, localWork: unpushed)) == .leave(.localWork))
+    }
+
+    @Test("a third attempt whose turn pushed nothing still tells the owner")
+    func stopOnTheSameHead() {
+        let ledger = PullRequestAutoFix.Ledger(inARow: 3, tried: [attempt(.checks)])
+        #expect(PullRequestAutoFix.decide(situation(ledger: ledger)) == .announceStop)
+    }
+
+    @Test("a missing account does not keep the stop from being told")
+    func stopDespiteNoAccount() {
+        let ledger = PullRequestAutoFix.Ledger(inARow: 3)
+        #expect(PullRequestAutoFix.decide(situation(account: .missing, ledger: ledger)) == .announceStop)
+    }
+
+    @Test("green forgives from one attempt up to a run that was already told", arguments: [
+        PullRequestAutoFix.Ledger(inARow: 1),
+        PullRequestAutoFix.Ledger(inARow: 3),
+        PullRequestAutoFix.Ledger(inARow: 3, stopAnnounced: true),
+    ])
+    func greenForgivesAnyRun(ledger: PullRequestAutoFix.Ledger) {
+        let passing = pullRequest(checks: .passing)
+        #expect(PullRequestAutoFix.decide(situation(pullRequest: passing, ledger: ledger)) == .forgiveRun)
+    }
+
+    @Test("green does not forgive with the switch off, on a closed pull request, in an archived workspace or on another branch")
+    func greenForgivesOnlyWhereItApplies() {
+        let passing = pullRequest(checks: .passing)
+        let ledger = PullRequestAutoFix.Ledger(inARow: 2)
+        let closed = pullRequest(state: "CLOSED", checks: .passing)
+        let elsewhere = pullRequest(checks: .passing, branch: "feat/other")
+        #expect(PullRequestAutoFix.decide(situation(isEnabled: false, pullRequest: passing, ledger: ledger)) == .leave(.switchedOff))
+        #expect(PullRequestAutoFix.decide(situation(pullRequest: closed, ledger: ledger)) == .leave(.notOpen))
+        #expect(PullRequestAutoFix.decide(situation(pullRequest: passing, isArchived: true, ledger: ledger)) == .leave(.archived))
+        #expect(PullRequestAutoFix.decide(situation(pullRequest: elsewhere, ledger: ledger)) == .leave(.notThisBranch))
+    }
+
+    @Test("a commit by anyone else on the owner's own pull request stops it, and not knowing stops it", arguments: [
+        Set<String>?.some(["owner", "collaborator"]),
+        .some(["collaborator"]),
+        .some([""]),
+        .some([]),
+        nil,
+    ])
+    func otherCommitAuthors(authors: Set<String>?) {
+        #expect(PullRequestAutoFix.decide(situation(headCommitAuthors: authors)) == .leave(.notTheOwners))
+    }
+
+    @Test("commit authors compare without regard to case")
+    func commitAuthorCase() {
+        #expect(PullRequestAutoFix.decide(situation(headCommitAuthors: ["OWNER"])) == .send(attempt(.checks)))
+    }
+
+    @Test("an empty branch on both sides is not a match")
+    func emptyBranch() {
+        var blank = situation(pullRequest: pullRequest(branch: ""), checkedOutBranch: "")
+        blank.workspaceBranch = ""
+        #expect(PullRequestAutoFix.decide(blank) == .leave(.notThisBranch))
     }
 }

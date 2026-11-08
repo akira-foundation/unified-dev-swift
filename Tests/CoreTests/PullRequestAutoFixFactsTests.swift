@@ -49,4 +49,41 @@ struct PullRequestAutoFixFactsTests {
         #expect(GitHub.fields.split(separator: ",").contains("author"))
         #expect(GitHub.fields.split(separator: ",").contains("isCrossRepository"))
     }
+
+    @Test("checks the app could not read leave every check fact unknown")
+    func unreadableChecks() throws {
+        let read = try GitHub.decodePullRequest(from: Data(#"{"number":1}"#.utf8), checksReadable: false)
+        #expect(read.hasUnfinishedChecks == nil)
+        #expect(read.hasFixableCheckFailure == nil)
+    }
+
+    @Test("a failing conclusion is fixable", arguments: ["FAILURE", "ERROR", "TIMED_OUT", "STARTUP_FAILURE"])
+    func fixable(conclusion: String) throws {
+        let read = try decode(rollup(conclusion: conclusion))
+        #expect(read.hasFixableCheckFailure == true)
+    }
+
+    @Test("a run that was stopped rather than failed is not", arguments: ["CANCELLED", "STALE", "ACTION_REQUIRED", "SUCCESS"])
+    func notFixable(conclusion: String) throws {
+        let read = try decode(rollup(conclusion: conclusion))
+        #expect(read.hasFixableCheckFailure == false)
+    }
+
+    @Test("gh's real shape carries no isRequired, and a failure still reads as failing")
+    func withoutIsRequired() throws {
+        let read = try decode(rollup(conclusion: "FAILURE"))
+        #expect(read.checks == .failing)
+        #expect(read.hasUnfinishedChecks == false)
+    }
+
+    private func rollup(conclusion: String) -> String {
+        #"{"number":1,"statusCheckRollup":[{"__typename":"CheckRun","name":"a","status":"COMPLETED","conclusion":"\#(conclusion)"}]}"#
+    }
+
+    @Test("gh leaving out the rollup leaves every check fact unknown")
+    func absentRollup() throws {
+        let read = try decode(#"{"number":1}"#)
+        #expect(read.hasUnfinishedChecks == nil)
+        #expect(read.hasFixableCheckFailure == nil)
+    }
 }

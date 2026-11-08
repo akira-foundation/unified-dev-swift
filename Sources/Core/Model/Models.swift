@@ -444,6 +444,7 @@ public struct PullRequest: Sendable, Hashable, Codable {
     public var author: String?
     public var isFromFork: Bool?
     public var hasUnfinishedChecks: Bool?
+    public var hasFixableCheckFailure: Bool?
 
     public init(
         number: Int,
@@ -461,7 +462,8 @@ public struct PullRequest: Sendable, Hashable, Codable {
         headCommit: String? = nil,
         author: String? = nil,
         isFromFork: Bool? = nil,
-        hasUnfinishedChecks: Bool? = nil
+        hasUnfinishedChecks: Bool? = nil,
+        hasFixableCheckFailure: Bool? = nil
     ) {
         self.number = number
         self.title = title
@@ -479,6 +481,7 @@ public struct PullRequest: Sendable, Hashable, Codable {
         self.author = author
         self.isFromFork = isFromFork
         self.hasUnfinishedChecks = hasUnfinishedChecks
+        self.hasFixableCheckFailure = hasFixableCheckFailure
     }
 
     public func targetBranch(or fallback: String) -> String {

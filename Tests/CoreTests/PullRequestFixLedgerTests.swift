@@ -146,4 +146,91 @@ struct PullRequestFixLedgerTests {
         let ledger = try await store.pullRequestFixLedger(workspaceID: workspace.id, number: number)
         #expect(ledger.inARow == 1)
     }
+
+    @Test("a conflict and a failed check on one head are two attempts, and each reads back as itself")
+    func perReasonInTheStore() async throws {
+        let store = try makeTestStore("ledger-reason")
+        let workspace = try await seed(store)
+        let checks = try await store.claimPullRequestFix(attempt("a", .checks), workspaceID: workspace.id, number: number)
+        let conflicts = try await store.claimPullRequestFix(attempt("a", .conflicts), workspaceID: workspace.id, number: number)
+        let ledger = try await store.pullRequestFixLedger(workspaceID: workspace.id, number: number)
+        #expect(checks)
+        #expect(conflicts)
+        #expect(ledger.inARow == 2)
+        #expect(ledger.tried == [attempt("a", .checks), attempt("a", .conflicts)])
+    }
+
+    @Test("a restart at the limit cannot spend a fourth attempt")
+    func limitSurvivesRestart() async throws {
+        let path = TestScratch.unique("ledger-limit-restart") + ".sqlite"
+        let before = try Store(path: path)
+        let workspace = try await seed(before)
+        for head in ["a", "b", "c"] {
+            _ = try await before.claimPullRequestFix(attempt(head), workspaceID: workspace.id, number: number)
+        }
+        let after = try Store(path: path)
+        let fourth = try await after.claimPullRequestFix(attempt("d"), workspaceID: workspace.id, number: number)
+        #expect(!fourth)
+    }
+
+    @Test("a database from before this feature gains the tables and keeps its version")
+    func migrationAddsTables() async throws {
+        let path = TestScratch.unique("ledger-old") + ".sqlite"
+        let original = try Store(path: path)
+        let workspace = try await seed(original)
+        let raw = try SQLiteDatabase(path: path)
+        let version = try raw.readUserVersion()
+        try raw.execute("DROP TABLE pull_request_fix_attempts; DROP TABLE pull_request_fix_runs;")
+
+        let reopened = try Store(path: path)
+        let won = try await reopened.claimPullRequestFix(attempt("a"), workspaceID: workspace.id, number: number)
+        let kept = try await reopened.workspace(id: workspace.id)
+        #expect(won)
+        #expect(kept?.name == "w")
+        #expect(try raw.readUserVersion() == version)
+    }
+
+    @Test("deleting a workspace takes its ledger with it")
+    func cascade() async throws {
+        let path = TestScratch.unique("ledger-cascade") + ".sqlite"
+        let store = try Store(path: path)
+        let workspace = try await seed(store)
+        _ = try await store.claimPullRequestFix(attempt("a"), workspaceID: workspace.id, number: number)
+        try await store.deleteWorkspace(id: workspace.id)
+
+        let raw = try SQLiteDatabase(path: path)
+        #expect(try raw.query("SELECT 1 FROM pull_request_fix_runs").isEmpty)
+        #expect(try raw.query("SELECT 1 FROM pull_request_fix_attempts").isEmpty)
+    }
+
+    @Test("a release after the run was forgiven cannot take the count below zero")
+    func releaseAfterForgive() async throws {
+        let store = try makeTestStore("ledger-floor")
+        let workspace = try await seed(store)
+        _ = try await store.claimPullRequestFix(attempt("a"), workspaceID: workspace.id, number: number)
+        try await store.forgivePullRequestFixRun(workspaceID: workspace.id, number: number)
+        try await store.releasePullRequestFix(attempt("a"), workspaceID: workspace.id, number: number)
+        let ledger = try await store.pullRequestFixLedger(workspaceID: workspace.id, number: number)
+        #expect(ledger.inARow == 0)
+    }
+
+    @Test("each write reaches one pull request of one workspace")
+    func writesStayOnTheirRow() async throws {
+        let store = try makeTestStore("ledger-rows")
+        let workspace = try await seed(store)
+        let other = try await seed(store)
+        for (id, pull) in [(workspace.id, 7), (workspace.id, 8), (other.id, 7)] {
+            _ = try await store.claimPullRequestFix(attempt("a"), workspaceID: id, number: pull)
+        }
+        try await store.releasePullRequestFix(attempt("a"), workspaceID: workspace.id, number: 7)
+        _ = try await store.claimPullRequestFixStopNotice(workspaceID: workspace.id, number: 8)
+        try await store.forgivePullRequestFixRun(workspaceID: other.id, number: 7)
+
+        let released = try await store.pullRequestFixLedger(workspaceID: workspace.id, number: 7)
+        let told = try await store.pullRequestFixLedger(workspaceID: workspace.id, number: 8)
+        let forgiven = try await store.pullRequestFixLedger(workspaceID: other.id, number: 7)
+        #expect(released == PullRequestAutoFix.Ledger(stopAnnounced: false))
+        #expect(told == PullRequestAutoFix.Ledger(inARow: 1, tried: [attempt("a")], stopAnnounced: true))
+        #expect(forgiven == PullRequestAutoFix.Ledger(inARow: 0, tried: [attempt("a")]))
+    }
 }

@@ -227,8 +227,8 @@ public enum GitHub {
         )?.pullRequest
     }
 
-    public static func decodePullRequest(from data: Data) throws -> PullRequest {
-        try decodeSnapshot(from: data).pullRequest
+    public static func decodePullRequest(from data: Data, checksReadable: Bool = true) throws -> PullRequest {
+        try decodeSnapshot(from: data, checksReadable: checksReadable).pullRequest
     }
 
     public static func decodeChecks(from data: Data) throws -> [CheckRun] {
@@ -561,6 +561,7 @@ public enum GitHub {
         }
 
         let runs = checksReadable ? (payload.statusCheckRollup ?? []).map(normalize) : []
+        let checksKnown = checksReadable && payload.statusCheckRollup != nil
         let (checks, summary) = checksReadable
             ? rollup(runs) : (.unavailable, checksUnavailableSummary)
         return PullRequestSnapshot(
@@ -580,7 +581,8 @@ public enum GitHub {
                 headCommit: payload.headCommit,
                 author: payload.author?.login,
                 isFromFork: payload.isCrossRepository,
-                hasUnfinishedChecks: checksReadable ? runs.contains(where: \.isPending) : nil
+                hasUnfinishedChecks: checksKnown ? runs.contains(where: \.isPending) : nil,
+                hasFixableCheckFailure: checksKnown ? runs.contains(where: \.isFixableFailure) : nil
             ),
             runs: runs
         )
@@ -650,6 +652,11 @@ private extension CheckRun {
             "FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED",
             "STARTUP_FAILURE", "STALE",
         ].contains(conclusion.uppercased())
+    }
+
+    var isFixableFailure: Bool {
+        guard let conclusion else { return false }
+        return ["FAILURE", "ERROR", "TIMED_OUT", "STARTUP_FAILURE"].contains(conclusion.uppercased())
     }
 }
 
