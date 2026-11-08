@@ -20,13 +20,21 @@ struct WorkspaceListToolTests {
         try #require(workspaces(result).first { $0["name"]?.stringValue == name })
     }
 
-    @Test("only the owner sees it")
-    func roleGate() {
+    @Test("the owner sees it, and a workspace that may not leave its profile does not")
+    func roleGate() async throws {
+        let store = try makeTestStore("workspace-list-gate")
         let toolbox = BridgeToolbox(handlers: [WorkspaceListTool()])
+        let repo = try await store.upsert(Repo(name: "r", path: TestScratch.unique("gate")))
+        let workspace = try await store.upsert(Workspace(
+            repoID: repo.id, name: "w", branch: "b", path: TestScratch.unique("gate-tree"), baseBranch: "main"
+        ))
+        let chat = try await store.upsert(Session(workspaceID: workspace.id, title: "c"))
+        try await ProfileBridgeSwitch.save(true, profile: .initial, to: store)
+        let agent = BridgeIdentity(sessionID: chat.id, workspaceID: workspace.id, role: .workspace)
 
-        #expect(toolbox.tools(for: .workspace).isEmpty)
-        #expect(toolbox.tools(for: .owner).map(\.name) == ["workspace_list"])
-        #expect(toolbox.handler(named: "workspace_list", for: .workspace) == nil)
+        #expect(await toolbox.tools(for: agent, store: store).isEmpty)
+        #expect(await toolbox.tools(for: .owner, store: store).map(\.name) == ["workspace_list"])
+        #expect(await toolbox.handler(named: "workspace_list", for: agent, store: store) == nil)
     }
 
     @Test("it is served by a Unified Dev with no app behind it, because it needs no seam into one")
@@ -42,7 +50,7 @@ struct WorkspaceListToolTests {
 
         #expect(!result.isError)
         #expect(try workspaces(result).isEmpty)
-        #expect(result.text.contains("This profile has no workspaces."))
+        #expect(result.text.contains("There are no workspaces here."))
     }
 
     @Test("a workspace answers with the columns a caller can act on")

@@ -58,6 +58,13 @@ public struct WorkspaceSayTool: BridgeToolHandling {
             message), failed (with the reason), or blocked waiting on the owner for a permission \
             prompt or a question. With it, there is no need to ask the other agent to report back \
             when it is done.
+
+            Pass profile to send it to a workspace in another profile, which a project's \
+            orchestrator and the owner's own clients can do once the owner has opened that profile. \
+            Such a message arrives marked as coming from outside, without the owner's authority, \
+            and the agent there is told to ask the owner before acting on it, whatever it asks for. \
+            Only a project's orchestrator, not one on Codex, can answer one, so pass notify_when_done to hear how the \
+            turn ended.
             """,
         inputSchema: .object([
             "type": .string("object"),
@@ -70,6 +77,7 @@ public struct WorkspaceSayTool: BridgeToolHandling {
                             + "id it names."
                     ),
                 ]),
+                BridgeProfileReach.argument: BridgeProfileReach.schemaProperty,
                 "message": .object([
                     "type": .string("string"),
                     "description": .string(
@@ -109,8 +117,13 @@ public struct WorkspaceSayTool: BridgeToolHandling {
             if identity.workspaceID != nil, sender.workspace == nil {
                 return .failure(WorkspaceSayTrouble.callerHasGone.sentence)
             }
+            let choice: BridgeProfileChoice
+            switch try await BridgeProfileReach.choice(request, allowsEvery: false, as: identity, store: store) {
+            case .failure(let trouble): return .failure(WorkspaceSayTrouble.appRefused(trouble.sentence).sentence)
+            case .success(let resolved): choice = resolved
+            }
             let target: Workspace
-            switch try await Self.target(named: given, as: identity, store: store) {
+            switch try await Self.target(named: given, as: identity, store: store, in: choice) {
             case .failure(let trouble): return .failure(trouble.sentence)
             case .success(let found): target = found
             }
@@ -125,7 +138,7 @@ public struct WorkspaceSayTool: BridgeToolHandling {
                     from: source.id, to: target.id, since: now.addingTimeInterval(-WorkspaceSayThrottle.window)
                 )
                 if let trouble = WorkspaceSayThrottle.refusal(
-                    sending: text, to: target.name, recent: recent, now: now
+                    sending: text, to: Self.crossed(choice) ? target.id.rawValue : target.name, recent: recent, now: now
                 ) {
                     return .failure(trouble.sentence)
                 }
@@ -137,12 +150,18 @@ public struct WorkspaceSayTool: BridgeToolHandling {
             }
 
             let wantsNotice = WorkspaceDoneWatch.isRequested(request.param(WorkspaceDoneWatch.argument))
-            let sendEnd = sender.end
+            var sendEnd = sender.end
             let projectName = try await store.repo(id: target.repoID)?.name ?? ""
+            var crossedTo: String?
+            if case .other(let profile) = choice {
+                crossedTo = profile.name
+                sendEnd.profile = try await Self.originName(of: identity, store: store)
+                sendEnd.profileID = try await BridgeProfileScope.profile(of: identity, store: store)
+            }
             let message = WorkspaceMessage(
                 source: sendEnd,
                 target: WorkspaceMessageEnd(
-                    workspaceID: target.id, workspace: target.name, project: projectName
+                    workspaceID: target.id, workspace: target.name, project: projectName, profile: crossedTo
                 ),
                 replySessionID: heard?.source.sessionID,
                 text: text,
@@ -151,9 +170,12 @@ public struct WorkspaceSayTool: BridgeToolHandling {
 
             switch await deliver(message) {
             case .refused(let sentence):
-                return .failure(WorkspaceSayTrouble.appRefused(sentence).sentence)
+                let said = crossedTo == nil ? sentence : "Unified Dev could not put it in that workspace's chat."
+                return .failure(WorkspaceSayTrouble.appRefused(said).sentence)
             case .sent(let sent):
-                return .json(Self.answer(sent, noticeRequested: wantsNotice))
+                let answer = Self.answer(sent, noticeRequested: wantsNotice, crossedTo: crossedTo)
+                guard crossedTo != nil else { return .json(answer) }
+                return BridgeWorkspaceQuote.answer(answer, preamble: BridgeWorkspaceQuote.lists("where a message went"))
             }
         } catch {
             return .failure(WorkspaceSayTrouble.unexplained(error.readableMessage).sentence)
@@ -191,10 +213,28 @@ public struct WorkspaceSayTool: BridgeToolHandling {
         }
     }
 
+    private static func crossed(_ choice: BridgeProfileChoice) -> Bool {
+        if case .other = choice { return true }
+        return false
+    }
+
+    private static func originName(of identity: BridgeIdentity, store: Store) async throws -> String {
+        guard let id = try await BridgeProfileScope.profile(of: identity, store: store),
+              let profile = try await store.profile(id: id)
+        else { return "unknown" }
+        return profile.name
+    }
+
     static func target(
-        named given: String, as identity: BridgeIdentity, store: Store
+        named given: String, as identity: BridgeIdentity, store: Store, in choice: BridgeProfileChoice = .own
     ) async throws -> Result<Workspace, WorkspaceSayTrouble> {
-        switch try await BridgeWorkspaceLookup.activeTarget(given, as: identity, store: store) {
+        let lookup: BridgeWorkspaceLookup.ActiveTarget
+        if case .other(let profile) = choice {
+            lookup = try await BridgeWorkspaceLookup.activeTarget(given, in: profile, store: store)
+        } else {
+            lookup = try await BridgeWorkspaceLookup.activeTarget(given, as: identity, store: store)
+        }
+        switch lookup {
         case .found(let workspace): return .success(workspace)
         case .ambiguous(let ids): return .failure(.ambiguous(given: given, ids: ids))
         case .archived(let name): return .failure(.archived(name: name))
@@ -211,16 +251,24 @@ public struct WorkspaceSayTool: BridgeToolHandling {
         static let chat = "chat"
         static let note = "note"
         static let notifyWhenDone = WorkspaceDoneWatch.argument
+        static let profile = BridgeProfileReach.argument
     }
 
-    static func answer(_ message: WorkspaceMessage, noticeRequested: Bool = false) -> JSONValue {
+    static func answer(
+        _ message: WorkspaceMessage, noticeRequested: Bool = false, crossedTo profile: String? = nil
+    ) -> JSONValue {
         let reply = message.source.workspaceID == nil
             ? "This connection is not a workspace, so the agent there cannot answer you with "
                 + "workspace_say. Call workspace_list to see what became of it."
+            : profile != nil
+            ? "It can only answer if it is a project's orchestrator, not one on Codex, and both profiles "
+                + "are open. Use notify_when_done to hear how its turn ended."
             : "If it answers, it answers with workspace_say, and its message lands in this chat, "
                 + "unless a message from another chat in this workspace reaches it first."
         let chat = message.target.chat
-        return .object([
+        let authority = profile.map { " in the profile '\($0)', marked as coming from outside and without the owner's authority" }
+            ?? ", with the owner's authority"
+        var fields: [String: JSONValue] = [
             Key.state: .string(message.state.rawValue),
             Key.messageID: .string(message.id.rawValue),
             Key.workspaceID: message.target.workspaceID.map { .string($0.rawValue) } ?? .null,
@@ -229,13 +277,15 @@ public struct WorkspaceSayTool: BridgeToolHandling {
             Key.chat: .string(chat),
             Key.notifyWhenDone: .bool(message.notifyWhenDone),
             Key.note: .string(
-                "Sent to the chat '\(chat)' in '\(message.target.workspace)', with the owner's "
-                    + "authority. It starts a turn there, or waits for the one that is running, "
+                "Sent to the chat '\(chat)' in '\(message.target.workspace)'\(authority). "
+                    + "It starts a turn there, or waits for the one that is running, "
                     + "and the owner can cancel it until the agent there starts reading it. Unified "
                     + "Dev does not wait for an answer, so get on with your own work. " + reply
                     + noticeLine(for: message, requested: noticeRequested)
             ),
-        ])
+        ]
+        if let profile { fields[Key.profile] = .string(profile) }
+        return .object(fields)
     }
 
     private static func noticeLine(for message: WorkspaceMessage, requested: Bool) -> String {
@@ -246,32 +296,5 @@ public struct WorkspaceSayTool: BridgeToolHandling {
         guard requested else { return "" }
         return " notify_when_done was ignored: this connection is not a chat in a Unified Dev "
             + "workspace, so there is nowhere to deliver the notice."
-    }
-}
-
-public struct WorkspaceSayRecord: Sendable, Hashable {
-    public let messageID: WorkspaceMessageID
-    public let text: String
-    public let target: WorkspaceMessageEnd
-
-    public init?(toolName: String, input: JSONValue, resultText: String) {
-        guard Self.isWorkspaceSay(toolName),
-              let text = input["message"]?.stringValue,
-              let answer = JSONValue.parse(resultText),
-              let id = answer[WorkspaceSayTool.Key.messageID]?.stringValue
-        else { return nil }
-
-        messageID = WorkspaceMessageID(id)
-        self.text = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        target = WorkspaceMessageEnd(
-            workspaceID: answer[WorkspaceSayTool.Key.workspaceID]?.stringValue.map(WorkspaceID.init),
-            workspace: answer[WorkspaceSayTool.Key.workspace]?.stringValue ?? "",
-            project: answer[WorkspaceSayTool.Key.project]?.stringValue ?? "",
-            chat: answer[WorkspaceSayTool.Key.chat]?.stringValue ?? ""
-        )
-    }
-
-    public static func isWorkspaceSay(_ toolName: String) -> Bool {
-        toolName.hasPrefix("mcp__") && toolName.hasSuffix("__\(WorkspaceSayTool.name)")
     }
 }

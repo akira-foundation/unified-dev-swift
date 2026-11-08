@@ -562,12 +562,19 @@ final class WorkspaceModel {
         guard let store, let sessionID = message.source.sessionID,
               let chat = try? await store.session(id: sessionID), chat.archivedAt == nil
         else { return }
+        var acrossProfilesID: WorkspaceID?
+        if let targetID = message.target.workspaceID,
+           (try? await store.crossedProfileName(of: targetID, from: sessionID)) != nil {
+            acrossProfilesID = targetID
+        }
         _ = try? await store.enqueueDelivery(
             Delivery(
                 targetSessionID: chat.id,
                 sourceWorkspaceID: message.target.workspaceID,
                 kind: .report,
-                crew: CrewMessage.cancelled(to: message.target.workspace, text: message.text)
+                crew: CrewMessage.cancelled(
+                    to: message.target.workspace, text: message.text, acrossProfilesID: acrossProfilesID
+                )
             )
         )
         let transcript = transcript(for: chat)

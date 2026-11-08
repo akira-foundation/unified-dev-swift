@@ -158,9 +158,23 @@ An agent calling back in through the bridge sees only its own profile: the proje
 chats of the profile its workspace belongs to. The owner's client sees the active profile. An Ask chat
 is pinned to the profile active when its turn starts, for that turn, so switching mid turn does not move
 what it is doing. While that turn belongs to a profile the window is not showing, `reveal` is refused,
-names the profile, and leaves the window where it is. Anything in another profile is answered as if it did not exist. `workspace_start` and
+names the profile, and leaves the window where it is. Anything in another profile is answered as if it did not exist, unless the caller may reach it. `workspace_start` and
 `project_add` name the profile they landed in. The scope and its exceptions are in
 [BRIDGE.md](BRIDGE.md), under "The profile a caller is limited to".
+
+### Connected to other profiles
+
+Profile Settings carries a switch, **Connected to other profiles**, off by default. Turned on, a
+project's orchestrator can list that profile's projects and workspaces, read its chats and changes, and
+send a message to one of its chats, if its own profile is on too, and the owner approves its calls.
+The owner's Ask chat and client need only the destination on. Ordinary workspaces,
+subagents and an orchestrator on Codex never cross, and nothing can be started in another profile.
+
+Every crossing names the profile, through a `profile` argument, or `all` on the two lists. A message
+from another profile says where it came from and does not carry the owner's authority, whoever sent it. The
+turn it wakes runs on the destination project's account. A chat cannot be answered across profiles except by
+a caller that may cross, so what comes back to anyone else is the end of that turn, if `notify_when_done`
+asked for it. [BRIDGE.md](BRIDGE.md) has the rules, under "Reaching another profile".
 
 ## In a preview scenario
 
@@ -169,7 +183,9 @@ A scenario may declare `profiles` (`name`, `colour` as a hex string without `#`,
 `activeProfile`. A labelled account that names a `profile` is added to it, and `isProfileDefault` makes
 it that profile's default; a labelled account that names none belongs to Unified, and the one with no
 label is this Mac's own login, which cannot name a profile. A project that names no profile
-is in Unified. `Tools/scenarios/profiles.json` seeds Unified, Akira and Debtges with two projects
+is in Unified. `reachableProfiles` names the profiles to open to the others, and
+`Tools/scenarios/profiles-reach.json` seeds an orchestrator in Unified with Akira open and Debtges closed.
+`Tools/scenarios/profiles.json` seeds Unified, Akira and Debtges with two projects
 each, Akira with two Claude Code accounts and a Codex one of its own and Debtges using Unified's. A
 scenario may also declare `notifications` for the bell (`event`, `project`, `workspace`, optional
 `chat`, `detail`, `minutesAgo` and `read`, and `removed` for a workspace that no longer exists). See [PREVIEW-APPS.md](PREVIEW-APPS.md).

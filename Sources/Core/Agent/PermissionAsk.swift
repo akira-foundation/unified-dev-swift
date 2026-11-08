@@ -336,13 +336,14 @@ public enum PermissionAnswer {
 }
 
 public extension PermissionAsk {
-    func standing(in decisions: [String: String]) -> String? {
+    func standing(in decisions: [String: String], inWorkspace: Bool) -> String? {
         if let decision = decisions[requestID] { return decision }
-        return wasAnsweredByTheRunner ? PermissionAskOutcome.selfApproved : nil
+        return wasAnsweredByTheRunner(inWorkspace: inWorkspace) ? PermissionAskOutcome.selfApproved : nil
     }
 
-    private var wasAnsweredByTheRunner: Bool {
-        guard BridgeToolApproval.isSelfApproved(toolName: toolName) else { return false }
+    private func wasAnsweredByTheRunner(inWorkspace: Bool) -> Bool {
+        guard BridgeToolApproval.isSelfApproved(toolName: toolName, input: input, inWorkspace: inWorkspace)
+        else { return false }
         return JSONValue.parse(raw)?["agent_kind"] == nil
     }
 }

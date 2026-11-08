@@ -146,4 +146,27 @@ struct PreviewScenarioProfilesTests {
         #expect(counts == [2, 2, 2])
         #expect(chats > 0)
     }
+
+    @Test("reachableProfiles opens the profiles it names and leaves the others closed")
+    func opensNamedProfiles() async throws {
+        let seeder = try seeder("preview-profiles-reach")
+        var opened = scenario()
+        opened.reachableProfiles = ["Unified", "Akira"]
+        _ = try await seeder.seed(opened)
+        let store = seeder.manager.store
+
+        let byName = Dictionary(uniqueKeysWithValues: try await store.profiles().map { ($0.name, $0.id) })
+
+        #expect(await ProfileBridgeSwitch.isOn(profile: .initial, in: store))
+        #expect(await ProfileBridgeSwitch.isOn(profile: try #require(byName["Akira"]), in: store))
+        #expect(await ProfileBridgeSwitch.isOn(profile: try #require(byName["Debtges"]), in: store) == false)
+    }
+
+    @Test("reachableProfiles refuses a profile the scenario does not declare")
+    func refusesUnknownReachableProfile() {
+        var named = scenario()
+        named.reachableProfiles = ["Elsewhere"]
+
+        #expect(named.problems.contains { $0.contains("Elsewhere") })
+    }
 }

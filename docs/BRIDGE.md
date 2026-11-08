@@ -164,8 +164,9 @@ owner's tools because a config file was read. See `BridgeOwnerPlacement`.
 
 ### The profile a caller is limited to
 
-**A caller lists, reads, starts and talks only to projects, workspaces and chats of its own profile.**
-`BridgeProfileScope` is the one place that decides it, and every tool takes its rows from there.
+**A caller lists, reads, starts and talks only to projects, workspaces and chats of its own profile,**
+unless it may reach another and names it, which is [Reaching another profile](#reaching-another-profile).
+`BridgeProfileScope` is the one place that decides a caller's own, and every tool takes its rows from there.
 
 | Caller | Its profile |
 | --- | --- |
@@ -206,6 +207,79 @@ when it places the owner's token, since a shim inside a workspace of any profile
 ceiling on what the owner's client starts in a window counts across all profiles, because it limits
 this Mac rather than a profile.
 
+### Reaching another profile
+
+A profile can be opened to the others, and a few callers can then cross into it. The default is closed:
+with every switch off, every tool answers as it does without this section.
+
+**Who.** `BridgeProfileReach.caller` reads it from the rows on every call, and from what the chat's bridge token recorded when it launched.
+
+| Caller | May cross when |
+| --- | --- |
+| A top level chat of a project's orchestrator workspace, on Claude Code or Grok | Its own profile and the destination are both open, and the owner approves the call |
+| The owner's own clients: an Ask chat and the standalone token | The destination is open |
+| An ordinary workspace, a subagent, an orchestrator's included, or an orchestrator running on Codex | Never |
+
+A workspace that stops being the orchestrator stops reaching at its next call. `isOrchestrator` is written
+only by the app.
+
+**The owner approves an orchestrator's crossing.** Every call from a workspace chat that names a `profile`
+stops on the permission card, reads included, because what it reads could steer it and what it sends wakes
+an agent. `BridgeToolApproval.isSelfApproved(toolName:input:inWorkspace:)` decides it, and the same call
+decides how a stored card reads afterwards. This rule adds no card for an Ask chat or the owner's standalone client,
+which are the owner's own. Codex has no approval request for an MCP tool call, so nothing could stop it, and
+`BridgeProfileReach.caller` confines it instead. An orchestrator always launches in a mode that asks, and
+that launch is what the bridge token records: a chat already running when its workspace becomes the orchestrator
+cannot cross until its next start. An "always allow" the owner grants holds for that chat, by the owner's choice.
+
+**What.** Reading and talking, and nothing that creates: `project_list`, `workspace_list`, `chat_list`,
+`chat_read`, `workspace_diff` and `workspace_say`. `workspace_start` stays inside the caller's profile, and
+`agent_say` and `agent_start` act inside one worktree, so they have nothing to cross.
+
+`workspace_list` has otherwise been the owner's alone. It is served to an orchestrator only while that
+orchestrator may leave its profile, and answers exactly as an unknown tool otherwise, in `tools/list` and in
+`tools/call`, through `BridgeToolHandling.isServed`. An orchestrator's list is always fenced.
+
+**The switch.** One per profile, in Profile Settings, under the key `ProfileBridgeSwitch.key(profile:)`,
+off by default and read on every call. It is held to the rule of the orchestrator's unasked switch: it lives
+in the app's `settings` table, only its settings section writes it (and a seeded preview), and
+`OrchestratorUnaskedReachTests` reads it back after calling every bridge tool in every role.
+
+**Naming a target.** The tools above take an optional `profile`, an id or a name no other reachable profile
+shares, and the two lists also take `all`, meaning the caller's own and every one it can reach. Without it
+nothing changes: an id from another profile is still answered as if it did not exist, so crossing is always
+something the caller said out loud. Naming the caller's own profile is not a crossing. A profile the caller
+cannot reach gets one refusal, whether it is closed or does not exist. `all` is reserved on the two lists, so
+a profile called All is named by its id there, and `include_github` is refused with `all` because it starts
+processes per workspace. A tool in `tools/list` is the list from when the agent started, so a switch turned
+on later reaches an orchestrator's `workspace_list` at its next start.
+
+**What comes back from a read.** Every answer that crosses is fenced as untrusted content, and names the
+profile it belongs to. Refusals inside a crossing list workspace ids, never names, and a refusal from the
+app, a project lookup or git there is one generic sentence. A notice about the other side names it by id. What was read can still be repeated by the reader, so
+text planted in one profile can travel to another if the owner approves carrying it.
+
+**What the receiver sees.** A message from another profile gets an envelope of its own, written by
+`WorkspaceMessage`: the profile and workspace id it came from, then between the untrusted markers the names of
+its workspace, project and chat, and the text, and a sentence saying that it does not carry the owner's authority and to ask the owner before
+acting on it. That holds for the owner's own clients as well, since an Ask chat reads untrusted text too.
+A message still waiting in a queue was written when it was sent and arrives as written, even if a switch is
+turned off meanwhile.
+Inside one profile the envelope and its authority are as described under "Talking to another workspace".
+
+**Accounts.** A turn that a message wakes in another profile runs on the account of the destination's
+project, as every chat in that workspace does, and never on the caller's. With no account available there,
+the turn does not start and the chat says why.
+
+**What comes back.** `notify_when_done` crosses back to the asking chat, with the report fenced as usual and
+naming the other profile, and a watch made before a switch is turned off is still kept. An Ask chat has no chat
+to be told in, so it is not offered one. Answering with `workspace_say` is only for callers
+that may cross, so an ordinary workspace on the receiving side can finish its turn and cannot start a
+conversation. The announcement to a project's orchestrator is per project, so it never crosses a profile.
+
+**What this does not hold.** The scope is the bridge's. An agent runs as this user, and anything it can run
+outside the bridge is limited by what that user can read, as section 2 says of the token.
+
 ## 3. The tools
 
 Fifty-three, each a type of its own in `Sources/Core/Bridge/`, each carrying its own role
@@ -219,12 +293,12 @@ places: the listing, the dispatch and the gate.
 | `project_add` | Register a git repository that **already exists** as a project | | ✓ |
 | `project_hide` | Take a project out of the sidebar. A view preference and nothing more | | ✓ |
 | `project_unhide` | Put it back, in the place it already had | | ✓ |
-| `workspace_list` | Every workspace of the caller's profile, its state, its worktree path, its chats and their cost, what an agent is stopped on, what is queued and why, and which one is the project's orchestrator | | ✓ |
+| `workspace_list` | Every workspace of the caller's profile, its state, its worktree path, its chats and their cost, what an agent is stopped on, what is queued and why, and which one is the project's orchestrator. Served to a project's orchestrator too, only while it may leave its profile | ✓ | ✓ |
 | `workspace_start` | Cut a worktree and put an agent in it with a task, on a new branch, existing branch or GitHub pull request, in the caller's own project or another it names. With notify_when_done, or always when the caller is the project's orchestrator, the calling chat is told once when the new agent's first turn comes to rest | ✓ | ✓ |
 | `workspace_rename` | Give a workspace the name the work in it turned out to be about. Its own, or one it started (by name or id), for a workspace agent; any of them, named out loud, for the owner | ✓ | ✓ |
 | `workspace_archive` | Archive a workspace through normal safety checks, keeping its branch and history. For a workspace agent, its own once the turn asking for it has ended, or one it started, by id and at once; any of them, named out loud and at once, for the owner. The project's orchestrator is refused until it stops being one | ✓ | ✓ |
 | `workspace_merge` | Ask a workspace's own agent to merge its pull request | | ✓ |
-| `workspace_say` | Put a message in another workspace's chat, with the owner's authority, headed with the workspace, project and chat it came from. Cancellable from either end until the agent there starts reading it. Refused past thirty messages to one workspace in ten minutes, or for the same words twice in that window, except from the owner's own client. With notify_when_done, Unified Dev tells the calling chat once when the turn it caused finishes, fails or blocks on the owner | ✓ | ✓ |
+| `workspace_say` | Put a message in another workspace's chat, with the owner's authority unless it crosses a profile, headed with the workspace, project and chat it came from. Cancellable from either end until the agent there starts reading it. Refused past thirty messages to one workspace in ten minutes, or for the same words twice in that window, except from the owner's own client. With notify_when_done, Unified Dev tells the calling chat once when the turn it caused finishes, fails or blocks on the owner | ✓ | ✓ |
 | `reveal` | Point Unified Dev's window at one workspace, or at Home narrowed by project, scope and search. Navigation and nothing else: it creates nothing and archives nothing | | ✓ |
 | `pane_open` | Open a chat, a terminal or a browser in a new tab of the caller's own workspace. A browser opens behind the tab in front and fetches nothing until somebody looks at it | ✓ | |
 | `pane_split` | Add a pane inside the calling chat's tab, defaulting to a new chat on its right. A browser pane opens blank | ✓ | |
@@ -666,7 +740,7 @@ tell me the version" had no way to follow up. Claude Code's own cross-session me
 text, and the agent receiving it rightly treats an unverified relay as one and will not merge or
 tag on its say-so. `workspace_say` is Unified Dev delivering the message itself.
 
-**It carries the owner's authority, and that is the owner's decision.** An approval step was built
+**Inside one profile it carries the owner's authority, and that is the owner's decision.** An approval step was built
 first: the message waited, a card showed the owner the text, and only an approved message arrived as
 theirs. It was taken out. Every agent here works for the same person, and the control the owner
 wanted is the one every queued message already has: taking it back out before it goes. So the

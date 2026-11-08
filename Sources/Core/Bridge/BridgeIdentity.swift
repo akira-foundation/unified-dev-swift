@@ -10,12 +10,16 @@ public struct BridgeIdentity: Sendable, Hashable {
     public let workspaceID: WorkspaceID?
     public let role: BridgeRole
     public let pinnedProfile: ProfileID?
+    public let launchedOrchestrating: Bool
 
-    public init(sessionID: SessionID, workspaceID: WorkspaceID, role: BridgeRole) {
+    public init(
+        sessionID: SessionID, workspaceID: WorkspaceID, role: BridgeRole, launchedOrchestrating: Bool = false
+    ) {
         self.sessionID = sessionID
         self.workspaceID = workspaceID
         self.role = role
         self.pinnedProfile = nil
+        self.launchedOrchestrating = launchedOrchestrating
     }
 
     private init(role: BridgeRole) {
@@ -23,6 +27,7 @@ public struct BridgeIdentity: Sendable, Hashable {
         self.workspaceID = nil
         self.role = role
         self.pinnedProfile = nil
+        self.launchedOrchestrating = false
     }
 
     public init(ownerSession sessionID: SessionID, pinnedProfile: ProfileID? = nil) {
@@ -30,6 +35,7 @@ public struct BridgeIdentity: Sendable, Hashable {
         self.workspaceID = nil
         self.role = .owner
         self.pinnedProfile = pinnedProfile
+        self.launchedOrchestrating = false
     }
 
     public static let owner = BridgeIdentity(role: .owner)

@@ -40,4 +40,16 @@ public enum BridgeToolApproval {
         guard toolName.hasPrefix(toolPrefix) else { return false }
         return selfApproved.contains(String(toolName.dropFirst(toolPrefix.count)))
     }
+
+    public static func isSelfApproved(toolName: String, input: JSONValue, inWorkspace: Bool) -> Bool {
+        guard inWorkspace else { return isSelfApproved(toolName: toolName) }
+        guard !namesProfile(input) else { return false }
+        return isSelfApproved(toolName: toolName) || toolName == toolPrefix + "workspace_list"
+    }
+
+    private static func namesProfile(_ input: JSONValue) -> Bool {
+        guard let given = input[BridgeProfileReach.argument], given != .null else { return false }
+        guard let text = given.stringValue else { return true }
+        return AgentStartTool.text(text) != nil
+    }
 }

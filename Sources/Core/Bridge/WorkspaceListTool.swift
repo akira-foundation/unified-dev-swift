@@ -3,7 +3,12 @@ import Foundation
 public struct WorkspaceListTool: BridgeToolHandling {
     public init() {}
 
-    public let roles: Set<BridgeRole> = [.owner]
+    public let roles: Set<BridgeRole> = [.workspace, .owner]
+
+    public func isServed(to identity: BridgeIdentity, store: Store) async -> Bool {
+        guard identity.role == .workspace else { return true }
+        return (try? await BridgeProfileReach.mayLeaveOwnProfile(identity, store: store)) ?? false
+    }
 
     public let tool = BridgeTool(
         name: "workspace_list",
@@ -13,7 +18,8 @@ public struct WorkspaceListTool: BridgeToolHandling {
             started, since workspace_start answers before any work happens and nothing waits \
             for it.
 
-            Only the workspaces in the caller's profile are listed.
+            Only the workspaces in the caller's profile are listed, unless profile names another \
+            this connection can reach.
 
             Each one carries its id, name, branch, base branch and worktree path, its project, \
             whether it is active or archived, how far its setup script got, whether an agent is \
@@ -24,7 +30,8 @@ public struct WorkspaceListTool: BridgeToolHandling {
 
             The worktree path is the most useful thing here. It is an ordinary git checkout, so \
             read the diff, the log and the files in it with your own tools rather than asking \
-            Unified Dev for them.
+            Unified Dev for them. For a workspace in another profile, use chat_read and \
+            workspace_diff instead, whose answers are marked as coming from outside.
 
             agent_running is about right now, and a workspace with nothing running is still a \
             workspace: most of them sit idle most of the time, waiting to be read and merged. \
@@ -47,6 +54,7 @@ public struct WorkspaceListTool: BridgeToolHandling {
         inputSchema: .object([
             "type": .string("object"),
             "properties": .object([
+                BridgeProfileReach.argument: BridgeProfileReach.listSchemaProperty,
                 "project": .object([
                     "type": .string("string"),
                     "description": .string(
@@ -82,7 +90,22 @@ public struct WorkspaceListTool: BridgeToolHandling {
         let includeGitHub = request.param("include_github")?.boolValue ?? false
 
         do {
-            let projects = try await BridgeProfileScope.repos(for: identity, store: store)
+            let choice: BridgeProfileChoice
+            switch try await BridgeProfileReach.choice(request, allowsEvery: true, as: identity, store: store) {
+            case .failure(let trouble): return .failure(trouble.sentence)
+            case .success(let resolved): choice = resolved
+            }
+            let reached = choice.profiles
+            if includeGitHub, case .every = choice {
+                return .failure(
+                    "include_github cannot be used with profile 'all', because it starts a gh and a git "
+                        + "process per workspace. Name one profile to ask GitHub about it."
+                )
+            }
+            let every = try await store.repos()
+            let projects = reached.isEmpty
+                ? try await BridgeProfileScope.repos(for: identity, store: store)
+                : reached.flatMap { ProfileScope.repos(every, in: $0.id) }
             var project: Repo?
 
             if let named = named(request) {
@@ -90,7 +113,7 @@ public struct WorkspaceListTool: BridgeToolHandling {
                 if let refusal = BridgeProjectLookup.refusal(
                     for: named, outcome: outcome, projects: projects
                 ) {
-                    return .failure(refusal)
+                    return .failure(reached.isEmpty ? refusal : Self.noProjectThere(named))
                 }
                 guard case .found(let found) = outcome else {
                     return .failure("Unified Dev has no project called '\(named)'.")
@@ -98,7 +121,9 @@ public struct WorkspaceListTool: BridgeToolHandling {
                 project = found
             }
 
-            let census = try await BridgeWorkspaceCensus.read(for: identity, from: store)
+            let census = reached.isEmpty
+                ? try await BridgeWorkspaceCensus.read(for: identity, from: store)
+                : try await BridgeWorkspaceCensus.read(in: reached, from: store)
             let workspaces = census.listing(
                 repoID: project?.id, includeArchived: includeArchived
             )
@@ -106,16 +131,18 @@ public struct WorkspaceListTool: BridgeToolHandling {
             let names = Dictionary(uniqueKeysWithValues: projects.map { ($0.id, $0) })
             var rows: [JSONValue] = []
             for workspace in workspaces {
-                rows.append(await row(
+                let listed = await row(
                     for: workspace,
                     project: names[workspace.repoID],
                     census: census,
                     includeGitHub: includeGitHub,
                     store: store
-                ))
+                )
+                let owner = reached.first { $0.id == names[workspace.repoID]?.profileID }
+                rows.append(owner.map { BridgeProfileReach.tagged(listed, profile: $0) } ?? listed)
             }
 
-            return .json(.object([
+            let answer: JSONValue = .object([
                 "workspaces": .array(rows),
                 "count": .integer(rows.count),
                 "note": .string(note(
@@ -124,10 +151,17 @@ public struct WorkspaceListTool: BridgeToolHandling {
                     includeArchived: includeArchived,
                     includeGitHub: includeGitHub
                 )),
-            ]))
+            ])
+            guard !reached.isEmpty || identity.role == .workspace else { return .json(answer) }
+            return BridgeWorkspaceQuote.answer(answer, preamble: BridgeWorkspaceQuote.lists("workspaces"))
         } catch {
             return .failure("Unified Dev could not read its workspaces: \(error.readableMessage)")
         }
+    }
+
+    private static func noProjectThere(_ named: String) -> String {
+        "No project called '\(WorkspaceMessage.oneLine(named))' can be listed there, or the name is shared. "
+            + "Call project_list with the same profile for its ids."
     }
 
     private func note(
@@ -141,7 +175,7 @@ public struct WorkspaceListTool: BridgeToolHandling {
         if count == 0 {
             sentences.append(
                 project.map { "Unified Dev has no workspaces in '\($0.name)'." }
-                    ?? "This profile has no workspaces."
+                    ?? "There are no workspaces here."
             )
             if !includeArchived {
                 sentences.append("Archived ones were not counted. Pass include_archived to see them.")
