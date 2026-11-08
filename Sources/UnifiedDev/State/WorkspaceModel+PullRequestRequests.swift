@@ -2,6 +2,26 @@ import SwiftUI
 import Core
 
 extension WorkspaceModel {
+    var pullRequestStanding: PullRequestStanding {
+        PullRequestStanding.of(
+            branch: workspace.branch,
+            baseBranch: workspace.baseBranch,
+            ahead: branchCommits.commits.count,
+            aheadIsCapped: branchCommits.isTruncated,
+            hasUnreadCommitCount: !hasReadBranchCommits,
+            pullRequest: pullRequest,
+            localWork: localWork,
+            hasRemote: hasRemote ?? true,
+            continued: continued
+        )
+    }
+
+    func canConfirmMerge(branchActions: BranchActionAvailability, isWorking: Bool) -> Bool {
+        MergeConfirmation.canConfirm(
+            pullRequest: pullRequest, localWork: localWork, branchActions: branchActions, isWorking: isWorking
+        )
+    }
+
     func requestPullRequest(overrides: PromptOverrides = PromptOverrides()) async -> String? {
         let template = overrides.template(for: .createPullRequest)
         let wanted = Set(PromptTemplate.variableNames(in: template))

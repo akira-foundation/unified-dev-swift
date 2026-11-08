@@ -18,19 +18,7 @@ struct PullRequestBar: View {
         nonmutating set { model.pullRequestNotice = newValue }
     }
 
-    private var standing: PullRequestStanding {
-        PullRequestStanding.of(
-            branch: model.workspace.branch,
-            baseBranch: model.workspace.baseBranch,
-            ahead: model.branchCommits.commits.count,
-            aheadIsCapped: model.branchCommits.isTruncated,
-            hasUnreadCommitCount: !model.hasReadBranchCommits,
-            pullRequest: model.pullRequest,
-            localWork: model.localWork,
-            hasRemote: model.hasRemote ?? true,
-            continued: model.continued
-        )
-    }
+    private var standing: PullRequestStanding { model.pullRequestStanding }
 
     var body: some View {
         strip
@@ -41,9 +29,6 @@ struct PullRequestBar: View {
                 isWorking = false
             }
             .onChange(of: model.pullRequest?.url) { _, _ in dismissConfirmations() }
-            .onChange(of: canConfirmMerge) { _, available in
-                if !available { pendingMerge = nil }
-            }
             .onAppear { isVisible = true }
             .onDisappear {
                 isVisible = false
@@ -70,27 +55,9 @@ struct PullRequestBar: View {
             tint: standing.tone.pathColour,
             onConfirm: confirmArchive
         )
-        .popover(isPresented: Binding(
-            get: { pendingMerge != nil },
-            set: { if !$0 { pendingMerge = nil } }
-        ), arrowEdge: .top) {
-            if let method = pendingMerge, let pullRequest = model.pullRequest {
-                MergeConfirmationPopover(
-                    pullRequest: pullRequest,
-                    baseBranch: pullRequest.targetBranch(or: model.workspace.baseBranch),
-                    localWork: model.localWork,
-                    method: method,
-                    deletesBranch: true,
-                    canMerge: canConfirmMerge,
-                    tint: standing.tone.pathColour,
-                    onConfirm: {
-                        pendingMerge = nil
-                        merge(method)
-                    },
-                    onCancel: { pendingMerge = nil }
-                )
-            }
-        }
+        .mergeConfirmation(
+            $pendingMerge, model: model, canConfirm: canConfirmMerge, arrowEdge: .top, onConfirm: merge
+        )
     }
 
     @ViewBuilder
@@ -119,10 +86,7 @@ struct PullRequestBar: View {
     }
 
     private var canConfirmMerge: Bool {
-        guard let pullRequest = model.pullRequest, pullRequest.isOpen else { return false }
-        return pullRequest.status(local: model.localWork).canMerge
-            && branchActions.isAllowed
-            && !isWorking
+        model.canConfirmMerge(branchActions: branchActions, isWorking: isWorking)
     }
 
     private func reach(_ reach: PullRequestReach) {
