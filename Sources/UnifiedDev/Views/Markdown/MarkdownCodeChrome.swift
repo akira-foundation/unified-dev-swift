@@ -1,7 +1,7 @@
 import SwiftUI
 import Core
 
-private nonisolated let markdownChromeSpace = "markdownChrome"
+nonisolated let markdownChromeSpace = "markdownChrome"
 
 struct MarkdownCodeHeader: View {
     var code: String
@@ -63,6 +63,7 @@ struct MarkdownCodeFooter: View {
     var onToggle: () -> Void
     var onHeight: (CGFloat) -> Void
     var onControls: (CGRect) -> Void
+    var onOutput: (CGRect) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -74,7 +75,7 @@ struct MarkdownCodeFooter: View {
                     .padding(.vertical, Metrics.spacing)
             }
             if let run = command.flatMap(actions.commandRun) {
-                CodeBlockRunStatus(run: run)
+                CodeBlockRunStatus(run: run, onOutput: onOutput)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
