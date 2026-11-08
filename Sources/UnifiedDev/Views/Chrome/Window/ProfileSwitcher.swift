@@ -2,9 +2,11 @@ import Core
 import SwiftUI
 
 struct ProfileSwitcherToolbar: ToolbarContent {
+    var placement: ToolbarItemPlacement
     var profiles: [Profile]
     var activeID: ProfileID
     var drawsSidebar: Bool
+    var barIsHidden = false
     var sidebarWidth: CGFloat
     var onSwitch: (ProfileID) -> Void
     var onNew: () -> Void
@@ -12,27 +14,41 @@ struct ProfileSwitcherToolbar: ToolbarContent {
 
     var body: some ToolbarContent {
         if let active = profiles.first(where: { $0.id == activeID }) {
-            ToolbarItem(placement: .secondaryAction) {
+            let label = ProfileToolbarLabel.resolve(
+                profileName: active.name,
+                drawsSidebar: drawsSidebar,
+                barIsHidden: barIsHidden,
+                sidebarWidth: sidebarWidth
+            )
+            ToolbarItem(placement: placement) {
                 ProfileSwitcherMenu(
                     active: active,
-                    label: .resolve(profileName: active.name, drawsSidebar: drawsSidebar, sidebarWidth: sidebarWidth),
+                    label: label,
                     items: ProfileSwitcherItems(
                         profiles: profiles, activeID: activeID, onSwitch: onSwitch, onNew: onNew, onSettings: onSettings
                     )
                 )
             }
-            .sharedBackgroundVisibility(.hidden)
+            .sharedBackgroundVisibility(label.sitsOnGlass ? .automatic : .hidden)
         }
     }
 }
 
 extension ProfileSwitcherToolbar {
     @MainActor
-    init(app: AppModel, drawsSidebar: Bool, sidebarWidth: CGFloat) {
+    init(
+        app: AppModel,
+        placement: ToolbarItemPlacement,
+        drawsSidebar: Bool,
+        barIsHidden: Bool = false,
+        sidebarWidth: CGFloat
+    ) {
         self.init(
+            placement: placement,
             profiles: app.profiles,
             activeID: app.activeProfileID,
             drawsSidebar: drawsSidebar,
+            barIsHidden: barIsHidden,
             sidebarWidth: sidebarWidth,
             onSwitch: { id in Task { await app.switchProfile(to: id) } },
             onNew: { app.askForProfileSheet(.new) },
@@ -50,12 +66,39 @@ struct ProfileSwitcherMenu: View {
     var items: ProfileSwitcherItems
 
     var body: some View {
+        styledMenu
+            .menuIndicator(.hidden)
+            .frame(maxWidth: label.menuWidth)
+            .help(label.help)
+            .accessibilityLabel(label.accessibilityLabel)
+            .id(label.measureKey)
+    }
+
+    @ViewBuilder
+    private var styledMenu: some View {
+        if label.sitsOnGlass {
+            menu
+        } else {
+            menu.menuStyle(.button).buttonStyle(.plain)
+        }
+    }
+
+    @ViewBuilder
+    private var mark: some View {
+        if label.sitsOnGlass, let image = ProfileMarkImage.of(symbol: active.symbol, colour: active.colour) {
+            Image(nsImage: image).renderingMode(.original).accessibilityHidden(true)
+        } else {
+            ProfileMark(symbol: active.symbol, colour: active.colour)
+        }
+    }
+
+    private var menu: some View {
         Menu {
             items
         } label: {
             HStack(spacing: Metrics.spacingSmall) {
                 HStack(spacing: SidebarMetrics.navGap) {
-                    ProfileMark(symbol: active.symbol, colour: active.colour)
+                    mark
                         .font(.system(size: SidebarMetrics.navIconSize))
                         .frame(width: SidebarMetrics.navIconColumn)
 
@@ -75,13 +118,6 @@ struct ProfileSwitcherMenu: View {
             }
             .contentShape(Rectangle())
         }
-        .menuStyle(.button)
-        .buttonStyle(.plain)
-        .menuIndicator(.hidden)
-        .frame(maxWidth: label.menuWidth)
-        .help(label.help)
-        .accessibilityLabel(label.accessibilityLabel)
-        .id(label.measureKey)
     }
 }
 

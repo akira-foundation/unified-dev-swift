@@ -12,6 +12,10 @@ struct WindowToolbar: ToolbarContent {
     @FocusedValue(\.notesFormatting) private var notesFormatting: NotesFormattingContext?
 
     var body: some ToolbarContent {
+        if collapsesProfileSwitcher {
+            ProfileSwitcherToolbar(app: app, placement: .navigation, drawsSidebar: false, sidebarWidth: 0)
+        }
+
         if app.selection == .home {
             ToolbarItemGroup(placement: .principal) {
                 homeScopePicker

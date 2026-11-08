@@ -15,6 +15,7 @@ struct RootView: View {
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var centreWidth: CGFloat = 0
     @State private var sidebarWidth = Metrics.sidebarWidth
+    @State private var fullScreenBarIsHidden = false
     @State private var isStartingProject = false
 
     var body: some View {
@@ -30,7 +31,20 @@ struct RootView: View {
                     )
                     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { sidebarWidth = $0 }
                     .toolbar {
-                        ProfileSwitcherToolbar(app: app, drawsSidebar: columns.drawsSidebar, sidebarWidth: sidebarWidth)
+                        if columns.drawsSidebar, fullScreenBarIsHidden {
+                            ProfileSwitcherToolbar(
+                                app: app,
+                                placement: .automatic,
+                                drawsSidebar: true,
+                                barIsHidden: true,
+                                sidebarWidth: sidebarWidth
+                            )
+                        }
+                        if columns.drawsSidebar, !fullScreenBarIsHidden {
+                            ProfileSwitcherToolbar(
+                                app: app, placement: .secondaryAction, drawsSidebar: true, sidebarWidth: sidebarWidth
+                            )
+                        }
                     }
             } content: {
                 DetailColumn()
@@ -172,6 +186,7 @@ struct RootView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             app.notificationInbox.noteOnScreen()
         }
+        .background(FullScreenBarReader { fullScreenBarIsHidden = $0 })
         .onReceive(NotificationCenter.default.publisher(for: .unifieddevToggleSidebar)) { _ in
             toggleSidebar()
         }

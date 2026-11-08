@@ -26,6 +26,7 @@ enum ProfileToolbarProbe {
         var active: ProfileID
         var drawsSidebar = true
         var sidebarWidth: CGFloat = 260
+        var barIsHidden = false
     }
 
     private static let unified = Profile(
@@ -50,6 +51,7 @@ enum ProfileToolbarProbe {
         Scene(name: "long-name-wide", profiles: [unified, longNamed], active: longNamed.id, sidebarWidth: 340),
         Scene(name: "smallest-with-name", profiles: [unified, akira], active: akira.id, sidebarWidth: 226),
         Scene(name: "minimum", profiles: [unified, akira], active: akira.id, sidebarWidth: 200),
+        Scene(name: "full-screen-bar-hidden", profiles: [unified, akira], active: akira.id, barIsHidden: true),
     ]
 
     private static func run() async {
@@ -87,6 +89,20 @@ enum ProfileToolbarProbe {
         return window
     }
 
+    private static func switcher(_ scene: Scene, placement: ToolbarItemPlacement) -> ProfileSwitcherToolbar {
+        ProfileSwitcherToolbar(
+            placement: placement,
+            profiles: scene.profiles,
+            activeID: scene.active,
+            drawsSidebar: scene.drawsSidebar,
+            barIsHidden: scene.barIsHidden,
+            sidebarWidth: scene.sidebarWidth,
+            onSwitch: { _ in },
+            onNew: {},
+            onSettings: {}
+        )
+    }
+
     private static func split(_ scene: Scene) -> some View {
         NavigationSplitView(columnVisibility: .constant(scene.drawsSidebar ? .all : .doubleColumn)) {
             List {
@@ -96,20 +112,18 @@ enum ProfileToolbarProbe {
             .background(Palette.surface)
             .navigationSplitViewColumnWidth(min: scene.sidebarWidth, ideal: scene.sidebarWidth, max: scene.sidebarWidth)
             .toolbar {
-                ProfileSwitcherToolbar(
-                    profiles: scene.profiles,
-                    activeID: scene.active,
-                    drawsSidebar: scene.drawsSidebar,
-                    sidebarWidth: scene.sidebarWidth,
-                    onSwitch: { _ in },
-                    onNew: {},
-                    onSettings: {}
-                )
+                if scene.drawsSidebar {
+                    switcher(scene, placement: scene.barIsHidden ? .automatic : .secondaryAction)
+                }
             }
         } content: {
             Color.clear
                 .navigationSplitViewColumnWidth(min: 400, ideal: 700, max: .infinity)
                 .toolbar {
+                    if !scene.drawsSidebar {
+                        switcher(scene, placement: .navigation)
+                    }
+
                     ToolbarItem(placement: .primaryAction) {
                         Button("Add", systemImage: "plus") {}
                     }

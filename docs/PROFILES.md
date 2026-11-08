@@ -121,8 +121,10 @@ direction. A `notify_when_done` asked for before the move still arrives.
 
 The switcher is a menu in the title bar, to the left of the button that shows and hides the sidebar.
 With the sidebar open it shows the profile's mark and name, the name cut with an ellipsis when the
-column is narrow and left out when the column is too narrow to read it. With the sidebar hidden it
-shows the mark alone and still opens. The help tag and the accessibility label carry the whole name.
+column is narrow and left out when the column is too narrow to read it. With the sidebar hidden, and
+in full screen while the bar is hidden, it shows the mark alone and still opens. The mark alone sits on
+glass, like the button beside it. Revealing the bar in full screen brings the name back. The help tag
+and the accessibility label carry the whole name.
 The Profile menu lists the profiles too, with New Profile and Profile Settings.
 
 | Key | Action |

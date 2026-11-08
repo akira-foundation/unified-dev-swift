@@ -7,19 +7,27 @@ public struct ProfileToolbarLabel: Equatable, Sendable {
 
     public let menuWidth: CGFloat?
 
+    public let sitsOnGlass: Bool
+
     public let help: String
 
     public let accessibilityLabel: String
 
     public let measureKey: String
 
-    public static func resolve(profileName: String, drawsSidebar: Bool, sidebarWidth: CGFloat) -> ProfileToolbarLabel {
+    public static func barIsHidden(isFullScreen: Bool, trafficLightsOpacity: CGFloat) -> Bool {
+        isFullScreen && trafficLightsOpacity < 0.5
+    }
+
+    public static func resolve(profileName: String, drawsSidebar: Bool, barIsHidden: Bool = false, sidebarWidth: CGFloat) -> ProfileToolbarLabel {
         let room = (sidebarWidth - occupiedBesideMenu).rounded(.down)
+        let showsName = drawsSidebar && !barIsHidden && room >= smallestMenuWithName
         return ProfileToolbarLabel(
-            menuWidth: drawsSidebar && room >= smallestMenuWithName ? room : nil,
+            menuWidth: showsName ? room : nil,
+            sitsOnGlass: !showsName,
             help: "Switch profile, \(profileName)",
             accessibilityLabel: "Profile, \(profileName)",
-            measureKey: "\(profileName)|\(drawsSidebar && room >= smallestMenuWithName ? room : 0)"
+            measureKey: "\(profileName)|\(showsName ? room : 0)|\(barIsHidden)"
         )
     }
 }

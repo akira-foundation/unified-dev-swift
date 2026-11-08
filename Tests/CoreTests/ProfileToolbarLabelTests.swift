@@ -20,6 +20,64 @@ struct ProfileToolbarLabelTests {
         #expect(label(drawsSidebar: false, width: 0).menuWidth == nil)
     }
 
+    @Test("with the full screen bar hidden the switcher is the mark alone, however wide the sidebar is")
+    func hiddenBarShowsTheMark() {
+        let resolved = ProfileToolbarLabel.resolve(
+            profileName: "Akira", drawsSidebar: true, barIsHidden: true, sidebarWidth: 340
+        )
+        #expect(resolved.menuWidth == nil)
+        #expect(resolved.help == "Switch profile, Akira")
+    }
+
+    @Test("the name comes back when the full screen bar is revealed")
+    func revealedBarShowsTheName() {
+        let hidden = ProfileToolbarLabel.resolve(
+            profileName: "Akira", drawsSidebar: true, barIsHidden: true, sidebarWidth: 260
+        )
+        let revealed = ProfileToolbarLabel.resolve(
+            profileName: "Akira", drawsSidebar: true, barIsHidden: false, sidebarWidth: 260
+        )
+        #expect(revealed.menuWidth == 108)
+        #expect(revealed.measureKey != hidden.measureKey)
+    }
+
+    @Test("the mark alone sits on glass, and the mark beside its name does not")
+    func glassBelongsToTheMarkAlone() {
+        let hiddenBar = ProfileToolbarLabel.resolve(
+            profileName: "Akira", drawsSidebar: true, barIsHidden: true, sidebarWidth: 260
+        )
+        let collapsed = ProfileToolbarLabel.resolve(
+            profileName: "Akira", drawsSidebar: false, sidebarWidth: 0
+        )
+        let tooNarrow = ProfileToolbarLabel.resolve(
+            profileName: "Akira", drawsSidebar: true, sidebarWidth: 200
+        )
+        let named = ProfileToolbarLabel.resolve(
+            profileName: "Akira", drawsSidebar: true, sidebarWidth: 260
+        )
+        #expect(hiddenBar.sitsOnGlass)
+        #expect(collapsed.sitsOnGlass)
+        #expect(tooNarrow.sitsOnGlass)
+        #expect(!named.sitsOnGlass)
+    }
+
+    @Test(
+        "only full screen with faded traffic lights counts as a hidden bar",
+        arguments: [
+            (false, CGFloat(0), false),
+            (false, CGFloat(1), false),
+            (true, CGFloat(1), false),
+            (true, CGFloat(0.5), false),
+            (true, CGFloat(0.49), true),
+            (true, CGFloat(0), true),
+        ]
+    )
+    func hiddenBarDecision(isFullScreen: Bool, opacity: CGFloat, expected: Bool) {
+        #expect(
+            ProfileToolbarLabel.barIsHidden(isFullScreen: isFullScreen, trafficLightsOpacity: opacity) == expected
+        )
+    }
+
     @Test("a name is dropped rather than squeezed below what reads as one")
     func tooNarrowDropsTheName() {
         #expect(label(width: 226).menuWidth == 74)
