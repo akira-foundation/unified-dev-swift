@@ -241,24 +241,36 @@ final class LinkTextView: NSTextView, HoverQuickLookSource {
     }
 
     override func mouseMoved(with event: NSEvent) {
-        super.mouseMoved(with: event)
         let point = convert(event.locationInWindow, from: nil)
+        if let over = markdown?.pointer(at: point) {
+            hover(nil)
+            hoverChip(nil)
+            cursor(for: over).set()
+            return
+        }
+        super.mouseMoved(with: event)
         let link = linkRange(at: point)
         let chip = fileChip(at: point)
         hover(link)
-        pointer(link: link != nil, chip: chip).set()
+        cursor(for: pointer(link: link != nil, chip: chip)).set()
         hoverChip(chip)
     }
 
     override func cursorUpdate(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
-        pointer(link: linkRange(at: point) != nil, chip: fileChip(at: point)).set()
+        let over = markdown?.pointer(at: point) ?? pointer(link: linkRange(at: point) != nil, chip: fileChip(at: point))
+        cursor(for: over).set()
     }
 
-    private func pointer(link: Bool, chip: FileChipHover?) -> NSCursor {
-        switch TranscriptPointer.over(link: link, chipThatOpens: chip?.subject.path != nil) {
+    private func pointer(link: Bool, chip: FileChipHover?) -> TranscriptPointer {
+        TranscriptPointer.over(link: link, chipThatOpens: chip?.subject.path != nil)
+    }
+
+    private func cursor(for pointer: TranscriptPointer) -> NSCursor {
+        switch pointer {
         case .hand: NSCursor.pointingHand
         case .text: NSCursor.iBeam
+        case .arrow: NSCursor.arrow
         }
     }
 

@@ -54,16 +54,6 @@ struct MarkdownTextView: NSViewRepresentable {
     }
 }
 
-private final class MarkdownChromeHost: NSHostingView<AnyView> {
-    var controls: CGRect = .null
-
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        guard let hit = super.hitTest(point) else { return nil }
-        let local = convert(point, from: superview)
-        return MarkdownChromeHit.keeps(hitIsHost: hit === self, point: local, controls: controls) ? hit : nil
-    }
-}
-
 @MainActor
 final class MarkdownTextOverlay {
     struct Chrome {
@@ -112,6 +102,12 @@ final class MarkdownTextOverlay {
 
     var chromeViews: [NSView] {
         hosts.keys.sorted().compactMap { hosts[$0] }.flatMap { [$0.header, $0.footer] }
+    }
+
+    func pointer(at point: NSPoint) -> TranscriptPointer? {
+        let bars = hosts.values.lazy.flatMap { [$0.header, $0.footer] }
+        guard let host = bars.first(where: { $0.frame.contains(point) }) else { return nil }
+        return .overChrome(selectableText: (host.hitTest(point) as? NSTextField)?.isSelectable == true)
     }
 
     func apply(_ new: MarkdownText, to view: LinkTextView) {
