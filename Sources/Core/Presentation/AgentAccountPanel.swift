@@ -169,7 +169,7 @@ public struct AgentAccountPanel: Sendable, Equatable {
             note: "Unified Dev never added this account, because its sign-in did not finish. The folder is still on this Mac.",
             offersSignInAgain: false,
             warns: true,
-            removal: AgentAccountRemoval.warningForUnfinishedSignIn(named: title),
+            removal: AgentAccountRemoval.warningForUnfinishedSignIn(named: title, provider: home.provider),
             isUnfinished: true
         )
     }
@@ -204,6 +204,7 @@ public struct AgentAccountPanel: Sendable, Equatable {
                 ? nil
                 : AgentAccountRemoval.warning(
                     forAccountNamed: title,
+                    provider: home.provider,
                     folderExists: standing.directoryExists,
                     chosenBy: owner?.choosers[home.id] ?? []
                 ),

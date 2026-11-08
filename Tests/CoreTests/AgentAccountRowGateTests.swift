@@ -23,7 +23,7 @@ struct AgentAccountRowGateTests {
         let holder = ProcessVector(pid: 7, strings: ["X=\(made.directory.path)"])
 
         await #expect(throws: AgentAccountError.folderInUse(made.directory.path)) {
-            try await AgentAccountRemoval.remove(row, support: support, store: store, processes: { [holder] })
+            try await AgentAccountRemoval.remove(row, support: support, store: store, keychain: .untouched, processes: { [holder] })
         }
 
         #expect(FileManager.default.fileExists(atPath: made.directory.path))
@@ -42,7 +42,7 @@ struct AgentAccountRowGateTests {
         let holder = ProcessVector(pid: 7, strings: ["X=\(orphan.directory.path)"])
 
         await #expect(throws: AgentAccountError.folderInUse(orphan.directory.path)) {
-            try await AgentAccountRemoval.remove(row, support: support, store: store, processes: { [holder] })
+            try await AgentAccountRemoval.remove(row, support: support, store: store, keychain: .untouched, processes: { [holder] })
         }
 
         #expect(FileManager.default.fileExists(atPath: orphan.directory.path))
