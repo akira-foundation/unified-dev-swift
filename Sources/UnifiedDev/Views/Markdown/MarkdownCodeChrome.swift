@@ -1,12 +1,15 @@
 import SwiftUI
 import Core
 
+private nonisolated let markdownChromeSpace = "markdownChrome"
+
 struct MarkdownCodeHeader: View {
     var code: String
     var language: Language
     var command: String?
     var canRun: Bool
     var actions: TranscriptLinkActions
+    var onControls: (CGRect) -> Void
 
     var body: some View {
         HStack(spacing: Metrics.spacing) {
@@ -14,19 +17,23 @@ struct MarkdownCodeHeader: View {
                 .font(Typo.caption)
                 .foregroundStyle(Palette.textTertiary)
             Spacer(minLength: MarkdownMetrics.blockGap)
-            if let command, canRun, let run = actions.runCommand, actions.mayRunCommand(command) {
-                CodeBlockRunButtons(
-                    command: command,
-                    isRunning: actions.commandRun(command)?.isRunning == true,
-                    run: run,
-                    stop: actions.stopCommand
-                )
+            HStack(spacing: Metrics.spacing) {
+                if let command, canRun, let run = actions.runCommand, actions.mayRunCommand(command) {
+                    CodeBlockRunButtons(
+                        command: command,
+                        isRunning: actions.commandRun(command)?.isRunning == true,
+                        run: run,
+                        stop: actions.stopCommand
+                    )
+                }
+                CopyButton(text: code, title: "Copy code", size: MarkdownMetrics.iconButton)
             }
-            CopyButton(text: code, title: "Copy code", size: MarkdownMetrics.iconButton)
+            .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .named(markdownChromeSpace)) }, action: onControls)
         }
         .padding(.horizontal, MarkdownMetrics.blockGap)
         .padding(.vertical, Metrics.spacing)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .coordinateSpace(.named(markdownChromeSpace))
     }
 
     private static func displayName(for language: Language) -> String {
@@ -55,6 +62,7 @@ struct MarkdownCodeFooter: View {
     var actions: TranscriptLinkActions
     var onToggle: () -> Void
     var onHeight: (CGFloat) -> Void
+    var onControls: (CGRect) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -72,6 +80,8 @@ struct MarkdownCodeFooter: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
         .onGeometryChange(for: CGFloat.self, of: \.size.height, action: onHeight)
+        .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .named(markdownChromeSpace)) }, action: onControls)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .coordinateSpace(.named(markdownChromeSpace))
     }
 }
