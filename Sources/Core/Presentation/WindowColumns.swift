@@ -16,7 +16,7 @@ public struct WindowColumns: Equatable, Sendable {
 
     public let sidebarCeiling: CGFloat
 
-    public var showsProfileMark: Bool { !drawsSidebar }
+    public var collapsesProfileSwitcher: Bool { !drawsSidebar }
 
     public var reach: Reach { drawsSidebar ? .all : .withoutSidebar }
 

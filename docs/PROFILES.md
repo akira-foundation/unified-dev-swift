@@ -119,9 +119,13 @@ direction. A `notify_when_done` asked for before the move still arrives.
 
 ## Switching
 
-The switcher sits at the top of the sidebar. With the sidebar hidden, the window shows the active
-profile's mark in the toolbar instead. That mark has no menu: switch through the Profile menu or the
-shortcut. The Profile menu lists the profiles, with New Profile and Profile Settings.
+The switcher is a menu in the title bar, to the left of the button that shows and hides the sidebar.
+With the sidebar open it shows the profile's mark and name, the name cut with an ellipsis when the
+column is narrow and left out when the column is too narrow to read it. With the sidebar hidden, and
+in full screen while the bar is hidden, it shows the mark alone and still opens. The mark alone sits on
+glass, like the button beside it. Revealing the bar in full screen brings the name back. The help tag
+and the accessibility label carry the whole name.
+The Profile menu lists the profiles too, with New Profile and Profile Settings.
 
 | Key | Action |
 | --- | --- |
