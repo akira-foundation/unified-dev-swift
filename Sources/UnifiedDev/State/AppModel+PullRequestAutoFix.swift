@@ -52,17 +52,17 @@ extension AppModel {
     }
 
     private func accountForAutoFix(_ session: Session?, in model: WorkspaceModel) async -> PullRequestAutoFix.Account {
-        guard let session else { return .missing }
-        let scope = model.transcript(for: session).accountScope
-        var isResolved = true
+        guard let session, let scope = model.existingTranscript(for: session.id)?.accountScope else { return .missing }
+        let isSameAccount: Bool
         do {
-            _ = try await account(for: session.agentKind, in: scope)
+            let chosen = try await account(for: session.agentKind, in: scope)
+            let selected = try await account(for: session.agentKind, in: selectedAccountScope)
+            isSameAccount = chosen == selected
         } catch {
-            isResolved = false
+            return .missing
         }
-        let isSameAccount = accountFingerprint(for: scope) == accountFingerprint(for: selectedAccountScope)
         return PullRequestAutoFix.account(
-            isResolved: isResolved, provider: session.agentKind, quotas: isSameAccount ? quotas : [], at: Date()
+            isResolved: true, provider: session.agentKind, quotas: isSameAccount ? quotas : [], at: Date()
         )
     }
 

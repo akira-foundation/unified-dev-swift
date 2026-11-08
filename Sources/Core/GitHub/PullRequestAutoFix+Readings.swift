@@ -7,19 +7,22 @@ public extension PullRequestAutoFix {
         public var isAwaitingAnswer: Bool
         public var wasStoppedByOwner: Bool
         public var permissionMode: PermissionMode
+        public var interactionMode: InteractionMode
 
         public init(
             runsInTerminal: Bool,
             isBusy: Bool,
             isAwaitingAnswer: Bool,
             wasStoppedByOwner: Bool,
-            permissionMode: PermissionMode
+            permissionMode: PermissionMode,
+            interactionMode: InteractionMode
         ) {
             self.runsInTerminal = runsInTerminal
             self.isBusy = isBusy
             self.isAwaitingAnswer = isAwaitingAnswer
             self.wasStoppedByOwner = wasStoppedByOwner
             self.permissionMode = permissionMode
+            self.interactionMode = interactionMode
         }
     }
 
@@ -27,7 +30,8 @@ public extension PullRequestAutoFix {
         guard let reading else { return .absent }
         if reading.runsInTerminal { return .terminal }
         if reading.isAwaitingAnswer { return .awaitingAnswer }
-        if reading.isBusy || reading.wasStoppedByOwner || reading.permissionMode == .plan { return .busy }
+        let isPlanning = reading.permissionMode == .plan || reading.interactionMode == .plan
+        if reading.isBusy || reading.wasStoppedByOwner || isPlanning { return .busy }
         return reading.permissionMode == .bypassPermissions ? .unattended : .ready
     }
 

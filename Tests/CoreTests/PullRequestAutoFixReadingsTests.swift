@@ -5,11 +5,12 @@ import Foundation
 @Suite("Pull request auto fix readings")
 struct PullRequestAutoFixReadingsTests {
     private func reading(
-        terminal: Bool = false, busy: Bool = false, awaiting: Bool = false, stopped: Bool = false, mode: PermissionMode = .acceptEdits
+        terminal: Bool = false, busy: Bool = false, awaiting: Bool = false, stopped: Bool = false, mode: PermissionMode = .acceptEdits,
+        interaction: InteractionMode = .build
     ) -> PullRequestAutoFix.ChatReading {
         PullRequestAutoFix.ChatReading(
             runsInTerminal: terminal, isBusy: busy, isAwaitingAnswer: awaiting,
-            wasStoppedByOwner: stopped, permissionMode: mode
+            wasStoppedByOwner: stopped, permissionMode: mode, interactionMode: interaction
         )
     }
 
@@ -62,6 +63,7 @@ struct PullRequestAutoFixReadingsTests {
     @Test("a chat in plan mode cannot fix anything, so it waits")
     func planWaits() {
         #expect(PullRequestAutoFix.chat(reading(mode: .plan)) == .busy)
+        #expect(PullRequestAutoFix.chat(reading(interaction: .plan)) == .busy)
     }
 
     @Test("an account that cannot be resolved is missing")

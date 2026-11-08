@@ -1134,7 +1134,8 @@ final class TranscriptModel {
             isBusy: isRunning || sending != nil || !pendingDeliveries.isEmpty || queuesNextMessage,
             isAwaitingAnswer: isAwaitingPermission || !pendingPermissionAsks.isEmpty,
             wasStoppedByOwner: wasStoppedByHand || session.state == .cancelled,
-            permissionMode: session.permissionMode
+            permissionMode: session.permissionMode,
+            interactionMode: session.interactionMode
         )
     }
 

@@ -5,11 +5,10 @@ extension WorkspaceModel {
     func sendAutoFixRequest(
         _ attempt: PullRequestAutoFix.Attempt, pullRequest: PullRequest, into session: Session
     ) async -> Bool {
-        let chat = transcript(for: session)
-        guard chat.acceptsMessages,
-              let text = await autoFixText(attempt, pullRequest: pullRequest)
+        guard let text = await autoFixText(attempt, pullRequest: pullRequest),
+              let chat = existingTranscript(for: session.id),
+              PullRequestAutoFix.chat(chat.pullRequestAutoFixReading) == .ready
         else { return false }
-        guard PullRequestAutoFix.chat(chat.pullRequestAutoFixReading) == .ready else { return false }
         return await chat.submitAppRequest(text, keepsPlace: true)
     }
 
