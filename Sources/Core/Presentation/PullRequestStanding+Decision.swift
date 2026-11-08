@@ -60,6 +60,7 @@ public extension PullRequestStanding {
                     act: .openPullRequest,
                     sentence: "Ask this workspace's agent to push \(branch) and open a pull request"
                         + " against \(baseBranch), following this project's pull request instructions."
+                        + " \(sentWithoutABubble)"
                 )
                 : nil,
             current: .commits,
@@ -210,7 +211,7 @@ public extension PullRequestStanding {
         }
     }
 
-    public static let sentWithoutABubble =
+    static let sentWithoutABubble =
         "The request goes as soon as you click and does not appear in the conversation."
 
     private static func sentence(
@@ -228,13 +229,15 @@ public extension PullRequestStanding {
         case .push, .commitAndPush:
             let what = act == .push ? "push" : "commit what is here and push"
             return "Ask this workspace's agent to \(what) on \(branch), so #\(number) is what is on"
-                + " this disk."
+                + " this disk. \(sentWithoutABubble)"
         case .markReadyForReview:
             return "Ask this workspace's agent to mark #\(number) ready for review on GitHub."
+                + " \(sentWithoutABubble)"
         case .merge:
             return "Merge #\(number) into \(baseBranch), or choose another method from the chevron."
+                + " Once you confirm, the request goes without appearing in the conversation."
         case .openPullRequest:
-            return "Ask this workspace's agent to open a pull request for #\(number)."
+            return "Ask this workspace's agent to open a pull request for #\(number). \(sentWithoutABubble)"
         case .archive:
             return "Remove this workspace's worktree."
         }

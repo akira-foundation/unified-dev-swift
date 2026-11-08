@@ -1,6 +1,19 @@
 import Foundation
 
 public enum AppRequest {
+    public enum Source: Sendable, CaseIterable {
+        case pullRequestBar
+        case inspectorToolbar
+        case agentThroughBridge
+
+        public var hidesTurn: Bool {
+            switch self {
+            case .pullRequestBar: true
+            case .inspectorToolbar, .agentThroughBridge: false
+            }
+        }
+    }
+
     public static let unconfirmedSentence =
         "Unified Dev could not confirm that its request reached the agent. Send it again only if the agent did not answer."
 

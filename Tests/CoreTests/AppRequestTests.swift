@@ -283,22 +283,33 @@ struct AppRequestTests {
     ).request(template: PromptRegistry.definition(for: .fixConflicts).defaultTemplate)
 
     @Test(
-        "the fix conflicts request stays hidden after a reload, whichever agent runs the chat",
-        arguments: [AgentKind.claudeCode, .codex, .grok]
+        "every request of the bar stays hidden after a reload, whichever agent runs the chat",
+        arguments: [
+            PromptID.createPullRequest, .pushLocalWork, .markReadyForReview,
+            .mergePullRequest, .fixConflicts, .continueAfterMerge,
+        ],
+        [AgentKind.claudeCode, .codex, .grok]
     )
-    func theConflictRequestSurvivesAReload(agent: AgentKind) async throws {
-        let path = TestScratch.unique("app-request-conflicts") + ".sqlite"
+    func everyBarRequestSurvivesAReload(prompt: PromptID, agent: AgentKind) async throws {
+        let text = PromptRegistry.definition(for: prompt).defaultTemplate
+        let path = TestScratch.unique("app-request-bar") + ".sqlite"
         let store = try Store(path: path)
         let session = try await makeSession(store, agent: agent)
-        _ = try await claim(
-            AppRequest.delivery(to: session.id, text: Self.conflictRequest, interactionMode: nil), in: store
-        )
+        _ = try await claim(AppRequest.delivery(to: session.id, text: text, interactionMode: nil), in: store)
 
         let reopened = try Store(path: path)
         let row = try #require(await reopened.messages(sessionID: session.id).last)
 
         #expect(row.kind == .crew)
-        #expect(AppRequest.sentText(kind: row.kind, payload: row.payload) == Self.conflictRequest)
+        #expect(AppRequest.sentText(kind: row.kind, payload: row.payload) == text)
+    }
+
+    @Test("only the pull request bar hides its turn: an agent's merge and the toolbar stay in front of the owner")
+    func onlyTheBarHides() {
+        #expect(AppRequest.Source.pullRequestBar.hidesTurn)
+        #expect(!AppRequest.Source.agentThroughBridge.hidesTurn)
+        #expect(!AppRequest.Source.inspectorToolbar.hidesTurn)
+        #expect(AppRequest.Source.allCases.filter(\.hidesTurn) == [.pullRequestBar])
     }
 
     @Test("the same conflict request pasted by the owner stays the owner's bubble")

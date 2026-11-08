@@ -384,7 +384,7 @@ before placement, so a changed target cannot produce a false success or split un
 
 `chat_list` discovers the unarchived sessions in a workspace, including crew members. `chat_read`
 accepts an ID from that list or an exact title. Shared titles are refused until the caller names
-an ID. A request Unified Dev sent on the owner's behalf, the report of a Run, a failed check or fix conflicts, is
+an ID. A request Unified Dev sent on the owner's behalf, the report of a Run or a request from the pull request bar, is
 not drawn in the owner's window and is still read here, as a `crew` record with its full text and
 `sent_by` set to `unified_dev`, so a reader can explain the reply that followed it and cannot take
 it for the owner's words.

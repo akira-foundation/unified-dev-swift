@@ -155,7 +155,7 @@ In priority order when the budget tightens:
 7. The chat id and the pointer to `chat_read` for anything cut.
 
 Reasoning, divider rows, full tool results and attachment bytes are left out. So are the words of a
-request Unified Dev sent on the owner's behalf (`AppRequest`), the report of a Run, a failed check or fix conflicts:
+request Unified Dev sent on the owner's behalf (`AppRequest`), the report of a Run or a request from the pull request bar:
 it opens a turn as any crew message does, and it is not the owner's message, so that turn says who
 sent it and gives its row for `chat_read`, ahead of the reply it led to. Every turn before the
 last counts as complete. The last counts as complete only when its last `result` row is clean, which
