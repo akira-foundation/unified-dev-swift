@@ -222,6 +222,9 @@ enum ProfileProbe {
             )),
             Scene(name: "switcher-menu", size: CGSize(width: 260, height: 170), view: menuRows(menu)),
             Scene(name: "menubar-header", size: CGSize(width: 360, height: 130), view: statusModule(akira)),
+            Scene(name: "bridge-section", size: CGSize(width: ProfileSheetMetrics.width, height: 210), view: AnyView(
+                Form { ProfileBridgeRows(isOn: .constant(true), isEnabled: true, failure: nil) }.settingsForm()
+            )),
         ] + sheets.map { Scene(name: $0.0, size: $0.1.size, view: $0.1.view) }
     }
 

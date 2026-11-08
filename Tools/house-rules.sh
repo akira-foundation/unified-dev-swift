@@ -683,6 +683,12 @@ if [ -f "$app_toolbox" ]; then
   done < <(grep -oE '\b[A-Z][A-Za-z]*Tool\b' "$app_toolbox" | sort -u)
 fi
 
+echo "==> only the profile's settings section turns a profile's bridge switch"
+if hits="$(git grep --untracked -n -I -e 'ProfileBridgeSwitch\.save' -e 'ProfileBridgeSwitch\.key' -e 'reachableFromOtherProfiles' -- 'Sources' ':!Sources/Core/Workspace/ProfileBridgeSwitch.swift' ':!Sources/UnifiedDev/Views/Chrome/Settings/ProfileBridgeSection.swift' ':!Sources/Core/Preview/PreviewScenarioSeeder+Profiles.swift' || true)" && [ -n "$hits" ]; then
+  echo "$hits" | show
+  report "ProfileBridgeSwitch is saved from ProfileBridgeSection and, in a seeded preview, by the scenario seeder, and nowhere else."
+fi
+
 echo "==> an extension of a debug-only type is debug-only too"
 debug_types="$(git grep --untracked -l -I '^#if DEBUG' -- 'Sources/*.swift' | xargs grep -h -oE '^(public |final |@MainActor )*(struct|enum|class|actor) [A-Z][A-Za-z0-9]*' 2>/dev/null | awk '{print $NF}' | sort -u || true)"
 for type in $debug_types; do

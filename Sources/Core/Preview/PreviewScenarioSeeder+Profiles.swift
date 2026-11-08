@@ -13,6 +13,11 @@ extension PreviewScenarioSeeder {
             )
             ids[profile.name.lowercased()] = created.id
         }
+        for name in scenario.reachableProfiles {
+            if let id = ids[name.lowercased()] {
+                try await ProfileBridgeSwitch.save(true, profile: id, to: manager.store)
+            }
+        }
         return ids
     }
 }

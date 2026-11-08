@@ -369,7 +369,9 @@ public actor AgentRunner {
 
     func ingest(_ event: AgentEvent) async {
         var event = event
-        if case .permissionAsk(let ask) = event, BridgeToolApproval.isSelfApproved(toolName: ask.toolName) {
+        if case .permissionAsk(let ask) = event, BridgeToolApproval.isSelfApproved(
+            toolName: ask.toolName, input: ask.input, inWorkspace: session.workspaceID != nil
+        ) {
             await persist(kind: .system, payload: event.raw)
             await write(answerTo: ask, decision: .allow(scope: .once))
             return

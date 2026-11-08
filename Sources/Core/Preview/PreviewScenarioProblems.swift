@@ -22,6 +22,9 @@ public extension PreviewScenario {
                 problems.append("project \"\(project.name)\" is in profile \"\(name)\", which the scenario does not declare")
             }
         }
+        for name in reachableProfiles where !declared.contains(name.lowercased()) {
+            problems.append("reachableProfiles names \(name), which is not a profile of this scenario")
+        }
         if let name = activeProfile, !declared.contains(name.lowercased()) {
             problems.append("the active profile \"\(name)\" is not declared by the scenario")
         }
