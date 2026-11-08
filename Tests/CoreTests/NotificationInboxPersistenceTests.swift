@@ -32,7 +32,7 @@ struct NotificationInboxPersistenceTests {
 
         try await store.recordInboxNotification(draft(workspace, session), at: moment)
 
-        let rows = try await Store(path: path).inboxNotifications()
+        let rows = try await Store(path: path).inboxNotifications(at: moment)
         let row = try #require(rows.first)
         #expect(rows.count == 1)
         #expect(row.event == .turnFinished)
@@ -53,7 +53,7 @@ struct NotificationInboxPersistenceTests {
             draft(workspace, session, detail: "Second"), at: moment.addingTimeInterval(60)
         )
 
-        let rows = try await store.inboxNotifications()
+        let rows = try await store.inboxNotifications(at: moment)
         #expect(rows.count == 1)
         #expect(rows[0].detail == "Second")
         #expect(!rows[0].isRead)
@@ -70,7 +70,7 @@ struct NotificationInboxPersistenceTests {
         try await store.recordInboxNotification(draft(workspace, nil), at: moment)
         try await store.recordInboxNotification(draft(workspace, nil), at: moment)
 
-        #expect(try await store.inboxNotifications().count == 3)
+        #expect(try await store.inboxNotifications(at: moment).count == 3)
     }
 
     @Test("opening a chat marks only what it clears")
@@ -83,7 +83,7 @@ struct NotificationInboxPersistenceTests {
 
         try await store.markInboxNotificationsRead(.chat(workspace.id, session.id), at: moment)
 
-        let rows = try await store.inboxNotifications()
+        let rows = try await store.inboxNotifications(at: moment)
         #expect(rows.first { $0.sessionID == session.id }?.isRead == true)
         #expect(rows.first { $0.sessionID == other.id }?.isRead == false)
     }
@@ -99,7 +99,7 @@ struct NotificationInboxPersistenceTests {
 
         try await store.move(repoID: workspace.repoID, to: profile.id)
 
-        #expect(try await store.inboxNotifications().first?.profileID == profile.id)
+        #expect(try await store.inboxNotifications(at: moment).first?.profileID == profile.id)
     }
 
     @Test("archiving keeps the row, and it opens the archive view")
@@ -110,7 +110,7 @@ struct NotificationInboxPersistenceTests {
 
         try await store.update(workspaceID: workspace.id) { $0.state = .archived }
 
-        let row = try #require(try await store.inboxNotifications().first)
+        let row = try #require(try await store.inboxNotifications(at: moment).first)
         #expect(row.destination == .archived(workspace.id, session.id))
         #expect(row.counts)
     }
@@ -123,7 +123,7 @@ struct NotificationInboxPersistenceTests {
 
         try await store.deleteWorkspace(id: workspace.id)
 
-        let row = try #require(try await store.inboxNotifications().first)
+        let row = try #require(try await store.inboxNotifications(at: moment).first)
         #expect(row.destination == .gone)
         #expect(!row.counts)
         #expect(row.profileID == .initial)
@@ -137,7 +137,7 @@ struct NotificationInboxPersistenceTests {
 
         try await store.deleteSession(id: session.id)
 
-        #expect(try await store.inboxNotifications().first?.destination == .chatGone(workspace.id))
+        #expect(try await store.inboxNotifications(at: moment).first?.destination == .chatGone(workspace.id))
     }
 
     @Test("rows older than the retention are pruned and younger ones stay")
@@ -151,7 +151,77 @@ struct NotificationInboxPersistenceTests {
 
         try await store.pruneInboxNotifications(at: moment)
 
-        #expect(try await store.inboxNotifications().map(\.event) == [.needsInput])
+        #expect(try await store.inboxNotifications(at: moment).map(\.event) == [.needsInput])
+    }
+
+    @Test("a long detail is stored as one capped line")
+    func detailIsCapped() async throws {
+        let store = try makeTestStore("inbox")
+        let (workspace, session) = try await seed(store)
+        let long = String(repeating: "x", count: NotificationDigest.bodyLimit + 40)
+
+        try await store.recordInboxNotification(draft(workspace, session, detail: "  \(long)\nsecond line\n"), at: moment)
+
+        let detail = try #require(try await store.inboxNotifications(at: moment).first?.detail)
+        #expect(detail.count == NotificationDigest.bodyLimit + 1)
+        #expect(!detail.contains("second line"))
+    }
+
+    @Test("two workspaces with no chat keep separate rows")
+    func noChatPerWorkspace() async throws {
+        let store = try makeTestStore("inbox")
+        let (workspace, _) = try await seed(store)
+        let other = try await store.upsert(Workspace(
+            repoID: workspace.repoID, name: "Other", branch: "other",
+            path: TestScratch.unique("other"), baseBranch: "main"
+        ))
+
+        try await store.recordInboxNotification(draft(workspace, nil), at: moment)
+        try await store.recordInboxNotification(draft(other, nil), at: moment)
+
+        #expect(try await store.inboxNotifications(at: moment).count == 2)
+    }
+
+    @Test("a closed chat counts as gone")
+    func closedChat() async throws {
+        let store = try makeTestStore("inbox")
+        let (workspace, session) = try await seed(store)
+        try await store.recordInboxNotification(draft(workspace, session), at: moment)
+
+        try await store.update(sessionID: session.id) { $0.archivedAt = moment }
+
+        #expect(try await store.inboxNotifications(at: moment).first?.destination == .chatGone(workspace.id))
+    }
+
+    @Test("an expired row is not listed even before anything prunes it")
+    func expiredIsNotListed() async throws {
+        let store = try makeTestStore("inbox")
+        let (workspace, session) = try await seed(store)
+        try await store.recordInboxNotification(draft(workspace, session), at: moment)
+
+        let later = moment.addingTimeInterval(NotificationInbox.retention + 1)
+
+        #expect(try await store.inboxNotifications(at: later).isEmpty)
+    }
+
+    @Test("pruning also holds the capacity")
+    func pruneHoldsCapacity() async throws {
+        let store = try makeTestStore("inbox")
+        let (workspace, _) = try await seed(store)
+        let raw = try SQLiteDatabase(path: store.path)
+        for index in 0...NotificationInbox.capacity {
+            _ = try raw.run(
+                """
+                INSERT INTO inbox_notifications (id, event, workspace_id, workspace_name, created_at)
+                VALUES (?, 'turnFinished', ?, 'Tide tables', ?)
+                """,
+                [.text("row-\(index)"), .text(workspace.id.rawValue), .double(moment.timeIntervalSince1970 + Double(index))]
+            )
+        }
+
+        try await store.pruneInboxNotifications(at: moment)
+
+        #expect(try await store.inboxNotifications(at: moment).count == NotificationInbox.capacity)
     }
 
     @Test("the capacity keeps the newest rows")
@@ -168,7 +238,7 @@ struct NotificationInboxPersistenceTests {
             )
         }
 
-        let rows = try await store.inboxNotifications()
+        let rows = try await store.inboxNotifications(at: moment)
         #expect(rows.count == NotificationInbox.capacity)
         #expect(rows.first?.sessionID == SessionID("chat-\(NotificationInbox.capacity)"))
         #expect(!rows.contains { $0.sessionID == SessionID("chat-0") })

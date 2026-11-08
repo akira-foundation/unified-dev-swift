@@ -74,6 +74,23 @@ struct NotificationInboxRulesTests {
         #expect(row(state: nil).destination == .gone)
     }
 
+    @Test("a banner finds the row of its own chat and no other")
+    func bannerFindsItsRow() {
+        let wanted = row(session: "s1")
+        let sibling = row(session: "s2", at: 60)
+        let sessionless = row(session: nil, at: 120)
+
+        #expect(NotificationInbox.row(
+            forBannerIn: [sibling, wanted, sessionless], workspaceID: WorkspaceID("w1"), sessionID: SessionID("s1")
+        )?.id == wanted.id)
+        #expect(NotificationInbox.row(
+            forBannerIn: [sibling, wanted], workspaceID: WorkspaceID("w1"), sessionID: nil
+        ) == nil)
+        #expect(NotificationInbox.row(
+            forBannerIn: [wanted], workspaceID: WorkspaceID("w2"), sessionID: SessionID("s1")
+        ) == nil)
+    }
+
     @Test("the chat on screen in the frontmost app is not recorded")
     func onScreenIsNotRecorded() {
         let context = NotificationContext(
@@ -184,6 +201,7 @@ struct NotificationInboxRulesTests {
     func bellBadge() {
         #expect(NotificationBellReading.badge(unseen: 0) == nil)
         #expect(NotificationBellReading.badge(unseen: 12) == "12")
+        #expect(NotificationBellReading.badge(unseen: 99) == "99")
         #expect(NotificationBellReading.badge(unseen: 100) == "99+")
     }
 

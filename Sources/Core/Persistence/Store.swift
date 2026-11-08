@@ -2628,8 +2628,9 @@ public actor Store {
         try db.transaction { try InboxNotificationColumns.record(draft, at: moment, in: db) }
     }
 
-    public func inboxNotifications() throws -> [InboxNotification] {
-        try db.query(InboxNotificationColumns.all).compactMap(InboxNotificationColumns.notification(from:))
+    public func inboxNotifications(at moment: Date = Date()) throws -> [InboxNotification] {
+        try db.query(InboxNotificationColumns.all, [.double(InboxNotificationColumns.cutoff(at: moment))])
+            .compactMap(InboxNotificationColumns.notification(from:))
     }
 
     public func markInboxNotificationRead(id: InboxNotificationID, at moment: Date = Date()) throws {
@@ -2639,8 +2640,10 @@ public actor Store {
     public func markInboxNotificationsRead(_ opening: InboxOpening, at moment: Date = Date()) throws {
         let unread = try db.query(InboxNotificationColumns.unreadInWorkspace, [.text(opening.workspaceID)])
             .compactMap(InboxNotificationColumns.notification(from:))
-        for row in unread where NotificationInbox.clears(row, by: opening) {
-            try markInboxNotificationRead(id: row.id, at: moment)
+        try db.transaction {
+            for row in unread where NotificationInbox.clears(row, by: opening) {
+                try markInboxNotificationRead(id: row.id, at: moment)
+            }
         }
     }
 

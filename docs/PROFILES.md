@@ -144,7 +144,7 @@ has to and opens the workspace and the chat it was about, and a macOS banner goe
 It records turns finishing, an agent that needs something, an agent that stops, a setup script that
 fails, checks finishing on a pull request and a usage limit being reached. The switches in Settings,
 Notifications govern banners only, so the bell records whatever they say, and it stays quiet only
-for the chat already on screen while the app is in front.
+for what is already on screen while the app is in front.
 
 A row stops counting when its chat is opened by any route, or through Mark All as Read, and stays in
 the list, dimmed, until it expires after 7 days or falls past the newest 200. A row whose workspace

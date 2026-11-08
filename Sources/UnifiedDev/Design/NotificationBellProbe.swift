@@ -56,7 +56,7 @@ enum NotificationBellProbe {
     private static let rows = [
         row(.needsInput, "Quarterly close", "Wants to run git push origin main.", minutes: 2, profile: akira),
         row(.turnFinished, "Reminder letters", "The letters now use the new template.", minutes: 9, profile: debtges),
-        row(.quotaExhausted, "Payment plans", "Five hour limit reached", minutes: 21, profile: debtges),
+        row(.quotaExhausted, "Payment plans", "All of the 5 hours allowance used", minutes: 21, profile: debtges),
         row(.checksFinished, "Tide tables", "3 of 3 checks passed", minutes: 64, profile: unified, read: true),
         row(.agentFailed, "Old statements", "The agent exited without finishing.", minutes: 180, profile: debtges, state: .archived),
         row(.setupFailed, "Removed work", "", minutes: 900, profile: nil, state: nil),

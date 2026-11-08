@@ -12,7 +12,7 @@ public struct QuotaExhaustionWatch: Sendable {
         return AgentQuotaAdapters.quotas(fromRateLimitEvent: data, at: now).filter { quota in
             let key = "\(workspace.rawValue)/\(quota.id)"
             guard refused || Self.isSpent(quota) else {
-                told[key] = nil
+                if quota.resetsAt == nil { told[key] = nil }
                 return false
             }
             if let earlier = told[key], earlier == quota.resetsAt { return false }
@@ -22,7 +22,7 @@ public struct QuotaExhaustionWatch: Sendable {
     }
 
     public static func sentence(for quota: AgentQuota) -> String {
-        "\(quota.window.label) limit reached"
+        "All of the \(quota.window.label.lowercased()) allowance used"
     }
 
     private static func isSpent(_ quota: AgentQuota) -> Bool {

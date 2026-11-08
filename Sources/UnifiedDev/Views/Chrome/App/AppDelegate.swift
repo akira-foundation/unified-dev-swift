@@ -245,7 +245,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
         Task { @MainActor in
             if let reply, let workspaceID, !reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                await NotificationService.shared.reply(reply, toWorkspace: workspaceID)
+                await NotificationService.shared.reply(reply, toWorkspace: workspaceID, session: sessionID)
                 completionHandler()
                 return
             }

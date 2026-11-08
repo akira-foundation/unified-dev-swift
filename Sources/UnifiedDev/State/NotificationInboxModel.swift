@@ -9,7 +9,7 @@ final class NotificationInboxModel {
 
     @ObservationIgnored private weak var app: AppModel?
     @ObservationIgnored private var observation: Task<Void, Never>?
-    @ObservationIgnored private var isJumping = false
+    @ObservationIgnored private var jumpsUnderway = 0
 
     var unseen: Int { NotificationInbox.unseenCount(rows) }
 
@@ -19,7 +19,7 @@ final class NotificationInboxModel {
         observation = Task { [weak self] in
             try? await store.pruneInboxNotifications()
             await self?.reload()
-            for await _ in store.changes(of: [.inboxNotifications, .workspaces, .repos]) {
+            for await _ in store.changes(of: [.inboxNotifications, .workspaces, .repos, .sessions]) {
                 guard let self else { return }
                 await self.reload()
             }
@@ -35,6 +35,7 @@ final class NotificationInboxModel {
         guard let store = app?.store else { return }
         let loaded = NotificationInbox.ordered((try? await store.inboxNotifications()) ?? [])
         if rows != loaded { rows = loaded }
+        noteOnScreen()
     }
 
     func record(_ draft: NotificationDraft, context: NotificationContext) {
@@ -47,7 +48,7 @@ final class NotificationInboxModel {
     }
 
     func noteOnScreen() {
-        guard !isJumping, let app, let store = app.store,
+        guard jumpsUnderway == 0, let app, let store = app.store,
               let opening = NotificationInbox.opening(
                 selection: app.selection,
                 activeSession: app.selectedModel?.activeSessionID,
@@ -65,25 +66,25 @@ final class NotificationInboxModel {
 
     func open(_ row: InboxNotification) async {
         guard let app, let store = app.store else { return }
+        jumpsUnderway += 1
+        defer {
+            jumpsUnderway -= 1
+            noteOnScreen()
+        }
         await reload()
         let current = rows.first { $0.id == row.id } ?? row
         guard current.destination != .gone else { return }
 
-        isJumping = true
-        defer {
-            isJumping = false
-            noteOnScreen()
-        }
         try? await store.markInboxNotificationRead(id: current.id)
         if let profile = current.profileID { await app.switchProfile(to: profile) }
         await show(current.destination, in: app)
     }
 
     func openBanner(workspaceID: WorkspaceID, sessionID: SessionID?) async {
+        jumpsUnderway += 1
+        defer { jumpsUnderway -= 1 }
         await reload()
-        guard let row = rows.first(where: { $0.workspaceID == workspaceID && $0.sessionID == sessionID })
-            ?? rows.first(where: { $0.workspaceID == workspaceID })
-        else {
+        guard let row = NotificationInbox.row(forBannerIn: rows, workspaceID: workspaceID, sessionID: sessionID) else {
             OpenWorkspaceNotification.post(workspaceID)
             return
         }

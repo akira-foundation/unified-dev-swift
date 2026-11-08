@@ -23,6 +23,12 @@ public enum NotificationInbox {
         rows.count(where: \.counts)
     }
 
+    public static func row(
+        forBannerIn rows: [InboxNotification], workspaceID: WorkspaceID, sessionID: SessionID?
+    ) -> InboxNotification? {
+        ordered(rows).first { $0.workspaceID == workspaceID && $0.sessionID == sessionID }
+    }
+
     public static func shouldRecord(
         workspaceID: WorkspaceID, sessionID: SessionID?, context: NotificationContext
     ) -> Bool {

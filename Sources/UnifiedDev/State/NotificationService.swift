@@ -229,14 +229,15 @@ final class NotificationService {
         )
     }
 
-    func reply(_ text: String, toWorkspace workspaceID: WorkspaceID) async {
+    func reply(_ text: String, toWorkspace workspaceID: WorkspaceID, session sessionID: SessionID?) async {
         guard let app, let workspace = app.workspaces.first(where: { $0.id == workspaceID }) else { return }
 
         let model = app.model(for: workspace)
         if model.sessions.isEmpty { await model.reloadSessions() }
-        guard let session = model.activeSession else { return }
+        guard let session = model.sessions.first(where: { $0.id == sessionID }) ?? model.activeSession else { return }
 
         await model.transcript(for: session).submit(text, dismissingAsks: true)
+        try? await app.store?.markInboxNotificationsRead(.chat(workspaceID, session.id))
     }
 
     nonisolated static func workspaceID(from response: UNNotificationResponse) -> WorkspaceID? {
@@ -265,7 +266,6 @@ final class NotificationService {
 
         for workspace in app.workspaces {
             guard !Task.isCancelled else { return }
-            guard workspace.id != onScreen else { continue }
             guard let pullRequest = WorkspacePullRequests.shared.pullRequest(for: workspace.id) else {
                 lastSeenChecks[workspace.id] = nil
                 continue
@@ -273,6 +273,7 @@ final class NotificationService {
 
             let previous = lastSeenChecks[workspace.id]
             lastSeenChecks[workspace.id] = pullRequest.checks
+            guard workspace.id != onScreen else { continue }
 
             if previous == .pending, pullRequest.checks == .passing || pullRequest.checks == .failing {
                 submit(NotificationDraft(

@@ -26,7 +26,7 @@ enum InboxNotificationColumns {
         LEFT JOIN sessions s ON s.id = n.session_id AND s.archived_at IS NULL
         """
 
-    static let all = "\(listed) ORDER BY n.created_at DESC, n.rowid DESC"
+    static let all = "\(listed) WHERE n.created_at >= ? ORDER BY n.created_at DESC, n.rowid DESC"
 
     static let unreadInWorkspace = "\(listed) WHERE n.workspace_id = ? AND n.read_at IS NULL"
 
@@ -74,11 +74,15 @@ enum InboxNotificationColumns {
                 .double(moment.timeIntervalSince1970),
             ])
         }
-        try db.run(trim, [.int(Int64(NotificationInbox.capacity))])
+        try prune(at: moment, in: db)
+    }
+
+    static func cutoff(at moment: Date) -> Double {
+        moment.addingTimeInterval(-NotificationInbox.retention).timeIntervalSince1970
     }
 
     static func prune(at moment: Date, in db: SQLiteDatabase) throws {
-        try db.run(expire, [.double(moment.addingTimeInterval(-NotificationInbox.retention).timeIntervalSince1970)])
+        try db.run(expire, [.double(cutoff(at: moment))])
         try db.run(trim, [.int(Int64(NotificationInbox.capacity))])
     }
 

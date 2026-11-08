@@ -37,6 +37,24 @@ struct QuotaExhaustionWatchTests {
         #expect(watch.newlyExhausted(fromRateLimitEvent: event(utilization: 1.0, resetsAt: 1_800_018_000), in: workspace).count == 1)
     }
 
+    @Test("dipping under the limit in the same window does not tell again")
+    func dipInTheSameWindow() {
+        var watch = QuotaExhaustionWatch()
+
+        #expect(watch.newlyExhausted(fromRateLimitEvent: event(utilization: 1.0), in: workspace).count == 1)
+        #expect(watch.newlyExhausted(fromRateLimitEvent: event(utilization: 0.9), in: workspace).isEmpty)
+        #expect(watch.newlyExhausted(fromRateLimitEvent: event(utilization: 1.0), in: workspace).isEmpty)
+    }
+
+    @Test("the sentence names the window in words that read")
+    func sentence() {
+        let quota = AgentQuota(
+            provider: .claudeCode, window: .named("five_hour"), measure: .fraction(1), resetsAt: nil, observedAt: Date()
+        )
+
+        #expect(QuotaExhaustionWatch.sentence(for: quota) == "All of the 5 hours allowance used")
+    }
+
     @Test("each workspace is told on its own")
     func perWorkspace() {
         var watch = QuotaExhaustionWatch()

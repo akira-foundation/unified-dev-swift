@@ -59,6 +59,10 @@ extension PreviewScenarioSeeder {
             at: moment
         )
         guard notification.read else { return }
-        try await store.markInboxNotificationsRead(.archive(workspace.id), at: moment)
+        let rows = try await store.inboxNotifications(at: moment)
+        guard let row = rows.first(where: {
+            $0.workspaceID == workspace.id && $0.sessionID == sessionID && $0.event == notification.event
+        }) else { return }
+        try await store.markInboxNotificationRead(id: row.id, at: moment)
     }
 }
