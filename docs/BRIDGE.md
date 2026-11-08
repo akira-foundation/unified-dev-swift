@@ -1245,8 +1245,10 @@ nothing an agent passes or says can raise it. A workspace that stops being the o
 to eight at its next call, and when it already holds more nothing is archived for it: it starts
 nothing until it holds fewer than eight.
 
-All three are counted from the database rather than kept in memory, so they survive a restart and two
-calls racing cannot both read the same stale number.
+All three are counted from the database rather than kept in memory, so they survive a restart. The count
+is a reading and not a reservation: a workspace's row is written only after `git worktree add` has finished,
+so two starts at the same moment can both pass on the same number, and an orchestrator can end up
+holding seventeen of sixteen. Nothing is taken back; the next start is refused until it holds fewer than the ceiling.
 
 Every start is deduplicated by a digest of the call, because a model retries and a retried spawn
 cuts a second worktree. A repeat answers with the workspace that already exists and a note saying
