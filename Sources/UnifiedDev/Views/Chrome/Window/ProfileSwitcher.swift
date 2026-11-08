@@ -68,6 +68,7 @@ struct ProfileSwitcherMenu: View {
         .frame(maxWidth: label.menuWidth)
         .help(label.help)
         .accessibilityLabel(label.accessibilityLabel)
+        .id(label.measureKey)
     }
 
     @ViewBuilder

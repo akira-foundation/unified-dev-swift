@@ -33,6 +33,18 @@ struct ProfileToolbarLabelTests {
         #expect(label(width: 260.9).menuWidth == 108)
     }
 
+    @Test("the toolbar is told to measure again when the menu's width or name changes, and only then")
+    func measureKeyFollowsWhatChangesTheWidth() {
+        let resolved = label(width: 260).measureKey
+        #expect(label(width: 260).measureKey == resolved)
+        #expect(label(width: 261).measureKey != resolved)
+        #expect(label(drawsSidebar: false, width: 260).measureKey != resolved)
+        #expect(
+            ProfileToolbarLabel.resolve(profileName: "Unified", drawsSidebar: true, sidebarWidth: 260).measureKey != resolved
+        )
+        #expect(label(width: 0).measureKey == label(drawsSidebar: false, width: 260).measureKey)
+    }
+
     @Test("help and accessibility carry the whole name, whatever is drawn")
     func fullNameIsAlwaysSaid() {
         let long = "A client whose name goes on far longer than any sidebar is wide"

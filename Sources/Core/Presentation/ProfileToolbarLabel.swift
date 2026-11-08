@@ -11,12 +11,15 @@ public struct ProfileToolbarLabel: Equatable, Sendable {
 
     public let accessibilityLabel: String
 
+    public let measureKey: String
+
     public static func resolve(profileName: String, drawsSidebar: Bool, sidebarWidth: CGFloat) -> ProfileToolbarLabel {
         let room = (sidebarWidth - occupiedBesideMenu).rounded(.down)
         return ProfileToolbarLabel(
             menuWidth: drawsSidebar && room >= smallestMenuWithName ? room : nil,
             help: "Switch profile, \(profileName)",
-            accessibilityLabel: "Profile, \(profileName)"
+            accessibilityLabel: "Profile, \(profileName)",
+            measureKey: "\(profileName)|\(drawsSidebar && room >= smallestMenuWithName ? room : 0)"
         )
     }
 }

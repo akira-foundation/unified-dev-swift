@@ -14,7 +14,7 @@ struct RootView: View {
 
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var centreWidth: CGFloat = 0
-    @State private var sidebarWidth: CGFloat = 0
+    @State private var sidebarWidth = Metrics.sidebarWidth
     @State private var isStartingProject = false
 
     var body: some View {
