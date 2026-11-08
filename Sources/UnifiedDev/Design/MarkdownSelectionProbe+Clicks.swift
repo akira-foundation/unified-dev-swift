@@ -46,6 +46,12 @@ extension MarkdownSelectionProbe {
         try? await Task.sleep(for: .milliseconds(150))
         check(log.ran == ["ls -la"], "a click on Run ran \(log.ran)")
 
+        if ProcessInfo.processInfo.environment["UD_PROBE_COPIES"] != nil {
+            press(at: view.convert(NSPoint(x: copyX, y: top), to: nil), in: window)
+            try? await Task.sleep(for: .milliseconds(150))
+            check(NSPasteboard.general.string(forType: .string)?.contains("ls -la") == true, "Copy wrote \(String(describing: NSPasteboard.general.string(forType: .string)))")
+        }
+
         let link = view.convert(point(of: whole.range(of: "a link").location + 2, in: view), to: nil)
         window.makeFirstResponder(view)
         NSApp.postEvent(mouseEvent(.leftMouseUp, at: link, in: window), atStart: false)
@@ -62,7 +68,7 @@ extension MarkdownSelectionProbe {
         window.sendEvent(mouseEvent(.leftMouseUp, at: point, in: window))
     }
 
-    private static func mouseEvent(_ type: NSEvent.EventType, at point: NSPoint, in window: NSWindow) -> NSEvent {
+    static func mouseEvent(_ type: NSEvent.EventType, at point: NSPoint, in window: NSWindow) -> NSEvent {
         NSEvent.mouseEvent(
             with: type, location: point, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
             windowNumber: window.windowNumber, context: nil, eventNumber: 1, clickCount: 1, pressure: 1

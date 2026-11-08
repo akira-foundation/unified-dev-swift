@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import Core
 
@@ -24,6 +25,25 @@ struct SelectionActionBar: View {
         .shadow(radius: 6, y: 2)
         .focusable(false)
         .fixedSize()
+    }
+}
+
+private final class SelectionOverlaySpaceView: NSView {
+    override var isFlipped: Bool { true }
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}
+
+private struct SelectionOverlaySpace: NSViewRepresentable {
+    let reader: TranscriptSelectionReader
+
+    func makeNSView(context: Context) -> SelectionOverlaySpaceView {
+        let view = SelectionOverlaySpaceView()
+        reader.overlaySpace = view
+        return view
+    }
+
+    func updateNSView(_ view: SelectionOverlaySpaceView, context: Context) {
+        reader.overlaySpace = view
     }
 }
 
@@ -71,6 +91,7 @@ struct SelectionActionOverlay: View {
             }
         }
         .coordinateSpace(.named(Self.space))
+        .background(SelectionOverlaySpace(reader: reader))
     }
 
     private nonisolated static let space = "selectionOverlay"

@@ -19,6 +19,8 @@ final class TranscriptSelectionReader {
     @ObservationIgnored var onAttach: (String, Int) -> Void = { _, _ in }
     @ObservationIgnored var barFrame: CGRect = .null
     @ObservationIgnored var replyFrame: CGRect = .null
+    @ObservationIgnored weak var overlaySpace: NSView?
+    @ObservationIgnored var pointerLocation: (NSWindow) -> CGPoint = { $0.mouseLocationOutsideOfEventStream }
     @ObservationIgnored private var release: Task<Void, Never>?
     @ObservationIgnored private weak var controller: TranscriptTableController?
     @ObservationIgnored private var monitor: Any?
@@ -77,7 +79,7 @@ final class TranscriptSelectionReader {
         guard let scroll = controller?.scrollView, event.window === scroll.window else { return false }
         switch event.type {
         case .leftMouseDown:
-            let point = hostPoint(event.locationInWindow, in: scroll)
+            let point = overlayPoint(event.locationInWindow)
             guard !barFrame.contains(point) else { return false }
             if replying != nil, replyFrame.contains(point) { return false }
             endReply()
@@ -112,7 +114,8 @@ final class TranscriptSelectionReader {
     private func pressesSelectedText(_ event: NSEvent) -> Bool {
         guard let responder = controller?.tableView?.window?.firstResponder as? NSView,
               let hit = responder.window?.contentView?.hitTest(event.locationInWindow) else { return false }
-        return hit.isDescendant(of: responder)
+        let chrome = (responder as? LinkTextView)?.markdown?.chromeViews ?? []
+        return hit.isDescendant(of: responder) && !chrome.contains { hit.isDescendant(of: $0) }
     }
 
     private func isInTable(_ event: NSEvent) -> Bool {
@@ -121,10 +124,8 @@ final class TranscriptSelectionReader {
         return hit.isDescendant(of: table)
     }
 
-    private func hostPoint(_ location: CGPoint, in scroll: NSScrollView) -> CGPoint {
-        let host = scroll.superview ?? scroll
-        let point = host.convert(location, from: nil)
-        return CGPoint(x: point.x, y: host.isFlipped ? point.y : host.bounds.height - point.y)
+    private func overlayPoint(_ location: CGPoint) -> CGPoint {
+        overlaySpace?.convert(location, from: nil) ?? .zero
     }
 
     private func readOnRelease(ignoring previous: String?) {
@@ -172,7 +173,7 @@ final class TranscriptSelectionReader {
         observeClip()
         guard let scroll = controller?.scrollView, let window = scroll.window,
               let picked = selectedText(), picked.text != previous else { return clear() }
-        let anchor = hostPoint(window.mouseLocationOutsideOfEventStream, in: scroll)
+        let anchor = overlayPoint(pointerLocation(window))
         current = TranscriptSelection(text: picked.text, seq: picked.seq, anchor: anchor)
     }
 }

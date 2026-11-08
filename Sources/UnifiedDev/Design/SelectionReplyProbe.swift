@@ -20,17 +20,10 @@ enum SelectionReplyProbe {
         override var isKeyWindow: Bool { true }
     }
 
-    private static func mouse(_ type: NSEvent.EventType, _ point: NSPoint, in window: NSWindow) -> NSEvent {
-        NSEvent.mouseEvent(
-            with: type, location: point, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
-            windowNumber: window.windowNumber, context: nil, eventNumber: 1, clickCount: 1, pressure: 1
-        )!
-    }
-
     private static func click(_ point: NSPoint, in window: NSWindow) async {
-        NSApp.postEvent(mouse(.leftMouseUp, point, in: window), atStart: false)
-        NSApp.sendEvent(mouse(.leftMouseDown, point, in: window))
-        NSApp.sendEvent(mouse(.leftMouseUp, point, in: window))
+        NSApp.postEvent(MarkdownSelectionProbe.mouseEvent(.leftMouseUp, at: point, in: window), atStart: false)
+        NSApp.sendEvent(MarkdownSelectionProbe.mouseEvent(.leftMouseDown, at: point, in: window))
+        NSApp.sendEvent(MarkdownSelectionProbe.mouseEvent(.leftMouseUp, at: point, in: window))
         try? await Task.sleep(for: .milliseconds(300))
     }
 
@@ -44,6 +37,8 @@ enum SelectionReplyProbe {
         }
         try? await Task.sleep(for: .milliseconds(200))
     }
+
+    private static let topInset: CGFloat = 52
 
     private static func run() async {
         for _ in 0..<120 where ProbeHarness.appModel == nil { try? await Task.sleep(for: .milliseconds(250)) }
@@ -76,19 +71,20 @@ enum SelectionReplyProbe {
             onGeometryChange: { _ in }, onSettled: {}, onLiveScrollChange: { _ in }
         )
         let overlay = SelectionActionOverlay(reader: reader, onSideChat: nil, agent: "Claude Code", onReply: { log.replied.append("\($0.text)|\($1)") })
-        let host = NSHostingView(rootView: AnyView(table.overlay { overlay }))
+        let host = NSHostingView(rootView: AnyView(
+            table.ignoresSafeArea(.container, edges: .top)
+                .overlay { overlay }
+                .safeAreaInset(edge: .top, spacing: 0) { Color.clear.frame(height: topInset) }
+        ))
         window.contentView = host
         for _ in 0..<16 {
             host.layoutSubtreeIfNeeded()
             try? await Task.sleep(for: .milliseconds(150))
         }
         reader.start(controller: controller)
-        guard let view = MarkdownSelectionProbe.textViews(in: host).first, let header = view.markdown?.chromeViews.first,
-              let layout = view.layoutManager, let container = view.textContainer else { harness.fail("no answer") }
-        func place(_ index: Int) -> NSPoint {
-            let rect = layout.boundingRect(forGlyphRange: NSRange(location: layout.glyphIndexForCharacter(at: index), length: 1), in: container)
-            return view.convert(NSPoint(x: rect.midX + view.textContainerOrigin.x, y: rect.midY + view.textContainerOrigin.y), to: nil)
-        }
+        guard let view = MarkdownSelectionProbe.textViews(in: host).first, let header = view.markdown?.chromeViews.first else { harness.fail("no answer") }
+        func place(_ index: Int) -> NSPoint { view.convert(MarkdownSelectionProbe.point(of: index, in: view), to: nil) }
+        func inWindow(_ point: CGPoint) -> NSPoint { host.convert(NSPoint(x: point.x, y: point.y + topInset), to: nil) }
 
         let runPoint = NSPoint(
             x: header.frame.maxX - MarkdownMetrics.blockGap - MarkdownMetrics.iconButton * 1.5 - Metrics.spacing,
@@ -99,27 +95,41 @@ enum SelectionReplyProbe {
 
         let from = place(0)
         let to = place(20)
+        reader.pointerLocation = { _ in to }
         window.makeFirstResponder(view)
-        NSApp.postEvent(mouse(.leftMouseDragged, to, in: window), atStart: false)
-        NSApp.postEvent(mouse(.leftMouseUp, to, in: window), atStart: false)
-        view.mouseDown(with: mouse(.leftMouseDown, from, in: window))
-        NSApp.sendEvent(mouse(.leftMouseDown, from, in: window))
-        try? await Task.sleep(for: .milliseconds(400))
-        guard let selected = reader.current else { harness.fail("the drag raised no selection bar") }
-        check(reader.barFrame.width < 200 && reader.barFrame.height < 80, "the bar claims \(reader.barFrame), so a press beside it reads as a press on it")
+        NSApp.postEvent(MarkdownSelectionProbe.mouseEvent(.leftMouseDragged, at: to, in: window), atStart: false)
+        NSApp.postEvent(MarkdownSelectionProbe.mouseEvent(.leftMouseUp, at: to, in: window), atStart: false)
+        view.mouseDown(with: MarkdownSelectionProbe.mouseEvent(.leftMouseDown, at: from, in: window))
+        await click(from, in: window)
+        guard reader.current != nil else { harness.fail("the drag raised no selection bar") }
+        check(!reader.barFrame.isNull && reader.barFrame.width < 200 && reader.barFrame.height < 80, "the bar claims \(reader.barFrame), so a press beside it reads as a press on it")
 
-        reader.beginReply(to: TranscriptSelection(text: selected.text, seq: selected.seq, anchor: CGPoint(x: 240, y: 320)))
+        view.setSelectedRange(NSRange(location: 3, length: 6))
+        await click(from, in: window)
+        check(reader.current?.text == "answer", "a press beside the bar left it quoting \(String(describing: reader.current?.text))")
+
+        await click(view.convert(runPoint, to: nil), in: window)
+        check(reader.current == nil, "a press on Run raised the bar over the selection")
+        check(log.ran == ["ls -la", "ls -la"], "Run under a selection ran \(log.ran)")
+
+        await click(from, in: window)
+        guard reader.current != nil else { harness.fail("the selection did not raise the bar again") }
+        for _ in 0..<3 {
+            host.layoutSubtreeIfNeeded()
+            try? await Task.sleep(for: .milliseconds(120))
+        }
+        await click(inWindow(CGPoint(x: reader.barFrame.midX, y: reader.barFrame.midY)), in: window)
         for _ in 0..<4 {
             host.layoutSubtreeIfNeeded()
             try? await Task.sleep(for: .milliseconds(120))
         }
-        check(reader.replying != nil, "the reply card did not open")
-        await click(host.convert(NSPoint(x: reader.replyFrame.minX + 40, y: reader.replyFrame.maxY - 24), to: nil), in: window)
+        guard reader.replying != nil else { harness.fail("a click on Reply did not open the card") }
+        await click(inWindow(CGPoint(x: reader.replyFrame.minX + 40, y: reader.replyFrame.maxY - 24)), in: window)
         check(reader.replying != nil, "a click in the reply field closed the card")
         await key("a", 0, in: window)
         check((window.firstResponder as? NSTextView)?.string == "a", "typing did not reach the reply field: \(String(describing: window.firstResponder))")
         await key("\r", 36, in: window)
-        check(log.replied == ["\(selected.text)|a"], "Return replied with \(log.replied)")
+        check(log.replied == ["answer|a"], "Return replied with \(log.replied)")
         check(reader.replying == nil, "the card stayed open after Return")
 
         harness.write(.object(["passed": .bool(failures.isEmpty), "failures": .array(failures.map(JSONValue.string))]))

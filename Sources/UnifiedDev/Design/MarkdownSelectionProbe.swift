@@ -232,6 +232,8 @@ enum MarkdownSelectionProbe {
         if let answer = textViews(in: host).first, let footer = answer.markdown?.chromeViews.last {
             let status = answer.convert(NSPoint(x: footer.frame.midX, y: footer.frame.midY), to: nil)
             check(window.contentView?.hitTest(status)?.isDescendant(of: footer) == true, "the status row gave up its clicks")
+        } else {
+            check(false, "no status row to press")
         }
         if let answer = textViews(in: host).first, let storage = answer.textStorage {
             answer.setSelectedRange(NSRange(location: 0, length: storage.length))

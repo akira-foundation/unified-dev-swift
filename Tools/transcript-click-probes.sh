@@ -15,7 +15,9 @@ codesign --force --deep --sign - "$probe_app" >/dev/null 2>&1
 
 python3 - "$probe_app" "$probe_root" <<'PY'
 import json
+import os
 import pathlib
+import shutil
 import subprocess
 import sys
 
@@ -24,20 +26,27 @@ if b'--markdown-selection-probe' not in pathlib.Path(app, 'Contents/MacOS/Unifie
     raise SystemExit('Build the debug app with swift build before running these probes.')
 probes = {
     'markdown-selection': ['--markdown-selection-probe', '--markdown-selection-probe-out', root],
-    'selection-reply': ['--selection-reply-probe', f'{root}/selection-reply.json'],
+    'selection-reply': ['--selection-reply-probe', f'{root}/selection-reply.json', '-preview.holdsSeededQuotas', 'YES'],
 }
+copies = ['--env', 'UD_PROBE_COPIES=1'] if os.environ.get('CI') else []
 for name, arguments in probes.items():
     stdout = f'{root}/{name}.stdout'
     log = pathlib.Path(root, f'{name}.log')
-    subprocess.run(
-        ['open', '-g', '-n', '-W', '-a', app, '--env', f'UD_DB_PATH={root}/{name}.sqlite',
-         '--stdout', stdout, '--stderr', str(log), '--args', *arguments],
-        timeout=150, check=True,
-    )
+    try:
+        subprocess.run(
+            ['open', '-g', '-n', '-W', '-a', app, '--env', f'UD_DB_PATH={root}/{name}.sqlite', *copies,
+             '--stdout', stdout, '--stderr', str(log), '--args', *arguments],
+            timeout=150, check=True,
+        )
+    except subprocess.TimeoutExpired:
+        subprocess.run(['pkill', '-f', f'{app}/Contents/MacOS/UnifiedDev'])
+        print(log.read_text(), file=sys.stderr)
+        raise
     written = pathlib.Path(root, f'{name}.json')
     report = (written if written.exists() else pathlib.Path(stdout)).read_text()
     print(f'{name}: {report}')
     if not json.loads(report).get('passed'):
         print(log.read_text(), file=sys.stderr)
         raise SystemExit(f'{name} failed; evidence: {root}')
+shutil.rmtree(root)
 PY
