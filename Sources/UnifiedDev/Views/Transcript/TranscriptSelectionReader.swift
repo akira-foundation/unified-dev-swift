@@ -75,7 +75,7 @@ final class TranscriptSelectionReader {
         }
     }
 
-    private func handle(_ event: NSEvent) -> Bool {
+    func handle(_ event: NSEvent) -> Bool {
         guard let scroll = controller?.scrollView, event.window === scroll.window else { return false }
         switch event.type {
         case .leftMouseDown:

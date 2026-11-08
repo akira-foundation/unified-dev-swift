@@ -27,6 +27,11 @@ enum SelectionReplyProbe {
         try? await Task.sleep(for: .milliseconds(300))
     }
 
+    private static func pressOnText(at point: NSPoint, reader: TranscriptSelectionReader, in window: NSWindow) async {
+        _ = reader.handle(MarkdownSelectionProbe.mouseEvent(.leftMouseDown, at: point, in: window))
+        try? await Task.sleep(for: .milliseconds(300))
+    }
+
     private static func key(_ character: String, _ code: UInt16, in window: NSWindow) async {
         for type in [NSEvent.EventType.keyDown, .keyUp] {
             NSApp.sendEvent(NSEvent.keyEvent(
@@ -100,19 +105,19 @@ enum SelectionReplyProbe {
         NSApp.postEvent(MarkdownSelectionProbe.mouseEvent(.leftMouseDragged, at: to, in: window), atStart: false)
         NSApp.postEvent(MarkdownSelectionProbe.mouseEvent(.leftMouseUp, at: to, in: window), atStart: false)
         view.mouseDown(with: MarkdownSelectionProbe.mouseEvent(.leftMouseDown, at: from, in: window))
-        await click(from, in: window)
+        await pressOnText(at: from, reader: reader, in: window)
         guard reader.current != nil else { harness.fail("the drag raised no selection bar") }
         check(!reader.barFrame.isNull && reader.barFrame.width < 200 && reader.barFrame.height < 80, "the bar claims \(reader.barFrame), so a press beside it reads as a press on it")
 
         view.setSelectedRange(NSRange(location: 3, length: 6))
-        await click(from, in: window)
+        await pressOnText(at: from, reader: reader, in: window)
         check(reader.current?.text == "answer", "a press beside the bar left it quoting \(String(describing: reader.current?.text))")
 
         await click(view.convert(runPoint, to: nil), in: window)
         check(reader.current == nil, "a press on Run raised the bar over the selection")
         check(log.ran == ["ls -la", "ls -la"], "Run under a selection ran \(log.ran)")
 
-        await click(from, in: window)
+        await pressOnText(at: from, reader: reader, in: window)
         guard reader.current != nil else { harness.fail("the selection did not raise the bar again") }
         for _ in 0..<3 {
             host.layoutSubtreeIfNeeded()
