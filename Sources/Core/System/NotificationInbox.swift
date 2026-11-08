@@ -3,10 +3,11 @@ import Foundation
 public enum InboxOpening: Sendable, Hashable {
     case chat(WorkspaceID, SessionID?)
     case archive(WorkspaceID)
+    case replied(WorkspaceID, SessionID)
 
     public var workspaceID: WorkspaceID {
         switch self {
-        case .chat(let id, _), .archive(let id): id
+        case .chat(let id, _), .archive(let id), .replied(let id, _): id
         }
     }
 }
@@ -53,6 +54,8 @@ public enum NotificationInbox {
         switch opening {
         case .archive:
             return true
+        case .replied(_, let session):
+            return row.sessionID == session
         case .chat(_, let session):
             return row.sessionID == nil || row.sessionID == session || !row.chatExists
         }

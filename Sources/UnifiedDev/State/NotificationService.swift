@@ -234,10 +234,13 @@ final class NotificationService {
 
         let model = app.model(for: workspace)
         if model.sessions.isEmpty { await model.reloadSessions() }
-        guard let session = model.sessions.first(where: { $0.id == sessionID }) ?? model.activeSession else { return }
+        guard let session = sessionID.map({ id in model.sessions.first { $0.id == id } }) ?? model.activeSession else {
+            app.notice = Notice(message: InboxRowReading.replyNotSentNotice)
+            return
+        }
 
         await model.transcript(for: session).submit(text, dismissingAsks: true)
-        try? await app.store?.markInboxNotificationsRead(.chat(workspaceID, session.id))
+        try? await app.store?.markInboxNotificationsRead(.replied(workspaceID, session.id))
     }
 
     nonisolated static func workspaceID(from response: UNNotificationResponse) -> WorkspaceID? {

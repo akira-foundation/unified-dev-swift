@@ -4,6 +4,8 @@ public struct InboxRowReading: Sendable, Hashable {
     public static let goneSentence = "This workspace no longer exists."
     public static let chatGoneNotice = "That chat no longer exists, so its workspace was opened instead."
 
+    public static let replyNotSentNotice = "That chat no longer exists, so your reply was not sent."
+
     public var title: String
     public var origin: String
     public var detail: String

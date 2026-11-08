@@ -151,6 +151,15 @@ struct NotificationInboxRulesTests {
         #expect(!NotificationInbox.clears(row(read: true), by: opening))
     }
 
+    @Test("replying from a banner clears that chat alone")
+    func replyClearsOnlyItsChat() {
+        let replied = InboxOpening.replied(WorkspaceID("w1"), SessionID("s1"))
+
+        #expect(NotificationInbox.clears(row(), by: replied))
+        #expect(!NotificationInbox.clears(row(session: nil), by: replied))
+        #expect(!NotificationInbox.clears(row(session: "s2", chatExists: false), by: replied))
+    }
+
     @Test("opening the archive view clears every chat of that workspace")
     func openingTheArchiveClearsAll() {
         #expect(NotificationInbox.clears(row(session: "s2", state: .archived), by: .archive(WorkspaceID("w1"))))

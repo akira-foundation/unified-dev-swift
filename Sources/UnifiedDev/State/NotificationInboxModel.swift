@@ -82,7 +82,10 @@ final class NotificationInboxModel {
 
     func openBanner(workspaceID: WorkspaceID, sessionID: SessionID?) async {
         jumpsUnderway += 1
-        defer { jumpsUnderway -= 1 }
+        defer {
+            jumpsUnderway -= 1
+            noteOnScreen()
+        }
         await reload()
         guard let row = NotificationInbox.row(forBannerIn: rows, workspaceID: workspaceID, sessionID: sessionID) else {
             OpenWorkspaceNotification.post(workspaceID)
