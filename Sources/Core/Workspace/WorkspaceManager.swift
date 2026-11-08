@@ -45,7 +45,14 @@ public struct WorkspaceManager: Sendable {
     public static let workspacesRoot: URL = WorkspacesRoot.resolve()
 
     private func profileFolder(of repo: Repo) async throws -> String {
-        try await store.profile(id: repo.profileID)?.folder ?? ProfileID.initial.rawValue
+        let folders = try await store.profiles().map(\.folder)
+        let folder = try await store.profile(id: repo.profileID)?.folder ?? ProfileID.initial.rawValue
+        return ProfileFolder.usable(
+            folder,
+            under: workspacesRoot,
+            recordedWorktrees: try await store.workspacePaths(),
+            otherProfiles: Set(folders).subtracting([folder])
+        )
     }
 
     @discardableResult
