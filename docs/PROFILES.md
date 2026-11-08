@@ -120,6 +120,11 @@ shortcut. The Profile menu lists the profiles, with New Profile and Profile Sett
 | --- | --- |
 | `⌃⌘1` to `⌃⌘9` | Switch to the profile at that position |
 
+The search palette reaches them too: from two typed letters, under Everything, it lists the profiles
+whose name matches, best match first, and picking one switches to it. The section comes before the
+workspaces when its best match is at least as good as theirs. The active profile is not listed, and
+the workspaces and transcripts it finds stay those of the active profile. `SearchPanelProfiles` decides it.
+
 `⌘` and a digit stays with the tabs. The active profile is stored and restored at launch, and each
 profile remembers its last workspace. A stored active profile that no longer exists opens Unified, on
 Unified's remembered workspace, or on Home when it has none. A remembered workspace that was archived

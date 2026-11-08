@@ -37,4 +37,9 @@ public enum ProfileShortcut {
         guard (1...9).contains(digit), digit <= profiles.count else { return nil }
         return profiles[digit - 1].id
     }
+
+    public static func display(at digit: Int) -> String? {
+        guard (1...9).contains(digit) else { return nil }
+        return MenuShortcut("\(digit)", .control, .command).display
+    }
 }
