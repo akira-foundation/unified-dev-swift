@@ -5,6 +5,8 @@ import SwiftUI
 
 #if DEBUG
 extension MarkdownSelectionProbe {
+    static var diagnostics: [String] = []
+
     static func pointers(check: (Bool, String) -> Void) async {
         let run = CodeBlockRun.finished(status: 0, output: "total 0\nprobe output line\n", duration: .seconds(1))
         let actions = TranscriptLinkActions(
@@ -72,8 +74,16 @@ extension MarkdownSelectionProbe {
         guard let bar = footer as? MarkdownChromeHost, let toggle = button(in: bar) else {
             return check(false, "no AppKit button in the status row to open the output with")
         }
-        toggle.performClick(nil)
+        press(at: view.convert(showOutput, to: nil), in: window)
+        for _ in 0..<50 where bar.selectableText.isNull {
+            host.layoutSubtreeIfNeeded()
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+        diagnostics.append("button \(type(of: toggle)); constructed press opened the output: \(!bar.selectableText.isNull)")
+        if bar.selectableText.isNull { toggle.performClick(nil) }
         if let output = await openedOutput(in: bar, of: view, host: host) {
+            let under = window.contentView?.hitTest(view.convert(output, to: nil))
+            diagnostics.append("under the output: \(under.map { String(describing: type(of: $0)) } ?? "nil"); selectable NSTextField: \((under as? NSTextField)?.isSelectable == true)")
             expect(.iBeam, at: output, "a command's output")
         } else {
             check(false, "a command's output never opened under the pointer")
