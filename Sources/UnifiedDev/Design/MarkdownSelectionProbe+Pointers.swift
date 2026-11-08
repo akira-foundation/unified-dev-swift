@@ -70,8 +70,11 @@ extension MarkdownSelectionProbe {
         check(view.layoutManager?.temporaryAttribute(.underlineStyle, atCharacterIndex: linkIndex, effectiveRange: nil) == nil, "the link stayed underlined with the pointer on Copy")
 
         press(at: view.convert(showOutput, to: nil), in: window)
-        await settle(host)
-        expect(.iBeam, at: NSPoint(x: footer.frame.minX + 40, y: footer.frame.maxY - 20), "a command's output")
+        if let output = await openedOutput(in: footer, of: view, host: host, window: window) {
+            expect(.iBeam, at: output, "a command's output")
+        } else {
+            check(false, "a command's output never opened under the pointer")
+        }
 
         view.scrollToVisible(foldFooter.frame)
         await settle(host)
@@ -98,6 +101,22 @@ extension MarkdownSelectionProbe {
         defer { method_setImplementation(method, original) }
         view.resetCursorRects()
         return log.added
+    }
+
+    private static func openedOutput(in footer: NSView, of view: NSView, host: NSView, window: NSWindow) async -> NSPoint? {
+        for _ in 0..<150 {
+            host.layoutSubtreeIfNeeded()
+            try? await Task.sleep(for: .milliseconds(100))
+            guard let field = selectableField(in: footer) else { continue }
+            let middle = field.convert(NSPoint(x: field.bounds.midX, y: field.bounds.midY), to: view)
+            if window.contentView?.hitTest(view.convert(middle, to: nil)) === field { return middle }
+        }
+        return nil
+    }
+
+    private static func selectableField(in root: NSView) -> NSTextField? {
+        if let field = root as? NSTextField, field.isSelectable { return field }
+        return root.subviews.lazy.compactMap(selectableField).first
     }
 
     private static func settle(_ host: NSView) async {
