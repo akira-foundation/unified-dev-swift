@@ -47,6 +47,8 @@ struct WindowToolbar: ToolbarContent {
             ToolbarItem(placement: .primaryAction) {
                 NewTabMenu(model: model)
             }
+
+            ToolbarSpacer(.fixed, placement: .primaryAction)
         }
 
         if app.selection == .home {
@@ -65,8 +67,10 @@ struct WindowToolbar: ToolbarContent {
             }
         }
 
-        ToolbarItem(placement: .primaryAction) {
-            NotificationBellButton(inbox: app.notificationInbox, profiles: app.profiles)
+        if app.selectedModel == nil {
+            ToolbarItem(placement: .primaryAction) {
+                NotificationBellButton(inbox: app.notificationInbox, profiles: app.profiles)
+            }
         }
 
         ToolbarSpacer(.fixed, placement: .primaryAction)
