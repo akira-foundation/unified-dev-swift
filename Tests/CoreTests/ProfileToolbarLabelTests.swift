@@ -25,6 +25,7 @@ struct ProfileToolbarLabelTests {
         #expect(label(width: 226).menuWidth == 74)
         #expect(label(width: 225).menuWidth == nil)
         #expect(label(width: 200).menuWidth == nil)
+        #expect(label(width: 0).menuWidth == nil)
     }
 
     @Test("a fractional width never hands the name more than fits")

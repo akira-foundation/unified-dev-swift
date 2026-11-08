@@ -125,7 +125,9 @@ enum ProfileToolbarProbe {
         let window = window(for: scene, scheme: scheme)
         try? await Task.sleep(for: .milliseconds(900))
         guard let frame = window.contentView?.superview else { return false }
-        if scheme == .dark { report(measure(scene, window: window, frame: frame)) }
+        let measured = measure(scene, window: window, frame: frame)
+        if scheme == .dark { report(measured.line) }
+        guard measured.isSound else { return false }
         frame.layoutSubtreeIfNeeded()
         frame.displayIfNeeded()
         guard let bitmap = frame.bitmapImageRepForCachingDisplay(in: frame.bounds) else { return false }
@@ -134,20 +136,22 @@ enum ProfileToolbarProbe {
         return (try? png.write(to: URL(filePath: "\(directory)/\(scene.name)-\(scheme).png"))) != nil
     }
 
-    private static func measure(_ scene: Scene, window: NSWindow, frame: NSView) -> String {
+    private static func measure(_ scene: Scene, window: NSWindow, frame: NSView) -> (line: String, isSound: Bool) {
         let lights = window.standardWindowButton(.zoomButton)
             .map { Int($0.convert($0.bounds, to: nil).maxX) } ?? -1
         let views = descendants(of: frame)
-        let platters = views.filter { "\(type(of: $0))".contains("Platter") }
+        let platterFrames = views.filter { "\(type(of: $0))".contains("Platter") }
             .map { $0.convert($0.bounds, to: nil) }
             .sorted { $0.minX < $1.minX }
-            .map { "\(Int($0.minX))..\(Int($0.maxX))" }
+        let platters = platterFrames.map { "\(Int($0.minX))..\(Int($0.maxX))" }
         let order = window.toolbar?.items.map(\.itemIdentifier.rawValue) ?? []
         let toggle = order.firstIndex { $0.contains("toggleSidebar") }
         let separator = order.firstIndex { $0.contains("splitViewSeparator") }
         let overflow = views.contains { "\(type(of: $0))".lowercased().contains("overflow") }
-        return "\(scene.name): lights end \(lights), platters \(platters), "
+        let line = "\(scene.name): lights end \(lights), platters \(platters), "
             + "toggle index \(toggle ?? -1), separator index \(separator ?? -1), column \(Int(scene.sidebarWidth)), overflow \(overflow)"
+        let clearOfLights = platterFrames.first.map { Int($0.minX) > lights } ?? false
+        return (line, clearOfLights && !overflow)
     }
 
     private static func descendants(of view: NSView) -> [NSView] {

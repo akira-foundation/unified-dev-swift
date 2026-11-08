@@ -4,7 +4,7 @@ import Core
 struct WindowToolbar: ToolbarContent {
     let app: AppModel
     let centreWidth: CGFloat
-    let showsProfileMark: Bool
+    let collapsesProfileSwitcher: Bool
     let startFreshAskConversation: () -> Void
 
     @FocusedValue(\.homeScopeCounts) private var homeCounts: HomeScopeCounts?
@@ -24,7 +24,7 @@ struct WindowToolbar: ToolbarContent {
 
         if let tabs = conversationTabs {
             ToolbarItem(placement: .principal) {
-                let width = ToolbarTabsWidth.width(inColumn: centreWidth, showingProfileMark: showsProfileMark)
+                let width = ToolbarTabsWidth.width(inColumn: centreWidth, besideCollapsedSwitcher: collapsesProfileSwitcher)
                 tabs
                     .frame(width: width)
                     .id(width.rounded())
