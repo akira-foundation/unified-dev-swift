@@ -63,7 +63,7 @@ public struct WorkspaceSayTool: BridgeToolHandling {
             orchestrator and the owner's own clients can do once the owner has opened that profile. \
             Such a message arrives marked as coming from outside, without the owner's authority, \
             and the agent there is told to ask the owner before acting on it, whatever it asks for. \
-            Only a project's orchestrator can answer one, so pass notify_when_done to hear how the \
+            Only a project's orchestrator, not one on Codex, can answer one, so pass notify_when_done to hear how the \
             turn ended.
             """,
         inputSchema: .object([
@@ -257,12 +257,12 @@ public struct WorkspaceSayTool: BridgeToolHandling {
     static func answer(
         _ message: WorkspaceMessage, noticeRequested: Bool = false, crossedTo profile: String? = nil
     ) -> JSONValue {
-        let reply = profile != nil
-            ? "It can only answer if it is a project's orchestrator and both profiles are open. Use "
-                + "notify_when_done to hear how its turn ended."
-            : message.source.workspaceID == nil
+        let reply = message.source.workspaceID == nil
             ? "This connection is not a workspace, so the agent there cannot answer you with "
                 + "workspace_say. Call workspace_list to see what became of it."
+            : profile != nil
+            ? "It can only answer if it is a project's orchestrator, not one on Codex, and both profiles "
+                + "are open. Use notify_when_done to hear how its turn ended."
             : "If it answers, it answers with workspace_say, and its message lands in this chat, "
                 + "unless a message from another chat in this workspace reaches it first."
         let chat = message.target.chat

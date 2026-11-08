@@ -44,7 +44,7 @@ extension Store {
         return told
     }
 
-    private func crossedProfileName(of target: WorkspaceID, from watcher: SessionID) throws -> String? {
+    public func crossedProfileName(of target: WorkspaceID, from watcher: SessionID) throws -> String? {
         guard let targetRow = try workspace(id: target),
               let targetRepo = try repo(id: targetRow.repoID),
               let chat = try session(id: watcher),

@@ -359,7 +359,7 @@ final class TranscriptModel {
         _ message: Message,
         decisions: [String: String],
         answers: [String: [String: String]] = [:],
-        inWorkspace: Bool = false,
+        inWorkspace: Bool,
         into rows: inout [TranscriptRow],
         indexByRefID: inout [String: Int]
     ) {
@@ -392,7 +392,7 @@ final class TranscriptModel {
         var built: [TranscriptRow] = []
         var indexByRefID: [String: Int] = [:]
         for message in messages {
-            Self.absorb(message, decisions: [:], into: &built, indexByRefID: &indexByRefID)
+            Self.absorb(message, decisions: [:], inWorkspace: false, into: &built, indexByRefID: &indexByRefID)
         }
         return built
     }
@@ -1217,7 +1217,7 @@ final class TranscriptModel {
         ) {
             app.notice = Notice(message: notice)
         }
-        let bridge = workspace.map { app.bridge?.register(session: session, workspace: $0) }
+        let bridge = workspace.map { app.bridge?.register(session: session, workspace: $0, orchestrates: isOrchestratorWorkspace) }
             ?? app.bridge?.register(askSession: session)
         let runner = Self.makeRunner(
             session: session,

@@ -27,7 +27,9 @@ struct ProfileReachWorld {
         let farChat = try #require(try await store.sessions(workspaceID: world.farWorkspace.id).first)
         return ProfileReachWorld(
             world: world,
-            lead: BridgeIdentity(sessionID: leadChat.id, workspaceID: leadWorkspace.id, role: .workspace),
+            lead: BridgeIdentity(
+                sessionID: leadChat.id, workspaceID: leadWorkspace.id, role: .workspace, launchedOrchestrating: true
+            ),
             leadChat: leadChat,
             subagent: BridgeIdentity(sessionID: child.id, workspaceID: leadWorkspace.id, role: .workspace),
             window: WorkspaceSayWindow(

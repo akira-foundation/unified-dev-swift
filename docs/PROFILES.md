@@ -149,8 +149,8 @@ names the profile, and leaves the window where it is. Anything in another profil
 
 Profile Settings carries a switch, **Connected to other profiles**, off by default. Turned on, a
 project's orchestrator can list that profile's projects and workspaces, read its chats and changes, and
-send a message to one of its chats, if its own profile is on too, and the owner approves every such call.
-The owner's Ask chat and client need only the destination on, and do not stop to ask. Ordinary workspaces,
+send a message to one of its chats, if its own profile is on too, and the owner approves its calls.
+The owner's Ask chat and client need only the destination on. Ordinary workspaces,
 subagents and an orchestrator on Codex never cross, and nothing can be started in another profile.
 
 Every crossing names the profile, through a `profile` argument, or `all` on the two lists. A message

@@ -226,10 +226,11 @@ only by the app.
 **The owner approves an orchestrator's crossing.** Every call from a workspace chat that names a `profile`
 stops on the permission card, reads included, because what it reads could steer it and what it sends wakes
 an agent. `BridgeToolApproval.isSelfApproved(toolName:input:inWorkspace:)` decides it, and the same call
-decides how a stored card reads afterwards. An Ask chat and the owner's standalone client are the owner's
-own and do not stop. Codex has no approval request for an MCP tool call, so nothing could stop it, and
-`BridgeProfileReach.caller` confines it instead. A chat in a mode that bypasses permissions gets no card,
-and an "always allow" the owner grants holds for that chat; both are the owner's own choice.
+decides how a stored card reads afterwards. This rule adds no card for an Ask chat or the owner's standalone client,
+which are the owner's own. Codex has no approval request for an MCP tool call, so nothing could stop it, and
+`BridgeProfileReach.caller` confines it instead. An orchestrator always launches in a mode that asks, and
+that launch is what the bridge token records: a chat already running when its workspace becomes the orchestrator
+cannot cross until its next start. An "always allow" the owner grants holds for that chat, by the owner's choice.
 
 **What.** Reading and talking, and nothing that creates: `project_list`, `workspace_list`, `chat_list`,
 `chat_read`, `workspace_diff` and `workspace_say`. `workspace_start` stays inside the caller's profile, and
@@ -255,12 +256,12 @@ on later reaches an orchestrator's `workspace_list` at its next start.
 
 **What comes back from a read.** Every answer that crosses is fenced as untrusted content, and names the
 profile it belongs to. Refusals inside a crossing list workspace ids, never names, and a refusal from the
-app or a project lookup there is one generic sentence. What was read can still be repeated by the reader, so
+app, a project lookup or git there is one generic sentence. A notice about the other side names it by id. What was read can still be repeated by the reader, so
 text planted in one profile can travel to another if the owner approves carrying it.
 
 **What the receiver sees.** A message from another profile gets an envelope of its own, written by
-`WorkspaceMessage`: the profile, project, workspace and chat it came from, the text between the untrusted
-markers, and a sentence saying that it does not carry the owner's authority and to ask the owner before
+`WorkspaceMessage`: the profile and workspace id it came from, then between the untrusted markers the names of
+its workspace, project and chat, and the text, and a sentence saying that it does not carry the owner's authority and to ask the owner before
 acting on it. That holds for the owner's own clients as well, since an Ask chat reads untrusted text too.
 A message still waiting in a queue was written when it was sent and arrives as written, even if a switch is
 turned off meanwhile.

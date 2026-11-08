@@ -4,8 +4,8 @@ public enum ProfileBridgeSwitch {
     public static let settingTitle = "Connected to other profiles"
 
     public static let caveat = "With this on in two profiles, a project's orchestrator in one can reach the "
-        + "other, and you approve each call. Your own chat and client reach any profile with this on, "
-        + "without asking. They can list its work, read its chats and changes, and send a message that "
+        + "other, and you approve its calls. Your own chat and client reach any profile with this on. "
+        + "They can list its work, read its chats and changes, and send a message that "
         + "wakes an agent, which arrives marked as coming from outside. Nothing can be started there. "
         + "Text planted in something your chat or an orchestrator reads could still carry one "
         + "organisation's work into another."

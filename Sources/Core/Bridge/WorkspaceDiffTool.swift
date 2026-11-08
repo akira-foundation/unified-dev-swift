@@ -83,7 +83,7 @@ public struct WorkspaceDiffTool: BridgeToolHandling {
 
             let reading: Reading
             switch await Self.read(workspace, path: path) {
-            case .failure(let trouble): return .failure(trouble.sentence)
+            case .failure(let trouble): return .failure(target.profile == nil ? trouble.sentence : trouble.sentenceAcrossProfiles)
             case .success(let read): reading = read
             }
 

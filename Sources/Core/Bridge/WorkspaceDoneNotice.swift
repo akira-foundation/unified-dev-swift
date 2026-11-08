@@ -76,11 +76,13 @@ public enum WorkspaceDoneNotice {
     }
 
     private static func place(of target: WorkspaceMessageEnd) -> String {
+        if let profile = target.profile {
+            let id = target.workspaceID?.rawValue ?? "unknown"
+            return "the workspace with the id \(id), in the profile \"\(WorkspaceMessage.oneLine(profile))\", "
+                + "which is another organisation"
+        }
         var place = "the workspace \"\(WorkspaceMessage.oneLine(target.workspace))\""
         if let id = target.workspaceID { place += " (id \(id.rawValue))" }
-        if let profile = target.profile {
-            place += ", in the profile \"\(WorkspaceMessage.oneLine(profile))\", which is another organisation"
-        }
         return place
     }
 

@@ -28,7 +28,7 @@ public enum BridgeProfileReach {
         "type": .string("string"),
         "description": .string(
             "Another profile to act in, by its id or by a name no other reachable profile shares. "
-                + "Leave it out to stay in your own. Only a project's orchestrator and the owner's own "
+                + "Leave it out to stay in your own. Only a project's orchestrator, not one on Codex, and the owner's own "
                 + "clients can reach another profile, only one the owner has opened, and an "
                 + "orchestrator's own profile must be open too. The owner approves an orchestrator's "
                 + "every call that names one."
@@ -40,7 +40,7 @@ public enum BridgeProfileReach {
         "description": .string(
             "Another profile to list, by its id or by a name no other reachable profile shares, or "
                 + "'all' for your own and every other you can reach. Leave it out to stay in your own. "
-                + "Only a project's orchestrator and the owner's own clients can reach another profile, "
+                + "Only a project's orchestrator, not one on Codex, and the owner's own clients can reach another profile, "
                 + "only one the owner has opened, and an orchestrator's own profile must be open too. "
                 + "The owner approves an orchestrator's every call that names one. Each row then says "
                 + "which profile it belongs to."
@@ -60,7 +60,8 @@ public enum BridgeProfileReach {
         case .owner:
             return .owner
         case .workspace:
-            guard let workspaceID = identity.workspaceID, let sessionID = identity.sessionID,
+            guard identity.launchedOrchestrating,
+                  let workspaceID = identity.workspaceID, let sessionID = identity.sessionID,
                   let workspace = try await store.workspace(id: workspaceID),
                   workspace.isOrchestrator, workspace.state == .active,
                   let session = try await store.session(id: sessionID),

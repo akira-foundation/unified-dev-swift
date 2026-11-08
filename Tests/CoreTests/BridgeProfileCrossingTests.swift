@@ -246,7 +246,8 @@ struct BridgeProfileCrossingTests {
         let answer = await w.say(as: w.lead)
 
         #expect(answer.text.contains(BridgeUntrustedText.opening))
-        #expect(!answer.text.contains("Reply with"))
+        #expect(answer.text.contains("without the owner's authority"))
+        #expect(answer.text.contains("Use notify_when_done"))
         let record = try #require(WorkspaceSayRecord(
             toolName: BridgeToolApproval.toolPrefix + "workspace_say",
             input: .object(["message": .string("Check the invoices.")]),
@@ -285,6 +286,78 @@ struct BridgeProfileCrossingTests {
         #expect(again.isError)
         #expect(!again.text.contains(ProfileScopeWorld.farWorkspaceName))
         #expect(again.text.contains(w.world.farWorkspace.id.rawValue))
+    }
+
+    @Test("the owner's client is not told to wait for a notice it cannot get")
+    func ownerNote() async throws {
+        let w = try await ProfileReachWorld.make("cross-owner-note")
+        try await w.open(w.akira)
+
+        let answer = await w.say(as: .owner)
+
+        #expect(answer.text.contains("This connection is not a workspace"))
+        #expect(!answer.text.contains("Use notify_when_done"))
+    }
+
+    @Test("a notice inside one profile does not call the other side another organisation")
+    func sameProfileNotice() async throws {
+        let w = try await ProfileReachWorld.make("cross-same-notice")
+        let home = try #require(try await w.store.sessions(workspaceID: w.world.homeWorkspace.id).first)
+        let watcher = try #require(w.lead.sessionID)
+
+        #expect(try await w.store.crossedProfileName(of: w.world.homeWorkspace.id, from: watcher) == nil)
+        #expect(try await w.store.crossedProfileName(of: w.world.farWorkspace.id, from: home.id) == "Akira")
+    }
+
+    @Test("a notice about another profile names it by id, not by a name its agents can set")
+    func noticeUsesID() async throws {
+        let w = try await ProfileReachWorld.make("cross-notice-id")
+        try await w.open(.initial, w.akira)
+        _ = await w.say(as: w.lead, notify: true)
+        let row = try #require(w.window.sent.first)
+        _ = try await w.store.markDelivered(id: try #require(row.deliveryID))
+        let farChat = try #require(try await w.store.sessions(workspaceID: w.world.farWorkspace.id).first)
+
+        _ = try await w.store.settleWorkspaceDoneWatches(
+            on: w.world.farWorkspace.id, ending: .finished(lastMessage: nil), in: farChat.id, isSubagentChat: false
+        )
+
+        let report = try #require(try await w.store.pendingDeliveries(sessionID: w.leadChat.id).first?.crewMessage)
+        #expect(!report.sent.contains(ProfileScopeWorld.farWorkspaceName))
+        #expect(report.sent.contains(w.world.farWorkspace.id.rawValue))
+    }
+
+    @Test("a message from another profile puts the sender's names inside the markers")
+    func originInsideMarkers() async throws {
+        let w = try await ProfileReachWorld.make("cross-origin")
+        try await w.open(.initial, w.akira)
+
+        _ = await w.say(as: w.lead)
+
+        let chat = try #require(try await w.store.sessions(workspaceID: w.world.farWorkspace.id).first)
+        let sent = try #require(try await w.store.pendingDeliveries(sessionID: chat.id).first?.crewMessage).sent
+        let opening = try #require(sent.range(of: BridgeUntrustedText.opening))
+        #expect(!sent[..<opening.lowerBound].contains("Lead"))
+        #expect(sent[opening.upperBound...].contains("\"Lead\""))
+    }
+
+    @Test("a git failure in another profile does not repeat what git wrote")
+    func gitFailureQuiet() {
+        let trouble = WorkspaceDiffTrouble.gitFailed(workspaceID: WorkspaceID("w"), "planted words")
+        #expect(!trouble.sentenceAcrossProfiles.contains("planted words"))
+        #expect(trouble.sentence.contains("planted words"))
+    }
+
+    @Test("a cancelled notice across profiles names the workspace by id")
+    func cancelledByID() {
+        let crew = CrewMessage.cancelled(to: "Planted", text: "x", acrossProfilesID: WorkspaceID("the-id"))
+        #expect(!crew.sent.contains("Planted"))
+        #expect(crew.sent.contains("the-id"))
+    }
+
+    @Test("only the stored word for on opens a profile", arguments: ["off", "", "ON", "true"])
+    func onlyOnOpens(stored: String) {
+        #expect(!ProfileBridgeSwitch.parse(stored))
     }
 
     @Test("a message stored before profiles were named still decodes")
