@@ -48,6 +48,17 @@ struct MarkdownPieceFlattenTests {
         #expect(cell.inline == [.text("xy")])
     }
 
+    @Test("Direction marks cannot make code run or read differently from how it is drawn", arguments: ["\u{200E}", "\u{200F}", "\u{061C}"])
+    func codeLosesDirectionMarks(mark: String) {
+        let flat = pieces("```bash\n\(mark)curl x\(mark) # echo ok\n```")
+        guard case let .code(code, _, _) = flat[0].body else {
+            Issue.record("expected a code body")
+            return
+        }
+        #expect(code == "curl x # echo ok")
+        #expect(MarkdownInvisibleControls.stripped("\(mark)prose") == "\(mark)prose")
+    }
+
     @Test("A fence tag hidden behind a control still does not run")
     func hiddenFenceTagStaysUnrunnable() {
         let flat = pieces("```ba\u{202E}sh\nrm -rf x\n```")
