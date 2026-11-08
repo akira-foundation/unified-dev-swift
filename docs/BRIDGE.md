@@ -1545,6 +1545,22 @@ settings files, which the core reads through the same `SettingsLoader` the suite
 refuses an app tool the suite does not build. `sqlite3` and `defaults` are left with the owner. The database is still a file this user owns, so a program already running
 as this user can open it, which no app can prevent.
 
+### Asking to fix a pull request on its own
+
+A project's settings carry a switch in the Workspaces pane that lets the app send the request behind **Ask to fix**
+when a pull request has a conflict with its base or a failed check. It is off by default, and only those two
+states are covered. `PullRequestAutoFix.decide` takes the decision and `PullRequestFixColumns` holds what was
+already tried, per head commit and reason, with at most three in a row per pull request.
+
+It holds to the same rule as the switch above: it lives under `PullRequestAutoFixSetting.key(repoID:)` in the
+`settings` table, `make lint` keeps the one call that saves it in the settings pane, and
+`OrchestratorUnaskedReachTests` reads it back after every bridge tool. The same limit applies, since a program
+already running as this user can open the database.
+
+Anything the decision cannot establish counts as no: the fork flag, the pull request's author, the signed in
+account and the author of every commit on the head. That narrows who can put text in front of the agent and does
+not close it. A failed check's log is still text the agent reads with nobody reading it first.
+
 ## 6. How each CLI is told the bridge exists
 
 Two completely different mechanisms, both verified against the installed binaries.

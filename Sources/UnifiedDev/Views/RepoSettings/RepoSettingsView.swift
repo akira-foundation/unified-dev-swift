@@ -83,9 +83,9 @@ struct RepoSettingsView: View {
                     Form {
                         branchSection
                         RepoMergeMethodSection(repo: repo)
+                        RepoPullRequestAutoFixSection(repo: repo)
                         browserSection
                         RepoFilesToCopySection(model: model)
-                        RepoPullRequestAutoFixSection(repo: repo)
                         RepoOrchestratorSection(repo: repo)
                     }
                     .settingsForm()
