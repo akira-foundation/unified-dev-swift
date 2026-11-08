@@ -343,6 +343,9 @@ jobs:
       - name: Check welcome navigation and window sizing
         run: ./Tools/welcome-layout-probe.sh
 
+      - name: Check clicks on an answer's code blocks and the reply card
+        run: ./Tools/transcript-click-probes.sh
+
       - name: Check diff scrolling and comment focus
         run: ./Tools/review-run-probe.sh
 

@@ -10,6 +10,12 @@ public enum MarkdownInvisibleControls {
         return set
     }()
 
+    private static let directionMarks = CharacterSet(charactersIn: "\u{200E}\u{200F}\u{061C}")
+
+    public static func strippedCode(_ code: String) -> String {
+        String(String.UnicodeScalarView(stripped(code).unicodeScalars.filter { !directionMarks.contains($0) }))
+    }
+
     public static func stripped(_ text: String) -> String {
         guard text.unicodeScalars.contains(where: controls.contains) else { return text }
         return String(String.UnicodeScalarView(text.unicodeScalars.filter { !controls.contains($0) }))
@@ -20,7 +26,7 @@ public enum MarkdownInvisibleControls {
         case let .text(inline, heading):
             return .text(stripped(inline), heading: heading)
         case let .code(code, language, info):
-            return .code(code: stripped(code), language: language, info: info)
+            return .code(code: strippedCode(code), language: language, info: info)
         case var .cell(cell):
             cell.inline = stripped(cell.inline)
             return .cell(cell)

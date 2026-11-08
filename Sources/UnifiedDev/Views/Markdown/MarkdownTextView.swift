@@ -55,9 +55,12 @@ struct MarkdownTextView: NSViewRepresentable {
 }
 
 private final class MarkdownChromeHost: NSHostingView<AnyView> {
+    var controls: CGRect = .null
+
     override func hitTest(_ point: NSPoint) -> NSView? {
-        let hit = super.hitTest(point)
-        return hit === self ? nil : hit
+        guard let hit = super.hitTest(point) else { return nil }
+        let local = convert(point, from: superview)
+        return MarkdownChromeHit.keeps(hitIsHost: hit === self, point: local, controls: controls) ? hit : nil
     }
 }
 
@@ -191,7 +194,8 @@ final class MarkdownTextOverlay {
             host.header.rootView = AnyView(
                 MarkdownCodeHeader(
                     code: spec.code, language: spec.language, command: command,
-                    canRun: chrome.runsCommands && isExpanded, actions: chrome.actions
+                    canRun: chrome.runsCommands && isExpanded, actions: chrome.actions,
+                    onControls: { [weak header = host.header] in header?.controls = $0 }
                 )
                 .environment(\.fontScale, chrome.fontScale)
                 .environment(\.chatFont, chrome.chatFont)
@@ -202,7 +206,8 @@ final class MarkdownTextOverlay {
                     lines: spec.lines, foldsLines: spec.isFolded, isExpanded: spec.visibleAll, command: command,
                     actions: chrome.actions,
                     onToggle: { chrome.onToggleFold(index) },
-                    onHeight: { chrome.onFooterHeight(index, $0) }
+                    onHeight: { chrome.onFooterHeight(index, $0) },
+                    onControls: { [weak footer = host.footer] in footer?.controls = $0 }
                 )
                 .environment(\.fontScale, chrome.fontScale)
                 .environment(\.chatFont, chrome.chatFont)
