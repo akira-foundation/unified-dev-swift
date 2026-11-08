@@ -45,6 +45,7 @@ final class AppModel {
             seaDiscoveries.leave(vacated, for: newValue.workspaceID)
             leaveDraft(from: previous, to: newValue)
             rememberInActiveProfile(newValue)
+            notificationInbox.noteOnScreen()
             Task { [weak self] in await self?.adoptSelectedAccounts() }
             for id in Set([vacated, newValue.workspaceID].compactMap { $0 }) {
                 noteSubagentsChanged(workspaceID: id)
@@ -192,6 +193,7 @@ final class AppModel {
     private(set) var accountChoices = AgentAccountChoiceBook()
     @ObservationIgnored var selectedAccountHomes: [AgentKind: AgentAccountHome] = [:]
     let agentAccounts = AgentAccountsModel()
+    let notificationInbox = NotificationInboxModel()
     var accountMarks = AgentAccountMarks()
     private(set) var isAskingForQuotas = false
     private var identityTask: Task<Void, Never>?
@@ -274,6 +276,7 @@ final class AppModel {
         startObservingSessions()
         startObservingWorkspaceMessages()
         startObservingWorkSuggestions()
+        if let store { notificationInbox.start(app: self, store: store) }
         adoptSeededQuotaSilence()
         startObservingQuotas()
         startPollingQuotas()
@@ -334,6 +337,7 @@ final class AppModel {
         workspaceMessageObservationTask = nil
         workSuggestionObservationTask?.cancel()
         workSuggestionObservationTask = nil
+        notificationInbox.stop()
         quotaPollTask?.cancel()
         quotaPollTask = nil
         identityTask?.cancel()

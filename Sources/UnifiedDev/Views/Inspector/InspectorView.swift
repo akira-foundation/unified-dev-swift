@@ -4,6 +4,8 @@ import Core
 struct InspectorView: View {
     let model: WorkspaceModel
 
+    @Environment(AppModel.self) private var app
+
     @Bindable private var signIn = GitHubSignIn.shared
 
     @State private var fileQuery = ""
@@ -49,6 +51,11 @@ struct InspectorView: View {
             InspectorGeometry.shared.setInspectorWidth(width)
         }
         .onDisappear { InspectorGeometry.shared.setInspectorWidth(0) }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                NotificationBellButton(inbox: app.notificationInbox, profiles: app.profiles)
+            }
+        }
         .searchable(text: $fileQuery, placement: .automatic, prompt: "Filter files")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {

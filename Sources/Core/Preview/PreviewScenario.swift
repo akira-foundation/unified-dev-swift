@@ -238,6 +238,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
     public var looseRepositories: [String]
     public var looseFolders: [String]
     public var recentFolders: [String]
+    public var notifications: [SeededNotification]
     public var silentAgents: [AgentKind]
     public var agentsWithoutLimits: [AgentKind]
     public var transcripts: [Transcript]
@@ -255,6 +256,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         looseRepositories: [String] = [],
         looseFolders: [String] = [],
         recentFolders: [String] = [],
+        notifications: [SeededNotification] = [],
         silentAgents: [AgentKind] = [],
         agentsWithoutLimits: [AgentKind] = [],
         transcripts: [Transcript] = [],
@@ -271,6 +273,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         self.looseRepositories = looseRepositories
         self.looseFolders = looseFolders
         self.recentFolders = recentFolders
+        self.notifications = notifications
         self.silentAgents = silentAgents
         self.agentsWithoutLimits = agentsWithoutLimits
         self.transcripts = transcripts
@@ -290,6 +293,7 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         looseRepositories = try container.decodeIfPresent([String].self, forKey: .looseRepositories) ?? []
         looseFolders = try container.decodeIfPresent([String].self, forKey: .looseFolders) ?? []
         recentFolders = try container.decodeIfPresent([String].self, forKey: .recentFolders) ?? []
+        notifications = try container.decodeIfPresent([SeededNotification].self, forKey: .notifications) ?? []
         silentAgents = try container.decodeIfPresent([AgentKind].self, forKey: .silentAgents) ?? []
         agentsWithoutLimits = try container.decodeIfPresent([AgentKind].self, forKey: .agentsWithoutLimits) ?? []
         transcripts = try container.decodeIfPresent([Transcript].self, forKey: .transcripts) ?? []

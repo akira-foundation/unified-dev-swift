@@ -27,6 +27,7 @@ final class WorkspaceModel {
             }
             prepareActiveTranscript()
             app.noteSubagentsChanged(workspaceID: workspace.id)
+            app.notificationInbox.noteOnScreen()
         }
     }
 
