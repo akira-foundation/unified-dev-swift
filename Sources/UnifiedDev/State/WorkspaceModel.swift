@@ -882,11 +882,12 @@ final class WorkspaceModel {
             let account = try await app.account(
                 for: session.agentKind, in: AccountScope(workspaceID: workspace.id, repoID: workspace.repoID)
             )
+            let orchestrates = await app.store?.orchestratesAtLaunch(workspaceID: workspace.id) ?? workspace.isOrchestrator
             return try session.agentKind.prepareInteractiveCommand(
                 directory: workspace.path, prompt: prompt, sessionID: session.id,
                 model: session.model, effort: session.effort, permissionMode: session.permissionMode,
                 account: account,
-                orchestrates: workspace.isOrchestrator
+                orchestrates: orchestrates
             )
         } catch {
             app.alert = AppAlert(title: "Could not launch the agent", message: error.readableMessage)

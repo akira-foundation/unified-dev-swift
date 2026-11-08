@@ -96,6 +96,126 @@ struct StoreOrchestratorTests {
         #expect(try await store.workspace(id: rows[1].id)?.isOrchestrator == true)
     }
 
+    private func refusesForLiveWork(_ attempt: () async throws -> Void) async {
+        let error = await #expect(throws: WorkspaceError.self) { try await attempt() }
+        guard case .orchestratorHasLiveWork = error else {
+            Issue.record("expected the live work refusal, got \(String(describing: error))")
+            return
+        }
+    }
+
+    private func chat(
+        in workspace: Workspace, _ kind: AgentKind, _ state: SessionState, parent: SessionID? = nil
+    ) -> Session {
+        var chat = Session(workspaceID: workspace.id, parentSessionID: parent, title: "Working")
+        chat.agentKind = kind
+        chat.state = state
+        return chat
+    }
+
+    @Test("the role does not land on a workspace with a chat mid turn",
+          arguments: [AgentKind.claudeCode, .codex, .grok], [SessionState.running, .waiting])
+    func midTurnChatKeepsRoleOff(_ kind: AgentKind, _ state: SessionState) async throws {
+        let store = try makeTestStore("orchestrator")
+        let rows = try await seed(store)
+        try await store.upsert(chat(in: rows[0], kind, state))
+
+        await refusesForLiveWork { try await store.setOrchestrator(true, workspaceID: rows[0].id) }
+
+        let stored = try #require(try await store.workspace(id: rows[0].id))
+        #expect(!stored.isOrchestrator)
+        #expect(!stored.pinned)
+    }
+
+    @Test("a crew member mid turn keeps the role off as well")
+    func crewMemberKeepsRoleOff() async throws {
+        let store = try makeTestStore("orchestrator")
+        let rows = try await seed(store)
+        let lead = try await store.upsert(chat(in: rows[0], .claudeCode, .idle))
+        try await store.upsert(chat(in: rows[0], .codex, .running, parent: lead.id))
+
+        await refusesForLiveWork { try await store.setOrchestrator(true, workspaceID: rows[0].id) }
+
+        #expect(try await store.workspace(id: rows[0].id)?.isOrchestrator == false)
+    }
+
+    @Test("an open terminal chat keeps the role off when every stored chat is idle")
+    func openTerminalChatKeepsRoleOff() async throws {
+        let store = try makeTestStore("orchestrator")
+        let rows = try await seed(store)
+        try await store.upsert(chat(in: rows[0], .claudeCode, .idle))
+
+        await refusesForLiveWork {
+            try await store.setOrchestrator(true, workspaceID: rows[0].id, hasLiveWork: true)
+        }
+
+        #expect(try await store.workspace(id: rows[0].id)?.isOrchestrator == false)
+    }
+
+    @Test("chats at rest let the role land",
+          arguments: [AgentKind.claudeCode, .codex, .grok], [SessionState.idle, .failed, .cancelled])
+    func chatsAtRestAllowTheRole(_ kind: AgentKind, _ state: SessionState) async throws {
+        let store = try makeTestStore("orchestrator")
+        let rows = try await seed(store)
+        try await store.upsert(chat(in: rows[0], kind, state))
+
+        try await store.setOrchestrator(true, workspaceID: rows[0].id)
+
+        #expect(try await store.workspace(id: rows[0].id)?.isOrchestrator == true)
+    }
+
+    @Test("work in another workspace of the project does not hold the role back")
+    func otherWorkspaceDoesNotCount() async throws {
+        let store = try makeTestStore("orchestrator")
+        let rows = try await seed(store)
+        try await store.upsert(chat(in: rows[1], .claudeCode, .running))
+
+        try await store.setOrchestrator(true, workspaceID: rows[0].id)
+
+        #expect(try await store.workspace(id: rows[0].id)?.isOrchestrator == true)
+    }
+
+    @Test("stepping down is never held back by a chat mid turn")
+    func steppingDownIsNotHeldBack() async throws {
+        let store = try makeTestStore("orchestrator")
+        let rows = try await seed(store)
+        try await store.setOrchestrator(true, workspaceID: rows[0].id)
+        try await store.upsert(chat(in: rows[0], .claudeCode, .running))
+
+        try await store.setOrchestrator(false, workspaceID: rows[0].id, hasLiveWork: true)
+
+        #expect(try await store.workspace(id: rows[0].id)?.isOrchestrator == false)
+    }
+
+    @Test("a project that has an orchestrator says so rather than asking for a handover")
+    func existingOrchestratorIsTheAnswer() async throws {
+        let store = try makeTestStore("orchestrator")
+        let rows = try await seed(store)
+        try await store.setOrchestrator(true, workspaceID: rows[0].id)
+        try await store.upsert(chat(in: rows[1], .claudeCode, .running))
+
+        let error = await #expect(throws: WorkspaceError.self) {
+            try await store.setOrchestrator(true, workspaceID: rows[1].id)
+        }
+
+        guard case .orchestratorRefused = error else {
+            Issue.record("expected the one orchestrator refusal, got \(String(describing: error))")
+            return
+        }
+    }
+
+    @Test("a launch reads the role from the row as it stands")
+    func launchReadsTheRow() async throws {
+        let store = try makeTestStore("orchestrator")
+        let rows = try await seed(store)
+
+        #expect(await store.orchestratesAtLaunch(workspaceID: rows[0].id) == false)
+        try await store.setOrchestrator(true, workspaceID: rows[0].id)
+
+        #expect(await store.orchestratesAtLaunch(workspaceID: rows[0].id))
+        #expect(await store.orchestratesAtLaunch(workspaceID: rows[1].id) == false)
+    }
+
     @Test("an unrelated write does not roll the flag back")
     func otherWritesKeepFlag() async throws {
         let store = try makeTestStore("orchestrator")
