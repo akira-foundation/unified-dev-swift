@@ -3,13 +3,20 @@ import Foundation
 public struct AgentModelSource: Sendable {
     public let models: @Sendable () async throws -> [AgentModel]
     public let invalidate: @Sendable () async -> Void
+    public let isInstalled: @Sendable () async -> Bool
 
     public init(
         models: @escaping @Sendable () async throws -> [AgentModel],
-        invalidate: @escaping @Sendable () async -> Void
+        invalidate: @escaping @Sendable () async -> Void,
+        isInstalled: @escaping @Sendable () async -> Bool = { true }
     ) {
         self.models = models
         self.invalidate = invalidate
+        self.isInstalled = isInstalled
+    }
+
+    public func failure(of kind: AgentKind, because error: any Error) async -> ModelListFailure {
+        ModelListFailure(kind: kind, error: error, agentIsInstalled: await isInstalled())
     }
 
     public static func kindsAwaitingModels(
@@ -33,12 +40,19 @@ public struct AgentModelSource: Sendable {
             ),
             .codex: AgentModelSource(
                 models: { try await codex.models().map(\.agentModel) },
-                invalidate: { await codex.invalidate() }
+                invalidate: { await codex.invalidate() },
+                isInstalled: { await isInstalled(.codex, store: store) }
             ),
             .grok: AgentModelSource(
                 models: { try await grok.models().map(\.agentModel) },
-                invalidate: { await grok.invalidate() }
+                invalidate: { await grok.invalidate() },
+                isInstalled: { await isInstalled(.grok, store: store) }
             ),
         ]
+    }
+
+    private static func isInstalled(_ kind: AgentKind, store: Store?) async -> Bool {
+        let overrides = await AgentCatalog.executablePathOverrides(in: store)
+        return await AgentCatalog.installedKinds(overrides: overrides).contains(kind)
     }
 }
