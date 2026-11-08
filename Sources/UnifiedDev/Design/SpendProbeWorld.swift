@@ -42,7 +42,7 @@ struct SpendProbeWorld {
     }
 
     func removeAccount(_ account: AgentAccountHome) async throws {
-        try await AgentAccountRemoval.remove(account, support: support, store: store)
+        try await AgentAccountRemoval.remove(account, support: support, store: store, processes: { [] })
     }
 
     func signIn(_ account: AgentAccountHome, as email: String) throws {
