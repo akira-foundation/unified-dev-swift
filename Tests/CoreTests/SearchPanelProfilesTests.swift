@@ -35,6 +35,7 @@ struct SearchPanelProfilesTests {
         _ query: String,
         workspaces: [Workspace] = [],
         scope: HomeScope = .all,
+        commands: [MenuBarItem] = [],
         profiles: [Profile],
         active: ProfileID = .initial
     ) -> SearchPanelListing {
@@ -45,7 +46,7 @@ struct SearchPanelProfilesTests {
             archived: [],
             transcripts: [],
             scope: scope,
-            commands: [],
+            commands: commands,
             profiles: profiles,
             activeProfile: active
         )
@@ -70,14 +71,18 @@ struct SearchPanelProfilesTests {
 
     @Test("the active profile is left out, because there is nothing to switch to")
     func theActiveProfileIsNotOffered() {
-        let listing = build("nif", profiles: [unified, foundation], active: .initial)
-        #expect(!listing.sections.contains { $0.id == "profiles" })
-        #expect(listing.nothing != nil)
+        let onUnified = build("nif", profiles: [unified, foundation], active: .initial)
+        #expect(!onUnified.sections.contains { $0.id == "profiles" })
+        #expect(onUnified.nothing != nil)
+
+        let onFoundation = build("nif", profiles: [unified, foundation], active: foundation.id)
+        #expect(onFoundation.rows.map(\.id) == ["profile:\(ProfileID.initial.rawValue)"])
+        #expect(build("fo", profiles: [unified, foundation], active: foundation.id).isEmpty)
     }
 
     @Test("profiles appear under Everything and under no other scope")
     func onlyUnderEverything() {
-        for scope in [HomeScope.workspaces, .transcripts, .archived] {
+        for scope in HomeScope.allCases where scope != .all {
             #expect(!build("fo", scope: scope, profiles: [foundation]).sections.contains { $0.id == "profiles" })
         }
     }
@@ -89,11 +94,11 @@ struct SearchPanelProfilesTests {
 
     @Test("the better match comes first, and a tie keeps the position in the switcher")
     func relevanceThenPosition() {
-        let hits = SearchPanelProfiles.hits("fo", scope: .all, in: [unified, foundation, folio], active: .initial)
+        let hits = SearchPanelProfiles.hits("fo", in: [unified, foundation, folio], active: .initial)
         #expect(hits.map(\.profile.name) == ["Folio", "Foundation"])
 
         let twins = [profile("Aa one", 0), profile("Aa two", 1)]
-        let tied = SearchPanelProfiles.hits("aa", scope: .all, in: twins, active: ProfileID("none"))
+        let tied = SearchPanelProfiles.hits("aa", in: twins, active: ProfileID("none"))
         #expect(tied.map(\.profile.name) == ["Aa one", "Aa two"])
     }
 
@@ -102,17 +107,33 @@ struct SearchPanelProfilesTests {
         let leading = build("fo", workspaces: [workspace("a long workspace with an f and an o")], profiles: [foundation])
         #expect(leading.sections.map(\.id) == ["profiles", "workspaces"])
 
+        let tied = build("fo", workspaces: [workspace("Foundation")], profiles: [foundation])
+        #expect(tied.sections.map(\.id) == ["profiles", "workspaces"])
+
         let trailing = build("fo", workspaces: [workspace("Fo")], profiles: [foundation])
         #expect(trailing.sections.map(\.id) == ["workspaces", "profiles"])
     }
 
-    @Test("a profile counts towards Everything, and alone it is still a result")
+    @Test("the section comes before the commands wherever the workspaces leave it")
+    func theSectionPrecedesCommands() {
+        let commands = MenuBarCatalogue.commands
+        let alone = build("fo", commands: commands, profiles: [foundation])
+        #expect(alone.sections.map(\.id) == ["profiles", "commands"])
+
+        let behind = build("fo", workspaces: [workspace("Fo")], commands: commands, profiles: [foundation])
+        #expect(behind.sections.map(\.id) == ["workspaces", "profiles", "commands"])
+    }
+
+    @Test("only a match counts, and it counts towards Everything whichever scope is on")
     func counted() {
-        let listing = build("fo", profiles: [foundation])
+        let listing = build("fo", profiles: [unified, foundation, profile("Debtges", 3)])
         #expect(listing.counts.count(of: .all, searching: true) == 1)
         #expect(listing.counts.count(of: .workspaces, searching: true) == 0)
         #expect(listing.summary == "1 result")
         #expect(listing.nothing == nil)
+
+        let narrowed = build("fo", scope: .workspaces, profiles: [foundation])
+        #expect(narrowed.counts.count(of: .all, searching: true) == 1)
     }
 
     @Test("a profile row cannot be pushed into")
@@ -120,13 +141,16 @@ struct SearchPanelProfilesTests {
         #expect(build("fo", profiles: [foundation]).rows.first?.drillable == nil)
     }
 
-    @Test("the row names the shortcut of its position in the switcher, and none beyond nine")
+    @Test("the row names the shortcut of its position in the switcher, up to the ninth")
     func theShortcut() {
-        let hits = SearchPanelProfiles.hits("fo", scope: .all, in: [unified, foundation], active: .initial)
-        #expect(hits.first?.keyText == "\u{2303}\u{2318}2")
+        let second = SearchPanelProfiles.hits("fo", in: [unified, foundation], active: .initial)
+        #expect(second.first?.keyText == "\u{2303}\u{2318}2")
 
-        let many = (0..<9).map { profile("Other \($0)", $0) } + [foundation]
-        let last = SearchPanelProfiles.hits("fo", scope: .all, in: many, active: .initial)
-        #expect(last.first?.keyText == nil)
+        let others = (0..<8).map { profile("Other \($0)", $0) }
+        let ninth = SearchPanelProfiles.hits("fo", in: others + [foundation], active: .initial)
+        #expect(ninth.first?.keyText == "\u{2303}\u{2318}9")
+
+        let tenth = SearchPanelProfiles.hits("fo", in: others + [unified, foundation], active: ProfileID("none"))
+        #expect(tenth.first { $0.profile.id == foundation.id }?.keyText == nil)
     }
 }

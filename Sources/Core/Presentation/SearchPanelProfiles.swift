@@ -4,11 +4,9 @@ public enum SearchPanelProfiles {
     public static let detail = "Switch profile"
 
     public static func hits(
-        _ needle: String, scope: HomeScope, in profiles: [Profile], active: ProfileID
+        _ needle: String, in profiles: [Profile], active: ProfileID
     ) -> [SearchPanelProfileHit] {
-        guard scope == .all, needle.count >= SearchPanelCommands.inlineMinimumQueryLength else {
-            return []
-        }
+        guard needle.count >= SearchPanelCommands.inlineMinimumQueryLength else { return [] }
         return profiles
             .enumerated()
             .compactMap { position, profile -> (offset: Int, hit: SearchPanelProfileHit)? in
@@ -19,7 +17,9 @@ public enum SearchPanelProfiles {
                     profile: profile,
                     highlights: found.positions,
                     score: found.score,
-                    keyText: ProfileShortcut.display(at: position + 1)
+                    keyText: ProfileShortcut.digits.contains(position + 1)
+                        ? ProfileShortcut.key(at: position + 1).display
+                        : nil
                 )
                 return (position, hit)
             }

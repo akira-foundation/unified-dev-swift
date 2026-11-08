@@ -33,13 +33,14 @@ public enum ProfileScope {
 }
 
 public enum ProfileShortcut {
+    public static let digits = 1...9
+
     public static func profile(at digit: Int, among profiles: [Profile]) -> ProfileID? {
-        guard (1...9).contains(digit), digit <= profiles.count else { return nil }
+        guard digits.contains(digit), digit <= profiles.count else { return nil }
         return profiles[digit - 1].id
     }
 
-    public static func display(at digit: Int) -> String? {
-        guard (1...9).contains(digit) else { return nil }
-        return MenuShortcut("\(digit)", .control, .command).display
+    public static func key(at digit: Int) -> MenuShortcut {
+        MenuShortcut("\(digit)", .control, .command)
     }
 }

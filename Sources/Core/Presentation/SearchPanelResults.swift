@@ -105,10 +105,9 @@ public enum SearchPanelResults {
             }
 
         let shownCommands = inlineCommands(needle, scope: scope, commands: commands)
-        let shownProfiles = SearchPanelProfiles.hits(
-            needle, scope: scope, in: profiles, active: activeProfile
-        )
-        counts.profiles = shownProfiles.count
+        let matchedProfiles = SearchPanelProfiles.hits(needle, in: profiles, active: activeProfile)
+        counts.profiles = matchedProfiles.count
+        let shownProfiles = scope == .all ? matchedProfiles : []
 
         var sections: [SearchPanelSection] = []
         if !shownWorkspaces.isEmpty {
