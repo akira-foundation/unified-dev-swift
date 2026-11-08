@@ -66,7 +66,7 @@ struct BrowserTabView: View {
                     EmptyStateView(
                         glyph: "globe",
                         title: "No page yet",
-                        message: "Type an address above, or ask the agent to open one here."
+                        message: tab.browserAccess.emptyPageMessage
                     )
                 }
             }
@@ -111,6 +111,7 @@ struct BrowserTabView: View {
             if !isAddressFocused { address = session.displayAddress }
             tabs.setPage(session.page, for: tab)
         }
+        .id(tab.browserAccess)
     }
 
     private func toolbar(_ session: BrowserSession) -> some View {
@@ -130,6 +131,10 @@ struct BrowserTabView: View {
             isReviewing: isSelectingRegion,
             isSavingReview: regionCapture?.isAdding == true,
             viewport: Binding(get: { session.viewport }, set: { session.viewport = $0 }),
+            agentAccess: BrowserToolbar.agentAccess(
+                tab.browserAccess, isDownloading: session.downloads.contains { $0.state == .running }
+            ),
+            toggleAgentAccess: { tabs.setBrowserAccess(tab.browserAccess.toggled, for: tab) },
             submit: {
                 session.load(address)
                 isAddressFocused = false

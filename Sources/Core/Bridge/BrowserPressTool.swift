@@ -10,7 +10,7 @@ public struct BrowserPressTool: BridgeToolHandling {
     public let tool = BridgeTool(
         name: BrowserPaneToolName.press,
         description: """
-            Send one key to the page in a browser pane the person has open. It takes 'enter', \
+            Send one key to the page in a browser pane that is open to you. It takes 'enter', \
             'tab', 'escape', 'backspace', 'up', 'down', 'left' and 'right', one at a time, and \
             nothing else: there are no modifier combinations here, and a shortcut of the \
             person's own is theirs to press.

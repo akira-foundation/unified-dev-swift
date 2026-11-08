@@ -23,8 +23,8 @@ public struct WorkspaceTabsTool: BridgeToolHandling {
 
             A chat says which agent drives it, whether a turn is running and how many messages it \
             holds. A review says which file it is showing. A terminal says the directory its shell \
-            was started in and whether a shell has been started at all. A browser says where it is \
-            pointed and carries the number the browser_ tools take. The notes say how long they \
+            was started in and whether a shell has been started at all. A browser open to you says where it is \
+            pointed, and every browser carries the number the browser_ tools take. The notes say how long they \
             are and never what they say.
 
             A tab somebody has split also lists what it has absorbed. Use pane_list when you want \

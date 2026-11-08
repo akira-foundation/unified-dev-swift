@@ -9,7 +9,8 @@ public enum LinkOpening {
 
     public static let settingDetail =
         "Links in chats, terminals and previews open in a tab of the workspace. Control-click a chat link, "
-        + "or Shift-Command-click a terminal link, to use your default browser. Sign-in pages always open there."
+        + "or Shift-Command-click a terminal link, to use your default browser. Sign-in pages always open there. "
+        + "Agents cannot read or use these tabs unless you share one from its toolbar."
 
     public static func target(
         for url: URL,

@@ -289,6 +289,18 @@ final class CenterTabStore {
         return session
     }
 
+    func setBrowserAccess(_ access: BrowserPaneAccess, for tab: CenterTab) {
+        guard tab.kind == .browser, tab.browserAccess != access else { return }
+        browsers[tab.id]?.stop()
+        browsers[tab.id] = nil
+        update(tab) {
+            $0.browserAccess = access
+            let page = access.arrivalPage(from: $0.url)
+            $0.url = page.address
+            $0.pageTitle = page.title
+        }
+    }
+
     func liveBrowser(for tab: CenterTab) -> BrowserSession? {
         browsers[tab.id]
     }

@@ -7,7 +7,7 @@ struct BrowserPaneToolTests {
     private func report(
         _ number: Int, address: String = "http://localhost:3000", name: String = "Unified Dev"
     ) -> BrowserPaneReport {
-        BrowserPaneReport(number: number, name: name, address: address)
+        BrowserPaneReport(number: number, name: name, address: address, access: .agents)
     }
 
     @Test("no number means the only browser open")
@@ -288,7 +288,7 @@ struct BrowserPaneToolTests {
                 name: "Unified Dev",
                 isShowing: true,
                 browser: BrowserPaneReport(
-                    number: 1, name: "Unified Dev", address: "http://localhost:3000", isLoading: true
+                    number: 1, name: "Unified Dev", address: "http://localhost:3000", isLoading: true, access: .agents
                 )
             ),
             PaneCensusEntry(kind: .review, name: "All changes", isShowing: false),
@@ -322,7 +322,7 @@ struct BrowserPaneToolTests {
                 kind: .browser,
                 name: "Unified Dev",
                 isShowing: true,
-                browser: BrowserPaneReport(number: 1, name: "Unified Dev", address: "http://x.test")
+                browser: BrowserPaneReport(number: 1, name: "Unified Dev", address: "http://x.test", access: .agents)
             ),
         ])
         let without = PaneCensus(entries: [
@@ -344,7 +344,8 @@ struct BrowserPaneToolTests {
             pageTitle: "Dashboard",
             isLoading: false,
             canGoBack: true,
-            canGoForward: false
+            canGoForward: false,
+            access: .agents
         )
         guard case .object(let fields) = report.json else {
             Issue.record("expected an object"); return
