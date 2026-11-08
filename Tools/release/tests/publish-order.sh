@@ -41,11 +41,13 @@ verdict() {
 
   for last_announcement in \
     "$(line_of '^ +- name: Rebuild the landing page' "$workflow" 1)" \
-    "$(line_of '^ +- name: Rebuild the landing page' "$workflow" 2)" \
     "$(line_of '^ +- name: Send GitHub Release to Discord' "$workflow" 1)"; do
     [ -n "$last_announcement" ] || { echo "an announcement step is missing"; return 1; }
     [ "$published" -lt "$last_announcement" ] || { echo "the release is announced before it is published"; return 1; }
   done
+
+  [ "$(grep -cE '^ +if curl .*LANDING_DEPLOY_HOOK' "$workflow")" = 1 ] \
+    || { echo "the landing page is asked to rebuild more or less than once"; return 1; }
 
   if grep -E '^ +gh release delete ' "$workflow" | grep -q '|| true'; then
     echo "a failed delete is ignored, and the step then acts on a release it did not check"
@@ -71,6 +73,13 @@ moved_upload_after_publish() {
   ' "$1"
 }
 
+second_hook_call() {
+  awk '
+    { print }
+    /^ +if curl .*LANDING_DEPLOY_HOOK/ { print; print "          fi" }
+  ' "$1"
+}
+
 moved_discord_above_publish() {
   awk '
     FNR == NR { if ($0 ~ /- name: Send GitHub Release to Discord/) found = FNR; next }
@@ -81,6 +90,7 @@ moved_discord_above_publish() {
 
 verdict "$real_workflow" || { echo "publish-order: failed" >&2; exit 1; }
 
+expect_refused "hook called twice" second_hook_call
 expect_refused "created published" sed -E 's/^( +)--draft \\$/\1--draft=false \\/'
 expect_refused "no draft" sed -E '/^ +--draft \\$/d'
 expect_refused "no publish" sed -E '/gh release edit .*--draft=false/d'

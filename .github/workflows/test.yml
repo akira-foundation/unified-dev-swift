@@ -1,12 +1,12 @@
 name: Test
 
-# What a push has to survive. release.yml only reacts to a published release,
-# so until this existed nothing compiled the app or ran a test in reaction to a
-# commit, and a branch could look fine right up to the moment somebody built it.
+# What a push has to survive, and what a tag has to survive before release.yml
+# publishes it: release.yml calls this workflow on the tagged commit and builds
+# nothing until all three jobs below have passed there.
 #
-# Three jobs, all three side by side, because they fail for different reasons
-# and one push should tell you everything that is wrong with it rather than one
-# thing at a time.
+# Three jobs. lint and build run side by side, because they fail for different
+# reasons and one push should tell you as much as it can at once. test waits
+# for lint, so a spelling mistake does not take a macOS runner.
 #
 #   lint     the workflows, the shell scripts, the house rules and SwiftLint,
 #            all on Linux, because not one of them needs a Mac.
@@ -43,10 +43,10 @@ on:
   # private repository bills at ten times the rate of a Linux one.
   #
   # Naming develop costs part of that back, and the honest figure was measured
-  # rather than assumed. A pull_request run checks out the merge ref: no
-  # checkout step below carries a ref:, so the tree built is the head already
-  # merged into its base, not the head. With strict protection respected the
-  # head contains the base tip, so the merge that lands has the same tree the
+  # rather than assumed. A pull_request run checks out the merge ref: the ref:
+  # on the checkout steps below is empty unless release.yml passed one, so the
+  # tree built is the head already merged into its base, not the head. With
+  # strict protection respected the head contains the base tip, so the merge that lands has the same tree the
   # pull request run had, and this event rebuilds it for nothing.
   #
   # What is paid for is the rest. enforce_admins is off on develop and no
@@ -76,6 +76,12 @@ on:
   # The manual build. Run this workflow from the Actions tab, on any branch, to
   # get a UnifiedDev.app out of it without cutting a release.
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        description: The commit to check out and test, as a full SHA
+        required: true
+        type: string
 
 permissions:
   # Nothing is written. The artifact, on the runs that make one, goes through
@@ -87,19 +93,23 @@ concurrency:
   # run is dropped rather than left to occupy a macOS runner. The event is part
   # of the group so that a push does not cancel a manual build of the same
   # branch: that run was asked for by a person who wants the zip at the end.
-  group: unifieddev-test-${{ github.event_name }}-${{ github.ref }}
+  # A call from release.yml is grouped by the commit it tests, so nothing else
+  # can cancel the answer a release is waiting for.
+  group: unifieddev-test-${{ inputs.ref && format('release-{0}', inputs.ref) || format('{0}-{1}', github.event_name, github.ref) }}
   cancel-in-progress: true
 
 jobs:
   # Everything that does not need a Mac, on a runner that bills at a tenth of
   # the rate of one. It runs beside the build rather than in front of it, so a
-  # spelling mistake and a failing test are reported by the same run.
+  # spelling mistake and a broken build are reported by the same run.
   lint:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.ref }}
 
       # Workflow files are only ever executed by GitHub, so a mistake in one is
       # found by pushing it and waiting. actionlint reads them here instead: it
@@ -148,6 +158,23 @@ jobs:
 
       - name: Check a release is published after its files are attached
         run: zsh Tools/release/tests/publish-order.sh
+
+      - name: Check only a version tag reaches the release build
+        run: zsh Tools/release/tests/release-tag.sh
+
+      - name: Check a release is announced by the run that publishes it, or its rerun
+        run: zsh Tools/release/tests/announcement.sh
+
+      - name: Check a release waits for the tests on its tagged commit
+        run: zsh Tools/release/tests/test-gate.sh
+
+      - name: Install git-cliff
+        uses: taiki-e/install-action@9114bf4d891761788c546334fd37538eae1bf8b3 # v2.87.16
+        with:
+          tool: git-cliff
+
+      - name: Check a breaking commit bumps the major, and only the #434 exception does not
+        run: zsh Tools/release/tests/breaking-bump.sh
 
       - name: Check the app mark is the one Tools/icon/layers.py writes
         run: python3 Tools/icon/layers.py --check
@@ -200,7 +227,8 @@ jobs:
   # and 204 seconds of a 404 second run. Neither needs anything the other
   # produces: the build reads Sources/UnifiedDev, and Tools/test-core.sh builds its
   # own mirror from Core alone. Run in series they added up, run beside
-  # each other the run is as long as the longer of the two. The bill barely
+  # each other the run is as long as the longer of the two, with lint in front
+  # of the tests. The bill barely
   # moves, because the work is split rather than repeated: the same minutes are
   # spent, on two runners instead of one, and only the few seconds of checkout
   # and toolchain check are paid twice.
@@ -213,6 +241,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.ref }}
 
       # Verbatim from release.yml. Swift 6 language mode, actool for the
       # layered icon and the App Intents metadata processor all come from Xcode,
@@ -336,12 +366,12 @@ jobs:
       # touched. The result is an app nobody has vouched for, which is the point
       # for now: it is here to be tried, not to be handed out.
       - name: Assemble the app bundle
-        if: ${{ github.event_name == 'workflow_dispatch' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.ref }}
         run: ./Tools/build.sh -r
 
       - name: Zip the bundle
         id: zip
-        if: ${{ github.event_name == 'workflow_dispatch' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.ref }}
         run: |
           set -euo pipefail
           app="$(swift build -c release --show-bin-path)/UnifiedDev.app"
@@ -358,7 +388,7 @@ jobs:
       # A downloaded artifact is therefore a zip inside a zip, and the inner one
       # is the bundle ditto made.
       - name: Upload the app
-        if: ${{ github.event_name == 'workflow_dispatch' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.ref }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: Unified Dev-${{ steps.zip.outputs.sha }}
@@ -367,7 +397,7 @@ jobs:
           if-no-files-found: error
 
       - name: Say how to open it
-        if: ${{ github.event_name == 'workflow_dispatch' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.ref }}
         run: |
           {
             echo "### Unified Dev ${{ steps.zip.outputs.sha }}"
@@ -385,7 +415,8 @@ jobs:
             echo "real preferences."
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # The two test suites, on their own runner beside the build.
+  # The two test suites, on their own runner beside the build, once lint has
+  # passed.
   #
   # It caches nothing, and there is nothing here to cache. Both scripts write a
   # package with no dependencies at all, so there is no resolve to skip, and
@@ -396,6 +427,7 @@ jobs:
   # being able to link WebKit while the core mirror holds the line that nothing
   # in the core may.
   test:
+    needs: lint
     runs-on: macos-26
     # A cold run is about three and a half minutes for the core suite, and
     # about as long again for the browser one after it.
@@ -403,6 +435,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.ref }}
 
       # Around thirty tests make a real commit with this machine's git, and
       # RepositoryStarter refuses to commit without a name and an address. A

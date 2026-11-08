@@ -107,8 +107,8 @@ final class SearchPanelModel {
             )
             listing = field.isEmpty
                 ? SearchPanelResting.build(
-                    workspaces: app.workspaces,
-                    repos: app.repos,
+                    workspaces: app.profileWorkspaces,
+                    repos: app.profileRepos,
                     activity: HomeActivity(
                         running: app.runningWorkspaceIDs, waiting: app.waitingWorkspaceIDs
                     ),
@@ -116,9 +116,9 @@ final class SearchPanelModel {
                 )
                 : SearchPanelResults.build(
                     query: field.query,
-                    repos: app.repos,
-                    workspaces: app.workspaces,
-                    archived: archived,
+                    repos: app.profileRepos,
+                    workspaces: app.profileWorkspaces,
+                    archived: app.inActiveProfile(archived),
                     transcripts: app.transcriptResults,
                     scope: scope,
                     reach: reach

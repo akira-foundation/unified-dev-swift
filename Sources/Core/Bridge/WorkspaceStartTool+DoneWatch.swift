@@ -29,12 +29,15 @@ extension WorkspaceStartTool {
         }
     }
 
-    func startedAnswer(_ started: StartedWorkspaceSummary, role: BridgeRole, watch: WatchOutcome) -> JSONValue {
+    func startedAnswer(
+        _ started: StartedWorkspaceSummary, profile: JSONValue, role: BridgeRole, watch: WatchOutcome
+    ) -> JSONValue {
         .object([
             "workspace_id": .string(started.workspaceID.rawValue),
             "name": .string(started.name),
             "branch": .string(started.branch),
             "path": .string(started.path),
+            "profile": profile,
             "state": .string("starting"),
             WorkspaceDoneWatch.argument: .bool(watch == .watching),
             "note": .string(startedNote(for: role, watch: watch)),

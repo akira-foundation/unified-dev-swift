@@ -49,6 +49,34 @@ uses on the next turn without restarting the process.
 `session/cancel` is a notification. Stop answers pending permission requests as cancelled, then
 sends it.
 
+## Usage limits
+
+The menu bar reads the subscription's quota from its own short lived process, outside any
+session: `initialize`, then the extension request `_x.ai/billing` with empty params, and the
+process is stopped. The leading underscore is part of the name; `x.ai/billing` answers
+"Method not found". No `authenticate` is needed, the cached sign in is enough. Measured on
+grok 1.0.70:
+
+```json
+{"config":{"creditUsagePercent":100.0,
+  "currentPeriod":{"type":"USAGE_PERIOD_TYPE_WEEKLY",
+    "start":"2026-11-01T13:01:35.239+00:00","end":"2026-11-08T13:01:35.239+00:00"},
+  "prepaidBalance":{"val":0},"isUnifiedBillingUser":true,
+  "billingPeriodStart":"2026-11-01T13:01:35.239+00:00","billingPeriodEnd":"2026-11-08T13:01:35.239+00:00"},
+ "subscription_tier":"SuperGrok Lite"}
+```
+
+`GrokQuotaAdapter` reads it as one window: `creditUsagePercent` is the fraction used, the period
+type names the window (`weekly`), its start and end give the length, and the end is the reset.
+`subscription_tier` is shown as the plan.
+
+The handshake and the request each get `GrokQuotaSource.timeout`, because the poll waits for every
+agent and one silent Grok would hold back the others. A CLI that answers the request with `-32601`
+does not offer it and shows no card. Any other failure draws Grok as not having answered.
+
+A preview with no Grok account chosen does not ask at all. Grok has no default home for a preview
+to redirect, so asking would read the owner's own login.
+
 ## Permissions
 
 `session/request_permission` is a server-to-client request. The payload is a tool call plus
@@ -62,3 +90,9 @@ ACP `mcpServers` on `session/new` is additive over `~/.grok/config.toml`. Unifie
 `unifieddev-workspace-bridge` there as a stdio server, `env` as an array of `{name, value}` objects.
 The owner's own client is a separate `grok mcp add --scope user` command, for the same reason
 Claude Code's is `--scope user`.
+
+## A turn stopped by the usage limit
+
+Grok sends no quota event over ACP, and no usage-limit stop has been captured. `stopReason` becomes
+the result's `subtype` and `message` its `summary`, with no field that marks a limit.
+`TurnStopCause.ofLastTurn` answers `.other` for Grok.

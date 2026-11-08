@@ -16,6 +16,7 @@ struct CrewMessageRowView: View {
         switch message.event {
         case .said, .brief, .relayed: spoken
         case .stopped, .failed, .cancelled, .workspaceDone, .workspaceStarted: fact
+        case .appRequest: EmptyView()
         }
     }
 
@@ -24,9 +25,7 @@ struct CrewMessageRowView: View {
             header
 
             MarkdownView(message.text)
-                .font(Typo.body)
                 .proseLeading()
-                .textSelection(.enabled)
                 .frame(maxWidth: TranscriptLayout.proseMeasure, alignment: .leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -60,7 +59,7 @@ struct CrewMessageRowView: View {
         case .said: "said"
         case .brief: "started you with"
         case .relayed: "said"
-        case .stopped, .failed, .cancelled, .workspaceDone, .workspaceStarted: ""
+        case .stopped, .failed, .cancelled, .workspaceDone, .workspaceStarted, .appRequest: ""
         }
     }
 

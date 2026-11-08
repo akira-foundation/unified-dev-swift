@@ -227,18 +227,18 @@ struct ChatToolOtherWorkspaceTests {
         let (gone, _) = try await other(store, named: "Gone")
         try await store.update(workspaceID: gone.id) { $0.archive() }
 
-        let found = try await BridgeWorkspaceLookup.activeTarget("release", store: store)
+        let found = try await BridgeWorkspaceLookup.activeTarget("release", as: .owner, store: store)
         guard case .found(let workspace) = found else {
             Issue.record("expected the release workspace, got \(found)")
             return
         }
         #expect(workspace.id == release.id)
-        #expect(try await BridgeWorkspaceLookup.activeTarget("Gone", store: store) == .archived(name: "Gone"))
-        let unknown = try await BridgeWorkspaceLookup.activeTarget("nowhere", store: store)
+        #expect(try await BridgeWorkspaceLookup.activeTarget("Gone", as: .owner, store: store) == .archived(name: "Gone"))
+        let unknown = try await BridgeWorkspaceLookup.activeTarget("nowhere", as: .owner, store: store)
         #expect(unknown == .unknown(known: ["Test", "Release"]))
 
         let twin = try await other(store, named: "Release").0
-        let ambiguous = try await WorkspaceSayTool.target(named: "release", store: store)
+        let ambiguous = try await WorkspaceSayTool.target(named: "release", as: .owner, store: store)
         #expect(ambiguous == .failure(.ambiguous(given: "release", ids: [release.id.rawValue, twin.id.rawValue])))
     }
 

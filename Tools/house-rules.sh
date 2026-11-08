@@ -3,7 +3,9 @@
 #
 #   ./Tools/house-rules.sh
 #
-# Ten rules, and every one of them is here because it has already been broken:
+# The first ten rules, and most of them are here because they have already been
+# broken (rule 9 says it is the exception). Later rules are described where they
+# are defined, under their own echo line:
 #
 #   1. No em dashes and no en dashes. Anywhere. They arrive by the hundred from
 #      anything that writes prose for you, and once one is in a file the next
@@ -340,6 +342,7 @@ id_type_allowed_lines=(
   'Sources/Core/Agent/Codex/CodexModelCatalog.swift'         # a model name the CLI offers
   'Sources/Core/Agent/Grok/GrokModelCatalog.swift'           # a model name the CLI offers
   'Sources/Core/Agent/AgentModel.swift'                      # model and effort names the CLIs offer
+  'Sources/Core/Presentation/ComposerEffort.swift'           # the same effort names, and the empty one that means none
   'Sources/Core/System/EditorCatalog.swift'             # an application, by bundle id
   'Sources/UnifiedDev/Views/Center/Composer/ComposerOption.swift'   # a picker entry, "opus" and friends
   'Sources/UnifiedDev/Views/Center/Panes/CenterTab.swift'       # a tab: a terminal row, a browser or the review pane
@@ -527,6 +530,59 @@ if hits="$(git grep --untracked -n -I -E '(cwd|directory):[^)]*(NSHomeDirectory\
   report "A subprocess rooted at the home directory. Nothing Unified Dev starts stands in the user's home: use AgentScratchDirectory for an ask with no workspace, or the workspace's own path."
 fi
 
+echo "==> an agent process is launched under the account that was chosen"
+# AgentAccountEnvironment.apply strips the variables a host injects and, for an
+# account that is not the CLI's default, points the process at that account's
+# directory. A launch built without it keeps running on the wrong account and no
+# test notices. Every construction of an AgentLaunch or a WorkspaceNamerLaunch has
+# to contain a call to AgentAccountEnvironment.apply( in its own text: the span
+# between its parentheses, minus the spans of any construction nested inside it,
+# which cannot lend theirs. Comments and string contents are blanked first, so a
+# mention there counts for nothing. The check is that the call is present in the
+# construction, not that its result is what the construction uses.
+#
+# The reader is not a Swift parser. It understands line and nested block comments,
+# single and multi-line strings, raw strings with their hashes, and escapes. It
+# does not understand string interpolation: whatever sits inside a string,
+# interpolation included, is blanked. It cannot tell in general that it has
+# misread. It notices three symptoms: a string or comment still open at the end of
+# the file, a single-line string cut by a newline, and a construction whose
+# parentheses never balance. Any of them makes the awk script exit non-zero and the
+# rule then reports the file as not checked. Valid Swift can produce them too,
+# because a literal nested inside an interpolation shifts the reader's idea of
+# where strings begin and end: Sources/Core/Persistence/SettingsDocument.swift
+# line 218 does, and the file is skipped only because it has no construction. A
+# misreading that leaves none of the three symptoms is not noticed, and a nested
+# literal that happens to keep the quotes paired is read as a string, so the code
+# inside that interpolation is not read.
+#
+# Not seen, none with a case in the tree today: a construction written inside a
+# string interpolation; `let a: AgentLaunch = .init(...)` and `AgentLaunch.init(`;
+# a name that merely ends in AgentLaunch, which the word boundary skips. A process
+# started without an AgentLaunch (a bare StreamingProcess or Shell.run naming
+# claude, codex or grok) is not seen either: seeing it needs an exception list for
+# the screen capture, the language servers, the updater and the sleep helper, and
+# a list like that rots into a lie.
+#
+# The second check is on string literals only: the quoted names CODEX_HOME,
+# GROK_HOME and CLAUDE_CONFIG_DIR may appear in Sources only in
+# AgentAccountEnvironment and in TranscriptSources, which reads them to find the
+# default directories for spend. A name built from pieces is not seen.
+launchers="$(git grep --untracked -l -I -E '(AgentLaunch|WorkspaceNamerLaunch)\(' -- 'Sources/*' || true)"
+for file in $launchers; do
+  if ! lines="$(awk -f Tools/agent-launch-constructions.awk "$file")"; then
+    report "Tools/agent-launch-constructions.awk failed on $file, so its launches were not checked."
+    continue
+  fi
+  for line in $lines; do
+    report "$file:$line builds an agent launch with no call to AgentAccountEnvironment.apply inside it."
+  done
+done
+if hits="$(git grep --untracked -n -I -E '"(CODEX_HOME|GROK_HOME|CLAUDE_CONFIG_DIR)"' -- 'Sources/*' ':!Sources/Core/Agent/AgentAccountEnvironment.swift' ':!Sources/Core/Spend/TranscriptSources.swift' || true)" && [ -n "$hits" ]; then
+  echo "$hits" | show
+  report "An account directory variable named outside AgentAccountEnvironment. Ask it for the value instead of reading or writing the variable."
+fi
+
 echo "==> British spelling"
 # Words with an American spelling that has no other job in this codebase.
 # Deliberately absent: colour, behaviour, centre, dialogue, catalogue and
@@ -586,6 +642,58 @@ if [ -f "$subjects" ]; then
     ' "$subjects"
   )
 fi
+
+echo "==> the store feed a reload watches is the set the core declares"
+# A domain missing from that set is an agent running under one account while the
+# picker still names another, and nothing in Tests/ reaches the app target. The
+# set belongs in the Core, where a test can hold it; this holds the one line that
+# passes it.
+observer=Sources/UnifiedDev/State/AppModel.swift
+if [ -f "$observer" ] &&
+   ! grep -q 'store.changes(of: StoreDomain.projectsWorkspacesAndTheirAccounts)' "$observer"; then
+  grep -n 'store.changes(of:' "$observer" | show || true
+  report "$observer must watch StoreDomain.projectsWorkspacesAndTheirAccounts, not a set written here. A domain dropped from a literal is a picker that keeps naming the account the agent stopped using, and nothing in Tests/ can see it."
+fi
+
+echo "==> only the project's settings pane turns the orchestrator's switch"
+# A switch that lets an agent's commands run unseen is the one setting an agent
+# must not be able to reach. Saving it from anywhere else, or writing settings
+# from the bridge at all, would hand that to whoever calls the code.
+if hits="$(git grep --untracked -n -I -e 'OrchestratorUnaskedCommands\.save' -e 'OrchestratorUnaskedCommands\.key' -e 'orchestratorRunsCommandsUnasked' -- 'Sources' ':!Sources/Core/Agent/OrchestratorUnaskedCommands.swift' ':!Sources/UnifiedDev/Views/RepoSettings/RepoOrchestratorSection.swift' || true)" && [ -n "$hits" ]; then
+  echo "$hits" | show
+  report "OrchestratorUnaskedCommands is saved from RepoOrchestratorSection and nowhere else."
+fi
+bridge_files="$(git grep --untracked -l -I -e 'ForBridge(' -e ': BridgeToolHandling' -e 'BridgeToolbox(' -- 'Sources' || true)"
+if hits="$( { git grep --untracked -n -I 'setSetting(' -- 'Sources/Core/Bridge' 'Sources/UnifiedDev/State/AppModel*.swift'; [ -z "$bridge_files" ] || echo "$bridge_files" | xargs grep -n -H 'setSetting(' ; } || true)" && [ -n "$hits" ]; then
+  echo "$hits" | sort -u | show
+  report "The bridge does not write settings: not in the core, not in AppModel, which serves the app's half of it, and not in a file that serves a tool. An agent calls it, and some of those settings decide what an agent may do."
+fi
+app_toolbox=Sources/UnifiedDev/State/AppModel+WorkspaceBridge.swift
+if hits="$(git grep --untracked -n -I 'BridgeToolbox(handlers:' -- 'Sources' ':!Sources/Core/Bridge/BridgeToolbox.swift' ":!$app_toolbox" || true)" && [ -n "$hits" ]; then
+  echo "$hits" | show
+  report "Bridge tools are added in BridgeToolbox.standard or in $app_toolbox, where the reach suite's list is checked against them."
+fi
+reach_handlers=Tests/CoreTests/OrchestratorUnaskedReachSupport.swift
+if [ -f "$app_toolbox" ]; then
+  while IFS= read -r tool; do
+    if [ ! -f "$reach_handlers" ] || ! grep -qE "^ *$tool( *[({]|\.)" "$reach_handlers"; then
+      echo "$app_toolbox: $tool"
+      report "$tool is served by the app and not built in $reach_handlers, so the reach suite never calls its handler."
+    fi
+  done < <(grep -oE '\b[A-Z][A-Za-z]*Tool\b' "$app_toolbox" | sort -u)
+fi
+
+echo "==> an extension of a debug-only type is debug-only too"
+debug_types="$(git grep --untracked -l -I '^#if DEBUG' -- 'Sources/*.swift' | xargs grep -h -oE '^(public |final |@MainActor )*(struct|enum|class|actor) [A-Z][A-Za-z0-9]*' 2>/dev/null | awk '{print $NF}' | sort -u || true)"
+for type in $debug_types; do
+  while IFS= read -r file; do
+    [ -n "$file" ] || continue
+    if ! grep -q '^#if DEBUG' "$file" && ! grep -qE "^(public |final |@MainActor )*(struct|enum|class|actor) $type([^A-Za-z0-9]|$)" "$file"; then
+      grep -n -E "^extension $type([^A-Za-z0-9]|$)" "$file" | sed "s|^|$file:|" | show
+      report "$file extends $type, which exists only under #if DEBUG, from outside #if DEBUG. The release build cannot compile it."
+    fi
+  done < <(git grep --untracked -l -I -E "^extension $type([^A-Za-z0-9]|$)" -- 'Sources/*.swift' || true)
+done
 
 if [ "$findings" -gt 0 ]; then
   echo

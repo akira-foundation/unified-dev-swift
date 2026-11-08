@@ -120,7 +120,7 @@ struct BridgeWorkspaceCensusTests {
         question.apply(.blocked)
         _ = try await store.upsert(question)
 
-        let census = try await BridgeWorkspaceCensus.read(from: store)
+        let census = try await BridgeWorkspaceCensus.read(for: .owner, from: store)
         let counts = census.counts(repoID: project.id)
 
         #expect(counts.workspaces == 3)
@@ -146,7 +146,7 @@ struct BridgeWorkspaceCensusTests {
         session.apply(.turnFinished(isError: false))
         _ = try await store.upsert(session)
 
-        let census = try await BridgeWorkspaceCensus.read(from: store)
+        let census = try await BridgeWorkspaceCensus.read(for: .owner, from: store)
 
         #expect(census.counts(repoID: project.id).workspaces == 1)
         #expect(census.counts(repoID: project.id).agentsRunning == 0)

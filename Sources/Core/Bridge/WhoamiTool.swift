@@ -26,7 +26,7 @@ public struct WhoamiTool: BridgeToolHandling {
         as identity: BridgeIdentity,
         store: Store
     ) async -> BridgeToolResult {
-        guard let workspaceID = identity.workspaceID else { return await owner(store: store) }
+        guard let workspaceID = identity.workspaceID else { return await owner(identity, store: store) }
         do {
             guard let workspace = try await store.workspace(id: workspaceID) else {
                 return .failure("This workspace is no longer in Unified Dev's database.")
@@ -79,10 +79,10 @@ public struct WhoamiTool: BridgeToolHandling {
         }
     }
 
-    private func owner(store: Store) async -> BridgeToolResult {
+    private func owner(_ identity: BridgeIdentity, store: Store) async -> BridgeToolResult {
         do {
-            let projects = try await store.repos()
-            let workspaces = try await store.workspaces()
+            let projects = try await BridgeProfileScope.repos(for: identity, store: store)
+            let workspaces = try await BridgeProfileScope.workspaces(for: identity, store: store)
             return .json(.object([
                 "role": .string(BridgeRole.owner.rawValue),
                 "connected_to": .object([

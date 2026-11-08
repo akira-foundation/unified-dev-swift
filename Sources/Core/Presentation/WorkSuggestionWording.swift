@@ -10,6 +10,11 @@ public enum WorkSuggestionWording {
         in that workspace's own project. Start it as a new workspace instead.
         """
 
+    public static let anotherProfile = """
+        That project belongs to another profile than the workspace this suggestion came from, so it \
+        cannot start there.
+        """
+
     public static func taken(_ state: WorkSuggestion.State) -> String {
         switch state {
         case .pending: "It is waiting for you again."

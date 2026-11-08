@@ -27,6 +27,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         public var workspaces: [Workspace]
         public var remote: RemoteAnswer
         public var hidden: Bool
+        public var profile: String?
+        public var accounts: [String: String]
 
         public init(
             name: String,
@@ -36,7 +38,9 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             branches: [String] = [],
             workspaces: [Workspace] = [],
             remote: RemoteAnswer = .promptly,
-            hidden: Bool = false
+            hidden: Bool = false,
+            profile: String? = nil,
+            accounts: [String: String] = [:]
         ) {
             self.name = name
             self.files = files
@@ -46,6 +50,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             self.workspaces = workspaces
             self.remote = remote
             self.hidden = hidden
+            self.profile = profile
+            self.accounts = accounts
         }
 
         public init(from decoder: Decoder) throws {
@@ -58,6 +64,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             workspaces = try container.decodeIfPresent([Workspace].self, forKey: .workspaces) ?? []
             remote = try container.decodeIfPresent(RemoteAnswer.self, forKey: .remote) ?? .promptly
             hidden = try container.decodeIfPresent(Bool.self, forKey: .hidden) ?? false
+            profile = try container.decodeIfPresent(String.self, forKey: .profile)
+            accounts = try container.decodeIfPresent([String: String].self, forKey: .accounts) ?? [:]
         }
     }
 
@@ -85,8 +93,11 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         public var spareFiles: Int
         public var lastActive: Double?
         public var state: Standing
+        public var archivedAgo: Double?
+        public var recordMegabytes: Int
 
         public static let spareFileCeiling = 4_000
+        public static let recordMegabyteCeiling = 1_000
 
         public init(
             name: String,
@@ -101,7 +112,9 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             orchestrator: Bool = false,
             spareFiles: Int = 0,
             lastActive: Double? = nil,
-            state: Standing = .live
+            state: Standing = .live,
+            archivedAgo: Double? = nil,
+            recordMegabytes: Int = 0
         ) {
             self.name = name
             self.branch = branch
@@ -115,6 +128,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             self.orchestrator = orchestrator
             self.spareFiles = spareFiles
             self.lastActive = lastActive
+            self.archivedAgo = archivedAgo
+            self.recordMegabytes = recordMegabytes
             self.state = state
         }
 
@@ -133,6 +148,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
             spareFiles = try container.decodeIfPresent(Int.self, forKey: .spareFiles) ?? 0
             lastActive = try container.decodeIfPresent(Double.self, forKey: .lastActive)
             state = try container.decodeIfPresent(Standing.self, forKey: .state) ?? .live
+            archivedAgo = try container.decodeIfPresent(Double.self, forKey: .archivedAgo)
+            recordMegabytes = try container.decodeIfPresent(Int.self, forKey: .recordMegabytes) ?? 0
         }
 
         public static func spareFileNames(_ count: Int) -> [String] {
@@ -143,15 +160,26 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         public func lastActiveMoment(from now: Date) -> Date? {
             lastActive.map { now.addingTimeInterval(-$0 * 3_600) }
         }
+
+        public func archivedMoment(from now: Date) -> Date? {
+            archivedAgo.map { now.addingTimeInterval(-$0 * 3_600) }
+        }
     }
 
     public struct Chat: Sendable, Equatable, Codable {
         public var title: String
+        public var agent: AgentKind?
+        public var model: String?
         public var messages: [Line]
         public var suggestions: [Suggestion]
 
-        public init(title: String, messages: [Line], suggestions: [Suggestion] = []) {
+        public init(
+            title: String, agent: AgentKind? = nil, model: String? = nil, messages: [Line],
+            suggestions: [Suggestion] = []
+        ) {
             self.title = title
+            self.agent = agent
+            self.model = model
             self.messages = messages
             self.suggestions = suggestions
         }
@@ -159,8 +187,20 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         public init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             title = try container.decode(String.self, forKey: .title)
+            agent = try container.decodeIfPresent(AgentKind.self, forKey: .agent)
+            model = try container.decodeIfPresent(String.self, forKey: .model)
             messages = try container.decodeIfPresent([Line].self, forKey: .messages) ?? []
             suggestions = try container.decodeIfPresent([Suggestion].self, forKey: .suggestions) ?? []
+        }
+    }
+
+    public struct Handoff: Sendable, Equatable, Codable {
+        public var agent: AgentKind
+        public var model: String
+
+        public init(agent: AgentKind, model: String) {
+            self.agent = agent
+            self.model = model
         }
     }
 
@@ -168,22 +208,26 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         public enum Speaker: String, Sendable, Codable {
             case user
             case agent
+            case app
         }
 
         public var from: Speaker
         public var text: String
         public var question: Question?
+        public var handoff: Handoff?
 
-        public init(from: Speaker, text: String = "", question: Question? = nil) {
+        public init(from: Speaker, text: String = "", question: Question? = nil, handoff: Handoff? = nil) {
             self.from = from
             self.text = text
             self.question = question
+            self.handoff = handoff
         }
 
         public init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             from = try container.decode(Speaker.self, forKey: .from)
             question = try container.decodeIfPresent(Question.self, forKey: .question)
+            handoff = try container.decodeIfPresent(Handoff.self, forKey: .handoff)
             text = try container.decodeIfPresent(String.self, forKey: .text) ?? ""
         }
     }
@@ -200,6 +244,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
     public var accounts: [Account]
     public var update: Update?
     public var agentSettings: AgentSettings?
+    public var profiles: [Profile]
+    public var activeProfile: String?
 
     public init(
         welcome: Bool = true,
@@ -213,7 +259,9 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         transcripts: [Transcript] = [],
         accounts: [Account] = [],
         update: Update? = nil,
-        agentSettings: AgentSettings? = nil
+        agentSettings: AgentSettings? = nil,
+        profiles: [Profile] = [],
+        activeProfile: String? = nil
     ) {
         self.welcome = welcome
         self.projects = projects
@@ -227,6 +275,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         self.accounts = accounts
         self.update = update
         self.agentSettings = agentSettings
+        self.profiles = profiles
+        self.activeProfile = activeProfile
     }
 
     public init(from decoder: Decoder) throws {
@@ -243,6 +293,8 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
         accounts = try container.decodeIfPresent([Account].self, forKey: .accounts) ?? []
         update = try container.decodeIfPresent(Update.self, forKey: .update)
         agentSettings = try container.decodeIfPresent(AgentSettings.self, forKey: .agentSettings)
+        profiles = try container.decodeIfPresent([Profile].self, forKey: .profiles) ?? []
+        activeProfile = try container.decodeIfPresent(String.self, forKey: .activeProfile)
     }
 
     public static func read(_ data: Data) throws -> PreviewScenario {

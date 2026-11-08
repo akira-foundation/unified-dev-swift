@@ -94,7 +94,6 @@ struct ProseLeadingGallery: View {
     @ViewBuilder
     private func prose(leading: CGFloat? = nil) -> some View {
         let block = MarkdownView(Self.sample)
-            .font(Typo.body)
             .frame(maxWidth: .infinity, alignment: .leading)
 
         if let leading {

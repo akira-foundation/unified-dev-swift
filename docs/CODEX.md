@@ -532,7 +532,8 @@ Three things that differ, and cannot be papered over:
 
 - **The question carries no detail, only an item id.** A `fileChange` approval has `itemId`,
   `threadId`, `turnId` and an optional reason. The diff is on the `item/started` that arrived a
-  moment earlier. The prompt has to join the two by item id.
+  moment earlier. The prompt has to join the two by item id. A command approval may also name its
+  command and directory, both optional in the schema.
 - **`acceptForSession` is Codex's "do not ask again", and the server remembers it, not Unified Dev.**
   So the `permission_grants` table, which exists because a worktree can be deleted, has nothing to
   store for Codex. A Codex chat's grants live for the life of the app-server process. Say that in
@@ -616,7 +617,9 @@ What it becomes:
 - **The effort picker follows the model, within the chat.** Codex efforts differ per model, so
   choosing `gpt-5.5` after `gpt-5.6-sol` has to drop `max` and `ultra` from the effort list, and an
   effort the new model does not take falls back to that model's own default rather than to
-  Unified Dev's `high`. `CodexModel.resolvedEffort(preferring:)` already does the fallback.
+  Unified Dev's `high`. `CodexModel.resolvedEffort(preferring:)` already does the fallback, and
+  `DefaultBackend.effort` gates it: an effort nobody chose is not an effort the model refuses, so
+  it passes through and the chat keeps running on whatever the CLI defaults to.
 - **`ComposerOption.adding(_:to:)` stays.** The open-set behaviour it exists for is still right: a
   settings file can pin an id nothing else knows, and it must remain selectable.
 - The picker keeps working with an empty catalog. `CodexModelCatalog.lastKnown` returns the last
@@ -737,3 +740,10 @@ purpose.
 - Turns cost the owner's plan. Keep them few and short. The whole verification behind this document
   is seven turns of a handful of words each.
 - `model/list` and the schema dump need no account and cost nothing. Prefer them.
+
+## A turn stopped by the usage limit
+
+Not measured: no usage-limit stop has been captured from Codex. A failed turn arrives as
+`turn.status == failed` with `error.message`, which becomes `.error` and a `result` with
+`isError: true`, and no error code is parsed. `TurnStopCause.ofLastTurn` answers `.other` for Codex
+until a real stop is captured.

@@ -11,7 +11,9 @@ extension PreviewScenarioSeeder {
 
         var written = 0
         for account in scenario.accounts {
-            guard let place = AgentAccountHome.defaultHome(for: account.provider, home: home) else { continue }
+            guard let place = Self.place(of: account, home: home) else { continue }
+            written += 1
+            guard !account.missing else { continue }
             try FileManager.default.createDirectory(
                 at: place.directory, withIntermediateDirectories: true
             )
@@ -21,9 +23,52 @@ extension PreviewScenarioSeeder {
                 )
                 try Data(body.utf8).write(to: url)
             }
-            written += 1
         }
         return written
+    }
+
+    static func place(of account: PreviewScenario.Account, home: URL) -> AgentAccountHome? {
+        guard let label = account.label else { return AgentAccountHome.defaultHome(for: account.provider, home: home) }
+        return AgentAccountHome(
+            provider: account.provider,
+            id: account.id,
+            directory: home
+                .appending(path: "accounts", directoryHint: .isDirectory)
+                .appending(path: account.provider.rawValue, directoryHint: .isDirectory)
+                .appending(path: label, directoryHint: .isDirectory),
+            isDefault: false,
+            label: label
+        )
+    }
+
+    func seedAccountChoices(
+        _ scenario: PreviewScenario,
+        repos: [String: RepoID],
+        profiles: [String: ProfileID] = [:],
+        home: URL?
+    ) async throws {
+        guard let home else { return }
+        for account in scenario.accounts where account.label != nil {
+            guard let place = Self.place(of: account, home: home) else { continue }
+            let owner = account.profile.flatMap { profiles[$0.lowercased()] } ?? .initial
+            try await manager.store.add(AgentAccountRow(
+                id: place.id, provider: place.provider, directory: place.directory.path, label: place.label,
+                profileID: owner
+            ))
+            if account.isProfileDefault {
+                try await manager.store.chooseAgentAccount(ChosenAgentAccount(place), forProfile: owner)
+            }
+        }
+        for project in scenario.projects {
+            guard let repoID = repos[project.name] else { continue }
+            for (key, label) in project.accounts {
+                guard let provider = AgentKind(rawValue: key),
+                      let account = scenario.accounts.first(where: { $0.provider == provider && $0.label == label }),
+                      let place = Self.place(of: account, home: home)
+                else { continue }
+                try await AgentAccountAssignment.choose(ChosenAgentAccount(place), forRepo: repoID, in: manager.store)
+            }
+        }
     }
 
     private func files(

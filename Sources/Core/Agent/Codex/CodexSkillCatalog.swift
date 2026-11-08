@@ -17,13 +17,13 @@ public actor CodexSkillCatalog {
 
     public static func live(
         project: String,
-        codexHome: String? = nil,
+        account: AgentAccountHome? = nil,
         makeProcess: @escaping @Sendable (AgentLaunch) -> any AgentProcessing = CodexClient.spawn
     ) -> CodexSkillCatalog {
         CodexSkillCatalog(fetch: {
             await LoginShellPath.ready()
             let client = CodexClient(
-                configuration: .init(cwd: project, codexHome: codexHome), makeProcess: makeProcess
+                configuration: .init(cwd: project, account: account), makeProcess: makeProcess
             )
             let deadline = Task {
                 do { try await Task.sleep(for: .seconds(5)) } catch { return }

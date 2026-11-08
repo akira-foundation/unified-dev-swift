@@ -4,6 +4,7 @@ import Core
 struct WindowToolbar: ToolbarContent {
     let app: AppModel
     let centreWidth: CGFloat
+    let showsProfileMark: Bool
     let startFreshAskConversation: () -> Void
 
     @FocusedValue(\.homeScopeCounts) private var homeCounts: HomeScopeCounts?
@@ -11,6 +12,13 @@ struct WindowToolbar: ToolbarContent {
     @FocusedValue(\.notesFormatting) private var notesFormatting: NotesFormattingContext?
 
     var body: some ToolbarContent {
+        if showsProfileMark, let profile = app.activeProfile {
+            ToolbarItem(placement: .navigation) {
+                ProfileWindowMark(profile: profile)
+            }
+            .sharedBackgroundVisibility(.hidden)
+        }
+
         if app.selection == .home {
             ToolbarItemGroup(placement: .principal) {
                 homeScopePicker
@@ -23,7 +31,7 @@ struct WindowToolbar: ToolbarContent {
 
         if let tabs = conversationTabs {
             ToolbarItem(placement: .principal) {
-                let width = ToolbarTabsWidth.width(inColumn: centreWidth)
+                let width = ToolbarTabsWidth.width(inColumn: centreWidth, showingProfileMark: showsProfileMark)
                 tabs
                     .frame(width: width)
                     .id(width.rounded())
@@ -152,7 +160,7 @@ struct WindowToolbar: ToolbarContent {
     }
 
     private var homeProjectMenu: some View {
-        let menu = HomeProjectMenu(app.repos)
+        let menu = HomeProjectMenu(app.profileRepos, profiles: app.profiles)
 
         return Menu {
             Section {
@@ -174,6 +182,20 @@ struct WindowToolbar: ToolbarContent {
                     }
                 }
             }
+
+            if !menu.moves.isEmpty {
+                Section {
+                    Menu("Move to Profile") {
+                        ForEach(menu.moves) { move in
+                            Menu(move.repo.name) {
+                                ProfileMoveTargets(targets: move.targets) { profile in
+                                    Task { await app.moveProject(move.repo.id, to: profile) }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         } label: {
             Label(homeProjectLabel, systemImage: "folder")
                 .lineLimit(1)
@@ -185,7 +207,7 @@ struct WindowToolbar: ToolbarContent {
     private var homeProjectLabel: String {
         switch app.homeFilter.projects.count {
         case 0: "All projects"
-        case 1: app.repos.first { $0.id == app.homeFilter.projects.first }?.name ?? "1 project"
+        case 1: app.profileRepos.first { $0.id == app.homeFilter.projects.first }?.name ?? "1 project"
         default: "\(app.homeFilter.projects.count) projects"
         }
     }

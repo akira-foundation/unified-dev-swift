@@ -87,7 +87,6 @@ public struct SpendBoard: Sendable, Equatable {
     public var slices: [DaySlice]
     public var providers: [ProviderLine]
     public var projects: [SpendProjectLine]
-    public var accounts: [SpendAccountLine]
     public var pricedOn: Date
 
     public static let emptyLine = "No agent turns in this window."
@@ -103,8 +102,7 @@ public struct SpendBoard: Sendable, Equatable {
     }
 
     public static func make(_ input: Input) -> SpendBoard {
-        let drawn = Set(input.window.dayStarts(from: input.now, calendar: input.calendar))
-        let kept = input.days.filter { drawn.contains($0.day) }
+        let kept = drawnDays(input)
         let total = Spend.sum(kept.map(\.spend))
 
         return SpendBoard(
@@ -115,9 +113,17 @@ public struct SpendBoard: Sendable, Equatable {
             slices: slices(kept, input: input),
             providers: providers(kept, input: input),
             projects: SpendProjectLine.lines(for: kept, input: input),
-            accounts: SpendAccountLine.lines(for: kept, input: input),
             pricedOn: ModelPrices.measuredOn
         )
+    }
+
+    static func accountLines(_ input: Input) -> [SpendAccountLine] {
+        SpendAccountLine.lines(for: drawnDays(input), input: input)
+    }
+
+    static func drawnDays(_ input: Input) -> [SpendDay] {
+        let drawn = Set(input.window.dayStarts(from: input.now, calendar: input.calendar))
+        return input.days.filter { drawn.contains($0.day) }
     }
 
     static func columns(_ total: Spend) -> [ColumnLine] {

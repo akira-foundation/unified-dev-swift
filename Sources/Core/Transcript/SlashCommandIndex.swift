@@ -8,8 +8,13 @@ public enum SlashCommandIndex {
     static let detailLimit = 90
 
     public static func discover(
-        home: String, project: String?, codexSkills: [SlashCommand]? = nil, codexHome: String? = nil
+        home: String,
+        project: String?,
+        codexSkills: [SlashCommand]? = nil,
+        codexHome: String? = nil,
+        claudeHome: String? = nil
     ) -> [SlashCommand] {
+        let claudeRoot = claudeHome ?? "\(home)/.claude"
         var byName: [String: SlashCommand] = [:]
 
         func add(_ commands: [SlashCommand]) {
@@ -17,9 +22,9 @@ public enum SlashCommandIndex {
         }
 
         add(builtIns)
-        add(commands(in: "\(home)/.claude/commands", namespace: nil, scope: .user))
-        add(skills(in: "\(home)/.claude/skills", namespace: nil, scope: .user))
-        add(pluginEntries(home: home, project: project))
+        add(commands(in: "\(claudeRoot)/commands", namespace: nil, scope: .user))
+        add(skills(in: "\(claudeRoot)/skills", namespace: nil, scope: .user))
+        add(pluginEntries(claudeRoot: claudeRoot, project: project))
 
         let codexRoot = codexHome ?? "\(home)/.codex"
         if let codexSkills {
@@ -162,10 +167,10 @@ public enum SlashCommandIndex {
         return found
     }
 
-    static func pluginEntries(home: String, project: String?) -> [SlashCommand] {
-        let enabled = enabledPluginKeys(home: home, project: project)
+    static func pluginEntries(claudeRoot: String, project: String?) -> [SlashCommand] {
+        let enabled = enabledPluginKeys(claudeRoot: claudeRoot, project: project)
         guard !enabled.isEmpty else { return [] }
-        let installed = installPaths(home: home)
+        let installed = installPaths(claudeRoot: claudeRoot)
 
         var found: [SlashCommand] = []
         for key in enabled.sorted() {
@@ -186,10 +191,10 @@ public enum SlashCommandIndex {
         return found
     }
 
-    static func enabledPluginKeys(home: String, project: String?) -> Set<String> {
+    static func enabledPluginKeys(claudeRoot: String, project: String?) -> Set<String> {
         var flags: [String: Bool] = [:]
 
-        var files = ["\(home)/.claude/settings.json"]
+        var files = ["\(claudeRoot)/settings.json"]
         if let project {
             files.append("\(project)/.claude/settings.json")
             files.append("\(project)/.claude/settings.local.json")
@@ -207,8 +212,8 @@ public enum SlashCommandIndex {
         return Set(flags.filter(\.value).map(\.key))
     }
 
-    static func installPaths(home: String) -> [String: String] {
-        let file = "\(home)/.claude/plugins/installed_plugins.json"
+    static func installPaths(claudeRoot: String) -> [String: String] {
+        let file = "\(claudeRoot)/plugins/installed_plugins.json"
         guard let object = json(at: file),
               let plugins = object["plugins"] as? [String: Any] else { return [:] }
 

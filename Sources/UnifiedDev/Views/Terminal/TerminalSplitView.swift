@@ -13,6 +13,7 @@ struct TerminalSplitView: View {
     var splitColumn: @MainActor (SplitAxis, PaneKind) -> Void
     var terminalLabel: String = "Terminal"
     var onAddToChat: (@MainActor (TerminalExcerpt) -> Void)?
+    var onOpenLink: (@MainActor (URL, Bool) -> Bool)?
 
     @AppStorage(TerminalGhostty.defaultsKey) private var usesGhosttyTheme = true
 
@@ -122,7 +123,8 @@ struct TerminalSplitView: View {
                         isZoomed: layout.zoomed == id,
                         onAddToChat: add
                     ) { _ = handle($0, from: id) }
-                }
+                },
+                onOpenLink: onOpenLink
             )
             .padding(Self.paneInset)
         }

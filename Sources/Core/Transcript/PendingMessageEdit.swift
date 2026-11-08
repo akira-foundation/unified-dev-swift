@@ -2,7 +2,12 @@ import Foundation
 
 public enum PendingMessageEdit {
     public static func canEdit(_ delivery: Delivery) -> Bool {
-        PendingMessageDiscard.canDiscard(delivery) && PendingMessageDiscard.isPlainText(delivery.body)
+        !AppRequest.isHidden(delivery) && !InterruptedTurnResume.isResume(delivery) && !delivery.isCanvasComment
+            && PendingMessageDiscard.canDiscard(delivery) && PendingMessageDiscard.isPlainText(delivery.body)
+    }
+
+    public static func draftIsAbandoned(_ composerDraft: String) -> Bool {
+        composerDraft.allSatisfy(\.isWhitespace)
     }
 
     public static func draft(taking delivery: Delivery, into composerDraft: String) -> String {

@@ -120,6 +120,7 @@ public actor GrokModelCatalog {
     public static func live(
         cwd: String = AgentScratchDirectory.current(),
         store: Store? = nil,
+        account: AgentAccountHome? = nil,
         makeClient: @escaping @Sendable (GrokClient.Configuration) -> GrokClient = GrokRunner.spawn
     ) -> GrokModelCatalog {
         GrokModelCatalog(fetch: {
@@ -127,7 +128,8 @@ public actor GrokModelCatalog {
             let stored = try await store?.setting(AgentCatalog.executablePathSettingKey(.grok))
             let client = makeClient(GrokClient.Configuration(
                 executable: AgentCatalog.executable(for: .grok, override: stored),
-                cwd: cwd
+                cwd: cwd,
+                account: account
             ))
             defer { Task { await client.stop() } }
             try await client.start()

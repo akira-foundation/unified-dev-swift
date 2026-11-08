@@ -33,9 +33,8 @@ struct OrchestratorShellJudgeTests {
         "git blame -L 10,20 README.md",
         "git grep -n Orchestrator",
         "gh pr view 374",
-        "gh pr view 374 --json number --jq '.number'",
-        "gh pr list --search orchestrator",
-        "gh pr list --json number --jq '.[] | select(.number > 1)'",
+        "gh pr view 374 --json number,title",
+        "gh pr list --state open --json number",
         "gh pr checks 374",
         "gh pr diff 374",
         "gh issue view 326",
@@ -50,11 +49,26 @@ struct OrchestratorShellJudgeTests {
         "grep -rn Orchestrator Sources 2>&1 | head",
         "grep \"a\\|b\" notes.txt | wc -l",
         "tail -5 notes.txt",
+        "tail -n 5 notes.txt",
+        "head -n 20 Sources/Core/Agent/OrchestratorReadList.swift",
+        "cat -n README.md",
+        "cat -ns README.md",
+        "git log --format=%h/../%s",
+        "ls -la Sources",
+        "ls -l -a",
+        "grep -rni --include='*.swift' Orchestrator Sources",
+        "grep -e foo -- notes.txt",
+        "wc -lw notes.txt",
+        "pwd -P",
+        "echo -n hi",
+        "echo /tmp/x",
         "pwd",
         "echo \"a && git commit\"",
         "echo \"\\\"\"",
         "ls 1>&2",
         "ls > /dev/null",
+        "ls >> /dev/null",
+        "head -5 notes.txt",
         "git status && git log -1; ls",
     ])
     func readsAreOnTheList(_ command: String) {
@@ -136,6 +150,133 @@ struct OrchestratorShellJudgeTests {
     ])
     func redirectionsAreCaught(_ command: String) {
         #expect(!OrchestratorShellJudge.reads(command))
+    }
+
+    @Test("a descriptor after >& is digits or a lone dash, since zsh writes a file for anything else", arguments: [
+        "ls >&-3",
+        "ls >&3-",
+        "ls 2>&1-",
+        "ls >&--",
+        "ls >&-1-",
+        "ls >>&2",
+        "ls >>&-",
+        "git log 2>>&1",
+        "cat notes.txt >>&1",
+    ])
+    func duplicatedDescriptorsAreDigits(_ command: String) {
+        #expect(!OrchestratorShellJudge.reads(command))
+    }
+
+    @Test("a closed descriptor and a duplicated one are still reads", arguments: [
+        "ls >&-",
+        "ls 2>&-",
+        "ls 2>&1",
+    ])
+    func plainDescriptorsRead(_ command: String) {
+        #expect(OrchestratorShellJudge.reads(command))
+    }
+
+    @Test("a word the shell expands into the environment or a path is asked", arguments: [
+        "echo ~",
+        "echo ~root",
+        "ls ~/.ssh",
+        "echo --x=~/y",
+        "echo a:~/y",
+        "ls =ls",
+        "echo =zsh",
+        "cat \"\"~/.ssh/id_ed25519",
+        "cat ''~/.ssh/id_ed25519",
+        "cat \"\"=ls",
+        "ls -d ''~/.ssh",
+    ])
+    func expansionsAreAsked(_ command: String) {
+        #expect(!OrchestratorShellJudge.reads(command))
+    }
+
+    @Test("a filter that can read the environment, or text sent to GitHub's search, is asked", arguments: [
+        "gh pr list --json number --jq '$ENV.HOME'",
+        "gh pr list --json number --jq 'env.HOME'",
+        "gh pr list --json number -q 'env'",
+        "gh pr list --json number --jq=env",
+        "gh pr list --json number --template '{{.}}'",
+        "gh pr list --json number -t '{{.}}'",
+        "gh issue list --search=notes",
+        "gh issue list --search notes",
+        "gh issue list -S notes",
+        "gh pr list --search orchestrator",
+    ])
+    func filtersAndSearchesAreAsked(_ command: String) {
+        #expect(!OrchestratorShellJudge.reads(command))
+    }
+
+    @Test("a plain read names only paths inside the worktree", arguments: [
+        "cat /etc/hosts",
+        "cat ../other/notes.txt",
+        "cat Sources/../../other/notes.txt",
+        "cat ..",
+        "head /Users/kid/.zshrc",
+        "grep -rn token /Users",
+        "ls /",
+        "wc -l ../notes.txt",
+        "tail -- /etc/hosts",
+        "cat '../\u{301}x'",
+        "cat '/\u{301}x'",
+    ])
+    func pathsStayInTheWorktree(_ command: String) {
+        #expect(!OrchestratorShellJudge.reads(command))
+        #expect(!OrchestratorShellJudge.refuses(command))
+    }
+
+    @Test("a git read names only paths inside the worktree, since git leaves it by itself for one outside", arguments: [
+        "git diff /etc/hosts Package.swift",
+        "git diff Package.swift ../other/.env",
+        "git diff --stat -- /etc/hosts",
+        "git log -- ../other",
+        "git blame /etc/hosts",
+    ])
+    func gitPathsStayInTheWorktree(_ command: String) {
+        #expect(!OrchestratorShellJudge.reads(command))
+        #expect(!OrchestratorShellJudge.refuses(command))
+    }
+
+    @Test("a gh read that waits on a run, and holds the call while it runs, is asked", arguments: [
+        "gh run watch 42",
+        "gh run watch 42 --exit-status",
+        "gh pr checks 374 --watch",
+        "gh pr checks 374 --watch --interval 5",
+        "gh pr checks 374 -i 5",
+        "gh pr checks 374 --interval 5",
+    ])
+    func ghWaitsAreAsked(_ command: String) {
+        #expect(!OrchestratorShellJudge.reads(command))
+        #expect(!OrchestratorShellJudge.refuses(command))
+    }
+
+    @Test("a plain read takes only the flags its list names", arguments: [
+        "tail -f notes.txt",
+        "tail -F notes.txt",
+        "tail -n 5 -f notes.txt",
+        "tail -5f notes.txt",
+        "cat --unknown notes.txt",
+        "ls -Z",
+        "ls -laZ",
+        "grep -f patterns.txt notes.txt",
+        "grep -rnf patterns.txt notes.txt",
+        "grep --file=patterns.txt notes.txt",
+        "head -n5 notes.txt",
+        "wc -x notes.txt",
+        "pwd Sources",
+        "pwd -LP",
+        "echo -e x",
+        "echo -nn x",
+        "tail -nr notes.txt",
+        "head -nc 5 notes.txt",
+        "ls -",
+        "cat -",
+    ])
+    func unknownFlagsAreAsked(_ command: String) {
+        #expect(!OrchestratorShellJudge.reads(command))
+        #expect(!OrchestratorShellJudge.refuses(command))
     }
 
     @Test("chains, subshells and scripts are read clause by clause, or not at all", arguments: [

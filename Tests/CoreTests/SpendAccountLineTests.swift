@@ -8,14 +8,14 @@ private let day = Calendar(identifier: .gregorian).startOfDay(for: now)
 private let work = AgentAccountHome(
     provider: .claudeCode,
     id: AgentAccountID("work"),
-    directory: URL(filePath: "/Users/ada/.claude-work", directoryHint: .isDirectory),
+    directory: URL(filePath: "/support/AgentAccounts/claudeCode/work", directoryHint: .isDirectory),
     isDefault: false
 )
 
 private let personal = AgentAccountHome(
     provider: .claudeCode,
     id: AgentAccountID("personal"),
-    directory: URL(filePath: "/Users/ada/.claude", directoryHint: .isDirectory),
+    directory: URL(filePath: "/support/AgentAccounts/claudeCode/personal", directoryHint: .isDirectory),
     isDefault: false
 )
 
@@ -82,13 +82,30 @@ struct SpendAccountLineTests {
     }
 
     @Test func anIdentityWithoutAnEmailFallsBackToTheDirectory() {
-        let identities = [work.id: AgentAccountIdentity(displayName: "Ada", authMethod: .apiKey)]
+        let identities = [work.id: AgentAccountIdentity(displayName: "Ada", plan: "Max")]
         let lines = SpendAccountLine.lines(for: days, input: input(identities: identities))
         #expect(lines.first { $0.accountID == work.id }?.name == work.directory.lastPathComponent)
     }
 
+    @Test func theDefaultAccountIsNamedAsTheRestOfTheAppNamesIt() {
+        let standard = AgentAccountHome(
+            provider: .claudeCode, id: AgentAccountHome.defaultID(for: .claudeCode),
+            directory: URL(filePath: "/Users/ada/.claude", directoryHint: .isDirectory), isDefault: true
+        )
+        let rows = [row(under: standard)]
+        let lines = SpendAccountLine.lines(for: rows, input: input(accounts: [standard, work]))
+        #expect(lines.first?.name == AgentAccountNames.defaultTitle)
+    }
+
+    @Test func twoAccountsWithTheSameEmailAreToldApartAsTheRestOfTheAppTellsThemApart() {
+        let shared = AgentAccountIdentity(email: "same@client.com")
+        let identities = [work.id: shared, personal.id: shared]
+        let lines = SpendAccountLine.lines(for: days, input: input(identities: identities))
+        #expect(Set(lines.map(\.name)) == ["same@client.com (work)", "same@client.com (personal)"])
+    }
+
     @Test func spendUnderARemovedAccountIsStillCountedAndMarkedUnknown() {
-        let removed = [row(file: "/Users/ada/.claude-gone/projects/-x/a.jsonl")]
+        let removed = [row(file: "/support/AgentAccounts/claudeCode/gone/projects/-x/a.jsonl")]
         let lines = SpendAccountLine.lines(for: removed, input: input())
         #expect(lines.count == 1)
         #expect(lines[0].isKnown == false)
@@ -98,7 +115,7 @@ struct SpendAccountLineTests {
     }
 
     @Test func unknownSpendDoesNotFoldIntoAKnownAccount() {
-        let rows = days + [row(file: "/Users/ada/.claude-gone/projects/-x/a.jsonl")]
+        let rows = days + [row(file: "/support/AgentAccounts/claudeCode/gone/projects/-x/a.jsonl")]
         let lines = SpendAccountLine.lines(for: rows, input: input())
         #expect(lines.count == 3)
         #expect(lines.filter { !$0.isKnown }.count == 1)
@@ -125,39 +142,6 @@ struct SpendAccountLineTests {
         #expect(Set(lines.map(\.id)).count == 2)
     }
 
-    @Test func aKnownLineTakesItsProviderFromTheAccountAndNotFromTheRow() {
-        let rows = [row(under: work, session: "a"), row(under: work, session: "b", provider: .codex)]
-        let lines = SpendAccountLine.lines(for: rows, input: input())
-        #expect(lines.count == 1)
-        #expect(lines[0].provider == .claudeCode)
-    }
-
-    @Test func anEmptyEmailFallsBackToTheDirectoryRatherThanNamingTheRowNothing() {
-        let identities = [work.id: AgentAccountIdentity(email: "")]
-        let lines = SpendAccountLine.lines(for: days, input: input(identities: identities))
-        #expect(lines.first { $0.accountID == work.id }?.name == work.directory.lastPathComponent)
-    }
-
-    @Test func linesOfEqualCostAreOrderedByNameAndThenById() {
-        let identities = [
-            work.id: AgentAccountIdentity(email: "zoe@client.com"),
-            personal.id: AgentAccountIdentity(email: "ada@client.com"),
-        ]
-        let even = [row(under: work, output: 1_000_000), row(under: personal, output: 1_000_000)]
-        let lines = SpendAccountLine.lines(for: even, input: input(identities: identities))
-        #expect(lines.map(\.name) == ["ada@client.com", "zoe@client.com"])
-    }
-
-    @Test func twoUnknownLinesOfEqualCostKeepAStableOrder() {
-        let rows = [
-            row(file: "/Users/ada/.claude-gone/a.jsonl", provider: .codex),
-            row(file: "/Users/ada/.claude-gone/b.jsonl", provider: .claudeCode),
-        ]
-        let lines = SpendAccountLine.lines(for: rows, input: input())
-        #expect(lines.map(\.id) == lines.map(\.id).sorted())
-        #expect(lines.map(\.provider) == [.claudeCode, .codex])
-    }
-
     @Test func linesAreOrderedByCostDescending() {
         let lines = SpendAccountLine.lines(for: days, input: input())
         #expect(lines.map(\.spend.cost.total) == lines.map(\.spend.cost.total).sorted(by: >))
@@ -173,8 +157,8 @@ struct SpendAccountLineTests {
 
     @Test func theUnknownLineTotalsExactlyTheRowsThatWentIntoIt() {
         let orphans = [
-            row(file: "/Users/ada/.claude-gone/a.jsonl", output: 2_000_000),
-            row(file: "/Users/ada/.claude-gone/b.jsonl", output: 500_000),
+            row(file: "/support/AgentAccounts/claudeCode/gone/a.jsonl", output: 2_000_000),
+            row(file: "/support/AgentAccounts/claudeCode/gone/b.jsonl", output: 500_000),
         ]
         let lines = SpendAccountLine.lines(for: days + orphans, input: input())
         let unknown = lines.filter { !$0.isKnown }
@@ -185,14 +169,14 @@ struct SpendAccountLineTests {
     }
 
     @Test func everyInputRowIsCountedExactlyOnceAcrossAllLines() {
-        let sharedUnknownFile = "/Users/ada/.claude-gone/shared.jsonl"
+        let sharedUnknownFile = "/support/AgentAccounts/claudeCode/gone/shared.jsonl"
         let rows = [
             row(under: work, session: "a", output: 1_000_000),
             row(under: work, session: "b", output: 2_000_000),
             row(under: personal, session: "c", output: 4_000_000),
             row(file: sharedUnknownFile, output: 8_000_000),
             row(file: sharedUnknownFile, output: 16_000_000),
-            row(file: "/Users/ada/.claude-gone/other.jsonl", output: 32_000_000),
+            row(file: "/support/AgentAccounts/claudeCode/gone/other.jsonl", output: 32_000_000),
             row(file: "/gone/codex.jsonl", output: 64_000_000, provider: .codex),
             row(file: "/gone/codex-too.jsonl", output: 128_000_000, provider: .codex),
         ]

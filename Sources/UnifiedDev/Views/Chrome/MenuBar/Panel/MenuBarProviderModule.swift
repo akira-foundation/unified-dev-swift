@@ -9,6 +9,7 @@ struct MenuBarProviderModule: View {
     var focus: FocusState<MenuBarPanelFocus?>.Binding?
     let retry: () -> Void
     let toggleFold: () -> Void
+    var useAccount: (AgentAccountHome) -> Void = { _ in }
 
     private var section: UsageLayout.Section? { provider.section }
 
@@ -24,6 +25,9 @@ struct MenuBarProviderModule: View {
                         .foregroundStyle(MenuInk.secondary)
                 }
                 meters
+            }
+            if let offer = provider.offer {
+                accountOffer(offer)
             }
         }
         .menuBarModule(provider.kind.label)
@@ -85,6 +89,28 @@ struct MenuBarProviderModule: View {
                 }
             }
             .padding(.horizontal, -12)
+        }
+    }
+
+    private func accountOffer(_ offer: QuotaAccountOffer) -> some View {
+        VStack(alignment: .leading, spacing: Metrics.spacing) {
+            Text(offer.headline)
+                .font(UsageScale.supporting)
+                .foregroundStyle(MenuInk.primary)
+                .fixedSize(horizontal: false, vertical: true)
+            ForEach(offer.choices) { choice in
+                Button(choice.button) { useAccount(choice.home) }
+                    .linkButton()
+                    .font(UsageScale.supporting)
+                    .multilineTextAlignment(.leading)
+                    .panelFocus(focus, .account(provider.kind, choice.id))
+            }
+            ForEach(offer.notes, id: \.self) { note in
+                Text(note)
+                    .font(UsageScale.supporting)
+                    .foregroundStyle(MenuInk.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 }

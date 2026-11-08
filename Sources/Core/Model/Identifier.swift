@@ -46,6 +46,11 @@ public struct ReviewCommentID: Identifier {
     public init(_ rawValue: String) { self.rawValue = rawValue }
 }
 
+public struct ReplyQuoteID: Identifier {
+    public let rawValue: String
+    public init(_ rawValue: String) { self.rawValue = rawValue }
+}
+
 public struct QuickPromptID: Identifier {
     public let rawValue: String
     public init(_ rawValue: String) { self.rawValue = rawValue }
@@ -77,6 +82,18 @@ public struct WorkSuggestionID: Identifier {
 }
 
 public struct AgentAccountID: Identifier {
+    public let rawValue: String
+    public init(_ rawValue: String) { self.rawValue = rawValue }
+}
+
+public struct SessionSegmentID: Identifier {
+    public let rawValue: String
+    public init(_ rawValue: String) { self.rawValue = rawValue }
+}
+
+public struct ProfileID: Identifier {
+    public static let initial = ProfileID("unified")
+
     public let rawValue: String
     public init(_ rawValue: String) { self.rawValue = rawValue }
 }

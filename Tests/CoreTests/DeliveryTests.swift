@@ -176,6 +176,102 @@ struct DeliveryStoreTests {
         return try await store.upsert(Session(workspaceID: workspace.id, title: "chat"))
     }
 
+    @Test("a canvas comment keeps its kind and its document across a read")
+    func aCommentKeepsItsKindAndDocument() async throws {
+        let store = try makeTestStore("deliveries")
+        let session = try await makeSession(in: store)
+        let queued = try await store.enqueueDelivery(Delivery(
+            targetSessionID: session.id, kind: .canvasComment, body: "look", canvasDocumentPath: "/w/deck.udcanvas"
+        ))
+        let read = try await store.pendingDeliveries(sessionID: session.id).first
+        #expect(read?.kind == .canvasComment)
+        #expect(read?.canvasDocumentPath == "/w/deck.udcanvas")
+        #expect(read?.interactionMode == nil)
+        #expect(queued.id == read?.id)
+    }
+
+    @Test("only a live chat holding a waiting comment is named for waking")
+    func wakesOnlyChatsHoldingAComment() async throws {
+        let store = try makeTestStore("deliveries")
+        let holder = try await makeSession(in: store)
+        let workspaceID = try #require(holder.workspaceID)
+        let talker = try await store.upsert(Session(workspaceID: workspaceID, title: "talker"))
+        let closed = try await store.upsert(Session(workspaceID: workspaceID, title: "closed"))
+        let finished = try await store.upsert(Session(workspaceID: workspaceID, title: "finished"))
+        let elsewhere = try await makeSession(in: store, label: "other")
+        for chat in [holder, closed, elsewhere] {
+            try await store.enqueueDelivery(Delivery(targetSessionID: chat.id, kind: .canvasComment, body: "look"))
+        }
+        try await store.enqueueDelivery(Delivery(targetSessionID: talker.id, body: "typed"))
+        let left = try await store.enqueueDelivery(Delivery(targetSessionID: finished.id, kind: .canvasComment, body: "gone"))
+        _ = try await store.markDelivered(id: left.id)
+        try await store.update(sessionID: closed.id) { $0.archivedAt = Date() }
+
+        #expect(try await store.sessionsHoldingCanvasComments(workspaceID: workspaceID) == [holder.id])
+    }
+
+    @Test("archiving cancels the comments a workspace still has waiting, and no message")
+    func archivingCancelsOnlyComments() async throws {
+        let store = try makeTestStore("deliveries")
+        let chat = try await makeSession(in: store)
+        let workspaceID = try #require(chat.workspaceID)
+        let elsewhere = try await makeSession(in: store, label: "other")
+        let comment = try await store.enqueueDelivery(Delivery(targetSessionID: chat.id, kind: .canvasComment, body: "look"))
+        let message = try await store.enqueueDelivery(Delivery(targetSessionID: chat.id, body: "typed"))
+        let other = try await store.enqueueDelivery(Delivery(targetSessionID: elsewhere.id, kind: .canvasComment, body: "look"))
+        let left = try await store.enqueueDelivery(Delivery(targetSessionID: chat.id, kind: .canvasComment, body: "left"))
+        _ = try await store.markDelivered(id: left.id)
+
+        let cancelled = try await store.cancelQueuedCanvasComments(workspaceID: workspaceID)
+
+        #expect(cancelled.map(\.id) == [comment.id])
+        #expect(try await store.delivery(id: left.id)?.state == .accepted)
+        #expect(try await store.pendingDeliveries(sessionID: chat.id).map(\.id) == [message.id])
+        #expect(try await store.pendingDeliveries(sessionID: elsewhere.id).map(\.id) == [other.id])
+    }
+
+    @Test("a database with delivery rows keeps them through the canvas column")
+    func upgradingKeepsExistingRows() async throws {
+        let path = TestScratch.unique("canvas-column") + ".sqlite"
+        let store = try Store(path: path)
+        let chat = try await makeSession(in: store)
+        let queued = try await store.enqueueDelivery(Delivery(targetSessionID: chat.id, body: "still waiting"))
+        let left = try await store.enqueueDelivery(Delivery(targetSessionID: chat.id, body: "already gone"))
+        _ = try await store.markDelivered(id: left.id)
+        let current = try SQLiteDatabase(path: path).readUserVersion()
+        let raw = try SQLiteDatabase(path: path)
+        try raw.execute("ALTER TABLE deliveries DROP COLUMN canvas_document_path;")
+        try raw.setUserVersion(current - 4)
+
+        let upgraded = try Store(path: path)
+
+        #expect(try SQLiteDatabase(path: path).readUserVersion() == current)
+        let waiting = try await upgraded.pendingDeliveries(sessionID: chat.id)
+        #expect(waiting.map(\.id) == [queued.id])
+        #expect(waiting.first?.body == "still waiting")
+        #expect(waiting.first?.canvasDocumentPath == nil)
+        #expect(waiting.first?.kind == .owner)
+        #expect(try await upgraded.delivery(id: left.id)?.state == .accepted)
+        let comment = try await upgraded.enqueueDelivery(Delivery(
+            targetSessionID: chat.id, kind: .canvasComment, body: "look", canvasDocumentPath: "/w/deck.udcanvas"
+        ))
+        #expect(try await upgraded.delivery(id: comment.id)?.canvasDocumentPath == "/w/deck.udcanvas")
+    }
+
+    @Test("rewriting a queued delivery changes what will be claimed, and nothing that has left")
+    func rewritingTouchesOnlyAQueuedDelivery() async throws {
+        let store = try makeTestStore("deliveries")
+        let session = try await makeSession(in: store)
+        let queued = try await store.enqueueDelivery(Delivery(targetSessionID: session.id, kind: .canvasComment, body: "old"))
+
+        try await store.rewriteQueuedDelivery(id: queued.id, body: "new")
+        #expect(try await store.delivery(id: queued.id)?.body == "new")
+
+        _ = try await store.claimDelivery(id: queued.id)
+        try await store.rewriteQueuedDelivery(id: queued.id, body: "late")
+        #expect(try await store.delivery(id: queued.id)?.body == "new")
+    }
+
     @Test("hands back what was asked for first, first")
     func keepsTheOrderItWasAsked() async throws {
         let store = try makeTestStore("deliveries")
@@ -559,5 +655,124 @@ struct DeliverySteerTests {
         let queue = [typed("first"), typed("second"), typed("third")]
         let front = try #require(Delivery.next(from: queue, hold: .none, on: .cursor))
         #expect(DeliverySteer.queue(after: front, from: queue).map(\.body) == ["second", "third"])
+    }
+}
+
+@Suite("A canvas comment waits for an idle agent")
+struct CanvasCommentQueueDeliveryTests {
+    private let session = SessionID("s")
+
+    private func comment(_ body: String) -> Delivery {
+        Delivery(targetSessionID: session, kind: .canvasComment, body: body)
+    }
+
+    private func message(_ body: String) -> Delivery {
+        Delivery(targetSessionID: session, body: body)
+    }
+
+    @Test(arguments: AgentKind.allCases)
+    func commentWaitsForTheTurnOnEveryAgent(agent: AgentKind) {
+        #expect(Delivery.deliverable(from: [comment("c")], hold: .turn, on: agent).isEmpty)
+        #expect(Delivery.next(from: [comment("c")], hold: .turn, on: agent) == nil)
+    }
+
+    @Test(arguments: AgentKind.allCases)
+    func commentWaitsForAQuestionAndForSetupOnEveryAgent(agent: AgentKind) {
+        #expect(Delivery.deliverable(from: [comment("c")], hold: .question, on: agent).isEmpty)
+        #expect(Delivery.deliverable(from: [comment("c")], hold: .setup, on: agent).isEmpty)
+    }
+
+    @Test(arguments: AgentKind.allCases)
+    func oneCommentAtATime(agent: AgentKind) {
+        let first = comment("first")
+        let queue = [first, comment("second"), comment("third")]
+        #expect(Delivery.deliverable(from: queue, hold: .none, on: agent).map(\.id) == [first.id])
+    }
+
+    @Test(arguments: AgentKind.allCases)
+    func messageOvertakesAQueuedComment(agent: AgentKind) {
+        let queued = comment("c")
+        let typed = message("m")
+        let queue = [queued, typed]
+        let midTurn = Delivery.deliverable(from: queue, hold: .turn, on: agent).map(\.id)
+        #expect(midTurn == (agent.acceptsMidTurnMessage ? [typed.id] : []))
+        #expect(Delivery.goesImmediately(behind: [queued], hold: .turn, on: agent) == agent.acceptsMidTurnMessage)
+        #expect(Delivery.goesImmediately(behind: [queued], hold: .none, on: agent))
+        #expect(!Delivery.goesImmediately(behind: [queued, typed], hold: .none, on: agent))
+    }
+
+    @Test(arguments: AgentKind.allCases)
+    func messagesGoBeforeComments(agent: AgentKind) {
+        let queued = comment("c")
+        let typed = message("m")
+        let second = message("n")
+        let expected = agent.acceptsMidTurnMessage ? [typed.id, second.id] : [typed.id]
+        #expect(Delivery.deliverable(from: [queued, typed, second], hold: .none, on: agent).map(\.id) == expected)
+    }
+
+    @Test(arguments: AgentKind.allCases)
+    func aMessageWhoseDeliveryIsUnconfirmedStillHoldsTheComment(agent: AgentKind) {
+        var unconfirmed = message("m")
+        unconfirmed.state = .uncertain
+        #expect(Delivery.deliverable(from: [comment("c"), unconfirmed], hold: .none, on: agent).isEmpty)
+        #expect(!Delivery.goesImmediately(behind: [comment("c"), unconfirmed], hold: .none, on: agent))
+    }
+
+    @Test(arguments: AgentKind.allCases)
+    func aCommentWhoseDeliveryIsUnconfirmedHoldsNoMessage(agent: AgentKind) {
+        var unconfirmed = comment("c")
+        unconfirmed.state = .uncertain
+        let typed = message("m")
+        #expect(Delivery.deliverable(from: [unconfirmed, typed], hold: .none, on: agent).map(\.id) == [typed.id])
+        #expect(Delivery.goesImmediately(behind: [unconfirmed], hold: .none, on: agent))
+    }
+
+    @Test func aCommentBehindAnUnconfirmedCommentWaits() {
+        var unconfirmed = comment("c")
+        unconfirmed.state = .uncertain
+        #expect(Delivery.deliverable(from: [unconfirmed, comment("d")], hold: .none, on: .claudeCode).isEmpty)
+    }
+
+    @Test(arguments: AgentKind.allCases, DeliveryHold.allCases)
+    func commentIsNotSteerable(agent: AgentKind, hold: DeliveryHold) {
+        #expect(!DeliverySteer.canSteer(comment("c"), hold: hold, on: agent))
+    }
+
+    @Test func commentIsNotReturnedToTheComposer() {
+        let queued = comment("c")
+        let typed = message("m")
+        #expect(!PendingMessageReturn.canReturn(queued))
+        #expect(PendingMessageReturn.returning(from: [queued, typed]).map(\.id) == [typed.id])
+        #expect(PendingMessageReturn.keeping(from: [queued, typed]).map(\.id) == [queued.id])
+        #expect(!PendingMessageEdit.canEdit(queued))
+        #expect(PendingMessageDiscard.recovery(of: queued, composerDraft: "") == .discarded(.notTheOwners))
+    }
+
+    @Test func afterAFailureOnlyAQueueOfCommentsAloneMoves() {
+        var unconfirmedMessage = message("m")
+        unconfirmedMessage.state = .uncertain
+        var unconfirmedComment = comment("c")
+        unconfirmedComment.state = .uncertain
+        #expect(Delivery.holdsOnlyCanvasComments([comment("c")]))
+        #expect(Delivery.holdsOnlyCanvasComments([comment("c"), comment("d")]))
+        #expect(Delivery.holdsOnlyCanvasComments([unconfirmedComment]))
+        #expect(!Delivery.holdsOnlyCanvasComments([]))
+        #expect(!Delivery.holdsOnlyCanvasComments([message("m")]))
+        #expect(!Delivery.holdsOnlyCanvasComments([comment("c"), message("m")]))
+        #expect(!Delivery.holdsOnlyCanvasComments([message("m"), comment("c")]))
+        #expect(!Delivery.holdsOnlyCanvasComments([unconfirmedMessage, comment("c")]))
+    }
+
+    @Test func anEditedDraftHoldsTheCommentUntilItIsClearedOut() {
+        #expect(!PendingMessageEdit.draftIsAbandoned("still typing"))
+        #expect(!PendingMessageEdit.draftIsAbandoned(" x\n"))
+        #expect(PendingMessageEdit.draftIsAbandoned(""))
+        #expect(PendingMessageEdit.draftIsAbandoned(" \n\t"))
+    }
+
+    @Test func theChatQueueLeavesCommentsToTheirMarks() {
+        let queued = comment("c")
+        let typed = message("m")
+        #expect(Delivery.messages(in: [queued, typed]).map(\.id) == [typed.id])
     }
 }

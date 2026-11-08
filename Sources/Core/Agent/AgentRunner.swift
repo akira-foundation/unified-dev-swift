@@ -31,6 +31,8 @@ public struct AgentLaunch: Sendable, Hashable {
 }
 
 public actor AgentRunner {
+    public static let defaultShutdownBudget = Duration.seconds(5)
+
     public nonisolated let workspacePath: String
     public nonisolated let sessionID: SessionID
 
@@ -49,10 +51,16 @@ public actor AgentRunner {
     private var stderrTail: [String] = []
     private var launchedCommand = ""
     private let mcpConfigPath: String?
+    private let account: AgentAccountHome?
+    private let inheritedEnvironment: [String: String]?
     private var isFastMode = false
     private var configuredExecutable = AgentKind.claudeCode.executableName
     private var outputStyle: String?
     private var awaitingSideContextAcknowledgement = false
+    private let segment: RunnerSegment
+    private var promptedGeneration: Int?
+    private var requestedResume: String?
+    private var lastContextWindow: Int?
     private let pending = PendingAsks()
 
     private let grants: SessionGrants
@@ -72,8 +80,11 @@ public actor AgentRunner {
         workspacePath: String,
         session: Session,
         store: Store,
+        segmentID: SessionSegmentID,
         mcpConfigPath: String? = nil,
-        shutdownBudget: Duration = .seconds(5),
+        account: AgentAccountHome? = nil,
+        inheritedEnvironment: [String: String]? = nil,
+        shutdownBudget: Duration = AgentRunner.defaultShutdownBudget,
         makeProcess: @escaping @Sendable (AgentLaunch) -> any AgentProcessing = AgentRunner.spawn
     ) {
         self.workspacePath = workspacePath
@@ -81,6 +92,9 @@ public actor AgentRunner {
         self.session = session
         self.store = store
         self.mcpConfigPath = mcpConfigPath
+        self.account = account
+        self.segment = RunnerSegment(sessionID: session.id, store: store, id: segmentID)
+        self.inheritedEnvironment = inheritedEnvironment
         self.shutdownBudget = shutdownBudget
         self.makeProcess = makeProcess
         self.grants = SessionGrants(store: store, workspaceID: session.workspaceID)
@@ -163,18 +177,20 @@ public actor AgentRunner {
             executable: configuredExecutable,
             arguments: Self.argv(
                 session: session,
-                resume: session.agentSessionID,
+                resume: AgentSessionSettlement.resumable(session: session, account: account),
                 isFastMode: isFastMode,
                 outputStyle: outputStyle,
                 mcpConfigPath: mcpConfigPath,
                 orchestrates: orchestrates
             ),
             cwd: workspacePath,
-            environment: Shell.environment()
+            environment: AgentAccountEnvironment.apply(account, to: inheritedEnvironment ?? Shell.environment())
         )
     }
 
     public var isRunning: Bool { alive }
+
+    public var hasStoppedWriting: Bool { handle.current == nil }
 
     public var currentSession: Session { session }
 
@@ -192,7 +208,7 @@ public actor AgentRunner {
     }
 
     public func send(_ text: String, recording: Data? = nil) async throws {
-        try await send(text, recording: recording, deliveryID: nil, interactionMode: nil)
+        try await send(text, recording: recording, deliveryID: nil, deliveredSeq: nil, interactionMode: nil)
     }
 
     public func evictIfIdle(for duration: Duration) async -> Bool {
@@ -209,18 +225,20 @@ public actor AgentRunner {
     }
 
     public func sendDelivery(_ delivery: Delivery) async throws {
-        try await send(delivery.sent, recording: delivery.crewPayload,
-                       deliveryID: delivery.id, interactionMode: delivery.interactionMode)
+        try await send(delivery.sent, recording: delivery.crewPayload, deliveryID: delivery.id,
+                       deliveredSeq: try await store.delivery(id: delivery.id)?.deliveredSeq,
+                       interactionMode: delivery.interactionMode)
     }
 
-    private func send(_ text: String, recording: Data?, deliveryID: DeliveryID?,
+    private func send(_ text: String, recording: Data?, deliveryID: DeliveryID?, deliveredSeq: Int?,
                       interactionMode: InteractionMode?) async throws {
         guard !wasEvicted else { throw ProviderIdleError.retired }
         sendsInFlight += 1
         sink.noteActivity()
         defer { sendsInFlight -= 1 }
-        let prompt = try await store.sideConversationTurn(text, sessionID: sessionID)
-        awaitingSideContextAcknowledgement = prompt != text
+        try await segment.refuseIfRetired { self.terminateNow() }
+        let sidePrompt = try await store.sideConversationTurn(text, sessionID: sessionID)
+        awaitingSideContextAcknowledgement = sidePrompt != text
         await refreshFastMode()
         await refreshOutputStyle()
         await refreshExecutable()
@@ -229,12 +247,21 @@ public actor AgentRunner {
         try await waitForCancelledRunToExit()
         start()
 
+        let generation = handle.generation
+        let isMidTurn = promptedGeneration == generation && session.state.isMidTurn
+        if !isMidTurn { await segment.confirmWhatIsOwed() }
+        let prompt = isMidTurn ? sidePrompt : try await store.handoffPrompt(
+            sidePrompt, session: session, deliveredSeq: deliveredSeq,
+            workspacePath: workspacePath, contextWindow: lastContextWindow
+        )
         let line = try Self.encodeTurn(text)
         let outgoing = try Self.encodeTurn(prompt)
-        let generation = handle.generation
         guard let process = handle.current else { throw DeliveryDispatchError.processUnavailable }
+        try await segment.refuseIfRetired { self.terminateNow() }
         if let deliveryID { try await store.beginDeliveryDispatch(id: deliveryID) }
         guard !handle.isCancelled(generation), handle.generation == generation else { throw CancellationError() }
+        segment.promptSent(asSteer: isMidTurn, carriedDelta: prompt != sidePrompt)
+        promptedGeneration = generation
         process.writeLine(outgoing)
         if let deliveryID { try await store.acceptDelivery(id: deliveryID) }
 
@@ -270,8 +297,12 @@ public actor AgentRunner {
         return String(decoding: try encoder.encode(UserTurn(text: text)), as: UTF8.self)
     }
 
+    private(set) var isWaitingForCancelledRun = false
+
     private func waitForCancelledRunToExit() async throws {
         guard handle.isCancelledRunStillAlive else { return }
+        isWaitingForCancelledRun = true
+        defer { isWaitingForCancelledRun = false }
 
         let deadline = ContinuousClock.now + shutdownBudget
         while ContinuousClock.now < deadline {
@@ -289,9 +320,11 @@ public actor AgentRunner {
         cancelled = false
         stderrTail = []
         let spec = launch()
+        requestedResume = AgentSessionSettlement.resumable(session: session, account: account)
         launchedCommand = Shell.which(spec.executable) ?? spec.executable
         let process = makeProcess(spec)
         let generation = handle.beginRun(process)
+        segment.processStarted()
         alive = true
 
         let errors = process.errorLines
@@ -377,6 +410,8 @@ public actor AgentRunner {
             storedMessage = await persist(kind: event.kind, payload: event.raw, durationMS: durationMS, refID: event.refID)
         }
 
+        if segment.takeReply(event) { await segment.confirm(carriedDelta: true) }
+
         switch event {
         case .initialized(let info):
             var moved = session.apply(.turnStarted).moves
@@ -387,6 +422,10 @@ public actor AgentRunner {
                 }
                 moved = true
             }
+            if SegmentResume.lostHistory(requested: requestedResume, received: info.sessionID) {
+                await restartHistory()
+            }
+            requestedResume = nil
             if moved { await save(session) }
 
         case .assistantText(let block), .thinking(let block):
@@ -402,6 +441,14 @@ public actor AgentRunner {
             lastContextUsed = block.usage.contextUsedTokens
 
         case .result(let result):
+            let refused = !cancelled && SegmentResume.refused(requested: requestedResume, result: result)
+            if refused {
+                segment.noteHistoryLost()
+                session.agentSessionID = nil
+            }
+            requestedResume = nil
+            let owed = segment.takeTurnEnd()
+            if result.usage.contextTokens > 0 { lastContextWindow = result.usage.contextTokens }
             session.apply(.turnFinished(isError: result.isError))
             session = session.with {
                 $0.inputTokens += result.usage.inputTokens
@@ -409,7 +456,9 @@ public actor AgentRunner {
                 $0.costUSD += result.usage.costUSD
                 if lastContextUsed > 0 { $0.contextTokens = lastContextUsed }
             }
+            if refused { await writeHistoryReset() }
             await save(session)
+            if owed { await segment.confirm(carriedDelta: false) }
 
         default:
             break
@@ -419,6 +468,19 @@ public actor AgentRunner {
 
         if case .permissionAsk(let ask) = event {
             await handle(ask)
+        }
+    }
+
+    private func restartHistory() async {
+        segment.noteHistoryLost()
+        await writeHistoryReset()
+    }
+
+    private func writeHistoryReset() async {
+        do {
+            try await segment.writeHistoryReset()
+        } catch {
+            await report("could not mark the conversation for a full handoff", error)
         }
     }
 
@@ -440,7 +502,7 @@ public actor AgentRunner {
 
     private func save(_ session: Session) async {
         do {
-            try await store.update(sessionID: session.id) {
+            try await segment.write {
                 $0.agentSessionID = session.agentSessionID
                 $0.state = session.state
                 $0.inputTokens = session.inputTokens

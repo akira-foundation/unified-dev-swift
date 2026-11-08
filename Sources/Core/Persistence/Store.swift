@@ -112,10 +112,16 @@ public actor Store {
             try db.execute(wanted.add)
             if let index = wanted.index { try db.execute(index) }
         }
+
+        try AgentAccountColumns.migrate(db)
+        try AgentAccountChoiceColumns.migrate(db)
+        try ProfileColumns.migrate(db)
+        try ProfileAccountColumns.repair(db)
     }
 
     private nonisolated static func migrate(_ db: SQLiteDatabase) throws {
-        let migrations: [Migration] = [
+        let current = Int(try db.readUserVersion())
+        let beforeAccounts: [Migration] = [
             sql("""
             CREATE TABLE IF NOT EXISTS repos (
                 id TEXT PRIMARY KEY,
@@ -474,6 +480,9 @@ public actor Store {
                 let columns = try db.query("PRAGMA table_info(sessions);")
                 let workspaceColumn = columns.first { $0.string("name") == "workspace_id" }
                 guard workspaceColumn?.int("notnull") == 1 else { return }
+                let carried = columns.compactMap { $0.string("name") }.contains("account_id")
+                    ? ", account_id"
+                    : ""
 
                 let before = try db.query("SELECT COUNT(*) AS n FROM messages").first?.int("n") ?? 0
                 try db.execute("""
@@ -495,18 +504,19 @@ public actor Store {
                         input_tokens INTEGER NOT NULL DEFAULT 0,
                         output_tokens INTEGER NOT NULL DEFAULT 0,
                         cost_usd REAL NOT NULL DEFAULT 0,
-                        context_tokens INTEGER NOT NULL DEFAULT 0
+                        context_tokens INTEGER NOT NULL DEFAULT 0,
+                        account_id TEXT REFERENCES agent_accounts(id) ON DELETE SET NULL
                     );
 
                     INSERT INTO sessions_rebuilt (
                         id, workspace_id, title, agent_session_id, model, effort, agent_kind,
                         permission_mode, state, sort_order, created_at, updated_at, archived_at,
-                        last_read_seq, input_tokens, output_tokens, cost_usd, context_tokens
+                        last_read_seq, input_tokens, output_tokens, cost_usd, context_tokens\(carried)
                     )
                     SELECT
                         id, workspace_id, title, agent_session_id, model, effort, agent_kind,
                         permission_mode, state, sort_order, created_at, updated_at, archived_at,
-                        last_read_seq, input_tokens, output_tokens, cost_usd, context_tokens
+                        last_read_seq, input_tokens, output_tokens, cost_usd, context_tokens\(carried)
                     FROM sessions;
 
                     DROP TABLE sessions;
@@ -662,9 +672,20 @@ public actor Store {
             sql(SpendColumns.createTables),
             OrchestratorColumns.migrate,
             PullRequestSeenOpenColumn.migrate,
+            sql(TranscriptPlaceColumns.createTable),
+        ]
+        let migrations: [Migration] = beforeAccounts + [
+            AgentAccountColumns.migrate,
+            { try AgentAccountChoiceColumns.move($0) },
+            SessionSegmentColumns.migrate,
+            sql(ReplyQuoteColumns.createTable),
+            ProfileColumns.migrate,
+            CanvasDeliveryColumn.migrate,
+            AgentAccountChoiceColumns.forgetWorkspaceChoices,
+            ProfileAccountColumns.migrate,
+            { try PreAccountChatOwners.record($0, predatingAccounts: current <= beforeAccounts.count) },
         ]
 
-        let current = Int(try db.readUserVersion())
         guard current >= 0, current <= migrations.count else {
             throw SQLiteError(message: "Unsupported database schema version \(current)", sql: nil)
         }
@@ -682,6 +703,249 @@ public actor Store {
             }
             try db.setUserVersion(Int32(migrations.count))
         }
+    }
+
+    public func agentAccounts() throws -> [AgentAccountRow] {
+        try db.query(AgentAccountColumns.all).compactMap(AgentAccountColumns.account(from:))
+    }
+
+    public func add(_ account: AgentAccountRow) throws {
+        try db.run(AgentAccountColumns.insert, AgentAccountColumns.values(account))
+    }
+
+    public func addIfMissing(_ account: AgentAccountRow) throws {
+        try db.run(AgentAccountColumns.insertIfMissing, AgentAccountColumns.values(account))
+    }
+
+    public func forgetAgentAccount(_ id: AgentAccountID) throws {
+        let stored = try db.query("SELECT is_default FROM agent_accounts WHERE id = ?", [.text(id)]).first
+        guard !AgentAccountHome.isDefaultID(id), stored?.bool("is_default") != true else {
+            throw AgentAccountError.isDefault(id)
+        }
+        try db.transaction {
+            try db.run(SessionSegmentColumns.forgetActiveHistory, [.text(id)])
+            try db.run(SessionSegmentColumns.forgetChatHistory, [.text(id)])
+            for table in AgentAccountColumns.pointingTables {
+                try db.run(AgentAccountColumns.release(table), [.text(id)])
+            }
+            try db.run(SessionSegmentColumns.forgetHistory, [.text(id)])
+            try db.run(AgentAccountColumns.release("session_segments"), [.text(id)])
+            try db.run(AgentAccountColumns.delete, [.text(id)])
+        }
+    }
+
+    public func segments(sessionID: SessionID) throws -> [SessionSegment] {
+        try db.query(SessionSegmentColumns.forSession, [.text(sessionID)])
+            .compactMap(SessionSegmentColumns.segment(from:))
+    }
+
+    public func activeSegment(sessionID: SessionID) throws -> SessionSegment? {
+        try db.query(SessionSegmentColumns.active, [.text(sessionID)])
+            .compactMap(SessionSegmentColumns.segment(from:)).first
+    }
+
+    public func runnerSeat(sessionID: SessionID) throws -> RunnerSeat? {
+        guard let session = try session(id: sessionID),
+              let segment = try activeSegment(sessionID: sessionID) else { return nil }
+        return RunnerSeat(session: session, segmentID: segment.id)
+    }
+
+    public func advanceCursor(segmentID: SessionSegmentID, toSeq: Int) throws {
+        try db.run(SessionSegmentColumns.advance, [.int(Int64(toSeq)), .text(segmentID)])
+    }
+
+    public func resetCursor(segmentID: SessionSegmentID) throws {
+        try db.run(SessionSegmentColumns.reset, [.text(segmentID)])
+    }
+
+    public func seed(sessionID: SessionID, from source: SessionID) throws {
+        try db.run(SessionSegmentColumns.seed, [.text(source), .text(sessionID)])
+    }
+
+    public func pendingSource(sessionID: SessionID) throws -> SessionID? {
+        try pendingSourceRead(sessionID: sessionID)?.id
+    }
+
+    func pendingSourceRead(sessionID: SessionID) throws -> (id: SessionID, throughSeq: Int)? {
+        guard let row = try db.query(SessionSegmentColumns.pendingSource, [.text(sessionID)]).first,
+              let id = row.string("source_session_id").map(SessionID.init) else { return nil }
+        return (id, Int(row.int("source_through_seq") ?? -1))
+    }
+
+    @discardableResult
+    public func switchSegment(sessionID: SessionID, to target: SessionSegmentTarget) throws -> Session {
+        try db.transaction {
+            guard let current = try session(id: sessionID) else {
+                throw SQLiteError(message: "no such chat to switch", sql: nil)
+            }
+            try db.run(SessionSegmentColumns.ensureFirst, [.text(sessionID)])
+            guard let active = try activeSegment(sessionID: sessionID) else {
+                throw SQLiteError(message: "chat has no active segment", sql: nil)
+            }
+            if current.agentKind == target.agentKind, current.accountID == target.accountID {
+                return current
+            }
+            try db.run(SessionSegmentColumns.leave, [
+                .text(current.agentKind.rawValue), .text(current.accountID),
+                current.agentSessionID.map { .text($0) } ?? .null,
+                .text(current.model), .text(current.effort),
+                .int(Int64(current.inputTokens)), .int(Int64(current.outputTokens)),
+                .double(current.costUSD), .int(Int64(current.contextTokens)),
+                .text(active.id),
+            ])
+            let entering = try enteringSegment(sessionID: sessionID, target: target)
+            try db.run(SessionSegmentColumns.adopt, [
+                .text(target.agentKind.rawValue), .text(target.model), .text(target.effort),
+                entering.agentSessionID.map { .text($0) } ?? .null,
+                .int(entering.inputTokens), .int(entering.outputTokens),
+                .double(entering.costUSD), .int(entering.contextTokens),
+                .double(Date().timeIntervalSince1970), .text(sessionID),
+            ])
+            try db.run(AgentAccountColumns.choose("sessions"), [.text(target.accountID), .text(sessionID)])
+            try setSetting(ComposerControls.defaultsAppliedKey(sessionID: sessionID), "1")
+            let divider = try insertNext(
+                sessionID: sessionID,
+                kind: .handoff,
+                payload: HandoffMark.continued(
+                    agent: target.agentKind, model: target.model, from: current.agentKind
+                ).payload
+            )
+            try db.run(SessionSegmentColumns.enter, [
+                .int(Int64(divider.seq)), .text(target.model), .text(target.effort), .text(entering.id),
+            ])
+            guard let switched = try session(id: sessionID) else {
+                throw SQLiteError(message: "chat vanished during the switch", sql: nil)
+            }
+            return switched
+        }
+    }
+
+    private struct EnteringSegment {
+        var id: SessionSegmentID
+        var agentSessionID: String?
+        var inputTokens: Int64
+        var outputTokens: Int64
+        var costUSD: Double
+        var contextTokens: Int64
+    }
+
+    private func enteringSegment(sessionID: SessionID, target: SessionSegmentTarget) throws -> EnteringSegment {
+        let rows = try db.query(SessionSegmentColumns.parked, [
+            .text(sessionID), .text(target.agentKind.rawValue), .text(target.accountID),
+        ])
+        if let row = rows.first, let id = row.string("id").map(SessionSegmentID.init) {
+            return EnteringSegment(
+                id: id,
+                agentSessionID: row.string("agent_session_id"),
+                inputTokens: row.int("input_tokens") ?? 0,
+                outputTokens: row.int("output_tokens") ?? 0,
+                costUSD: row.double("cost_usd") ?? 0,
+                contextTokens: row.int("context_tokens") ?? 0
+            )
+        }
+        let id = SessionSegmentID(newID())
+        try db.run(SessionSegmentColumns.create, [
+            .text(id), .text(sessionID), .text(target.agentKind.rawValue), .text(target.accountID),
+            .text(target.model), .text(target.effort), .double(Date().timeIntervalSince1970),
+        ])
+        return EnteringSegment(id: id, agentSessionID: nil, inputTokens: 0, outputTokens: 0, costUSD: 0, contextTokens: 0)
+    }
+
+    private func insertNext(sessionID: SessionID, kind: MessageKind, payload: Data) throws -> Message {
+        var message = Message(
+            sessionID: sessionID, seq: try nextSeqLocked(sessionID: sessionID), kind: kind, payload: payload
+        )
+        message.id = try insert(message)
+        return message
+    }
+
+    public func agentAccountChoices() throws -> AgentAccountChoiceBook {
+        try AgentAccountChoiceColumns.book { try db.query($0) }
+    }
+
+    public func chooseAgentAccount(_ chosen: ChosenAgentAccount, forRepo id: RepoID) throws {
+        try choose(chosen, owner: id.rawValue, in: AgentAccountChoiceColumns.repos)
+    }
+
+    public func chooseAgentAccount(_ chosen: ChosenAgentAccount, forProfile id: ProfileID) throws {
+        try choose(chosen, owner: id.rawValue, in: AgentAccountChoiceColumns.profiles)
+    }
+
+    public func profileAccounts() throws -> ProfileAccounts {
+        try ProfileAccountColumns.accounts { try db.query($0) }
+    }
+
+    @discardableResult
+    public func setAccountSource(_ source: ProfileAccountSource, for profile: ProfileID) throws -> [RepoID] {
+        try db.transaction { try writeAccountSource(source, for: profile) }
+    }
+
+    func writeAccountSource(_ source: ProfileAccountSource, for profile: ProfileID) throws -> [RepoID] {
+        guard profile != .initial else { return [] }
+        try db.run(ProfileAccountColumns.setSource, [.text(source.rawValue), .text(profile)])
+        return try clearStrayChoices(in: profile)
+    }
+
+    func clearStrayChoices(in profile: ProfileID, only repo: RepoID? = nil) throws -> [RepoID] {
+        let book = try agentAccountChoices()
+        var cleared: [RepoID] = []
+        for (id, owner) in book.repoProfiles.sorted(by: { $0.key.rawValue < $1.key.rawValue })
+        where owner == profile && (repo == nil || repo == id) {
+            let stray = book.accounts.strayChoices(book.repos[id] ?? [:], in: profile)
+            for provider in stray {
+                try db.run(AgentAccountChoiceColumns.repos.clear, [.text(id), .text(provider.rawValue)])
+            }
+            if !stray.isEmpty { cleared.append(id) }
+        }
+        return cleared
+    }
+
+    func returnAccountsToInitial(from profile: ProfileID) throws {
+        try db.run(ProfileAccountColumns.returnToInitial, [.text(profile)])
+    }
+
+    func inTransaction<T>(_ work: () throws -> T) throws -> T {
+        try db.transaction(work)
+    }
+
+    private func choose(
+        _ chosen: ChosenAgentAccount,
+        owner: String,
+        in table: AgentAccountChoiceColumns.Table
+    ) throws {
+        guard let account = chosen.home?.id else {
+            try db.run(table.clear, [.text(owner), .text(chosen.provider.rawValue)])
+            return
+        }
+        try db.run(table.choose, [.text(owner), .text(chosen.provider.rawValue), .text(account)])
+    }
+
+    public func update(sessionID: SessionID, accountID: AgentAccountID?) throws {
+        try db.run(AgentAccountColumns.choose("sessions"), [.text(accountID), .text(sessionID)])
+    }
+
+    public func profiles() throws -> [Profile] {
+        try db.query(ProfileColumns.all).map(ProfileColumns.profile(from:))
+    }
+
+    public func profile(id: ProfileID) throws -> Profile? {
+        try db.query(ProfileColumns.one, [.text(id)]).first.map(ProfileColumns.profile(from:))
+    }
+
+    func insertProfileRow(_ profile: Profile) throws {
+        try db.run(ProfileColumns.insert, ProfileColumns.values(profile))
+    }
+
+    func writeProfileRow(_ profile: Profile) throws {
+        try db.run(ProfileColumns.update, ProfileColumns.updateValues(profile))
+    }
+
+    func removeProfileRow(id: ProfileID) throws {
+        try db.run(ProfileColumns.delete, [.text(id)])
+    }
+
+    func projectCount(profileID: ProfileID) throws -> Int {
+        Int(try db.query(ProfileColumns.repoCount, [.text(profileID)]).first?.int("total") ?? 0)
     }
 
     public func repos() throws -> [Repo] {
@@ -717,9 +981,9 @@ public actor Store {
             """
             INSERT INTO repos (
                 id, name, path, default_branch, accent, sort_order, collapsed, hidden, created_at,
-                icon_path, icon_source
+                icon_path, icon_source, profile_id
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT id FROM profiles WHERE id = ?), ?))
             ON CONFLICT(id) DO UPDATE SET
                 name = excluded.name,
                 path = excluded.path,
@@ -729,7 +993,8 @@ public actor Store {
                 collapsed = excluded.collapsed,
                 hidden = excluded.hidden,
                 icon_path = excluded.icon_path,
-                icon_source = excluded.icon_source
+                icon_source = excluded.icon_source,
+                profile_id = excluded.profile_id
             """,
             [
                 .text(repo.id), .text(repo.name), .text(repo.path), .text(repo.defaultBranch),
@@ -738,9 +1003,11 @@ public actor Store {
                 .double(repo.createdAt.timeIntervalSince1970),
                 repo.iconPath.map { SQLValue.text($0) } ?? .null,
                 .text(repo.iconSource.rawValue),
+                .text(repo.profileID),
+                .text(ProfileID.initial.rawValue),
             ]
         )
-        return repo
+        return try self.repo(id: repo.id) ?? repo
     }
 
     @discardableResult
@@ -999,6 +1266,20 @@ public actor Store {
         }
     }
 
+    public func workspacesHoldingUndeliveredMessages() throws -> Set<WorkspaceID> {
+        let rows = try db.query("""
+            SELECT DISTINCT d.source_workspace_id AS id
+            FROM deliveries d
+            JOIN sessions s ON s.id = d.target_session_id
+            JOIN workspaces target ON target.id = s.workspace_id
+            WHERE d.delivered_at IS NULL
+              AND d.source_workspace_id IS NOT NULL
+              AND s.archived_at IS NULL
+              AND target.state = 'active'
+            """)
+        return Set(rows.compactMap { $0.string("id").map { WorkspaceID($0) } })
+    }
+
     public func databaseSize() throws -> DatabaseSize {
         let pageSize = Int(try db.query("PRAGMA page_size;").first?.int("page_size") ?? 0)
         let pages = Int(try db.query("PRAGMA page_count;").first?.int("page_count") ?? 0)
@@ -1189,7 +1470,7 @@ public actor Store {
                 agentKind: parent.agentKind, permissionMode: parent.permissionMode,
                 sortOrder: try sessions(workspaceID: workspaceID).count
             )
-            try upsert(next)
+            try writeSession(next)
             try setSetting(SideConversation.contextKey(next.id), String(decoding: JSONEncoder().encode(snapshot), as: UTF8.self))
             for keys in [
                 (ComposerControls.fastModeKey(sessionID: parentID), ComposerControls.fastModeKey(sessionID: next.id)),
@@ -1218,6 +1499,46 @@ public actor Store {
 
     public func acknowledgeSideConversationContext(sessionID: SessionID) throws {
         try setSetting(SideConversation.contextDeliveredKey(sessionID), "1")
+    }
+
+    public func handoffIsDue(sessionID: SessionID, deliveredSeq: Int?) throws -> Bool {
+        try !db.query(
+            SessionSegmentColumns.handoffDue,
+            [.text(sessionID), .int(Int64(deliveredSeq ?? -1))]
+        ).isEmpty
+    }
+
+    public func acknowledgeHandoff(
+        sessionID: SessionID, fromSegment segment: SessionSegmentID, carriedDelta: Bool
+    ) throws {
+        if carriedDelta {
+            try db.run(SessionSegmentColumns.acknowledgeCarriedDelta, [.text(sessionID), .text(segment)])
+        } else {
+            try db.run(SessionSegmentColumns.acknowledge, [.text(sessionID), .text(segment)])
+        }
+    }
+
+    func handoffRows(
+        sessionID: SessionID, afterSeq: Int, excludingSeq: Int?, throughSeq: Int = .max
+    ) throws -> [Message] {
+        try db.query(
+            """
+            SELECT id, session_id, seq, kind, \(ConversationHandoff.boundedPayload) AS payload,
+                   created_at, duration_ms, ref_id
+            FROM messages
+            WHERE id IN (
+                SELECT id FROM messages
+                WHERE session_id = ? AND seq > ? AND seq <= ? AND seq != ?
+                    AND kind IN (\(ConversationHandoff.storedKindList))
+                ORDER BY seq DESC LIMIT ?
+            )
+            ORDER BY seq
+            """,
+            [
+                .text(sessionID), .int(Int64(afterSeq)), .int(Int64(throughSeq)), .int(Int64(excludingSeq ?? -1)),
+                .int(Int64(ConversationHandoff.rowLimit)),
+            ]
+        ).map(Self.message(from:))
     }
 
     public func keepSideConversation(sessionID: SessionID) throws -> Session? {
@@ -1300,6 +1621,11 @@ public actor Store {
 
     @discardableResult
     public func upsert(_ session: Session) throws -> Session {
+        try db.transaction { try writeSession(session) }
+        return session
+    }
+
+    private func writeSession(_ session: Session) throws {
         if session.archivedAt != nil { try requireSessionCanClose(id: session.id) }
         try rememberImplementationMode(for: session)
         try db.run(
@@ -1307,8 +1633,8 @@ public actor Store {
             INSERT INTO sessions (
                 id, workspace_id, parent_session_id, side_conversation_parent_id, title, agent_session_id, model, effort,
                 agent_kind, permission_mode, interaction_mode, state, sort_order, created_at, updated_at,
-                archived_at, last_read_seq, input_tokens, output_tokens, cost_usd, context_tokens
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                archived_at, last_read_seq, input_tokens, output_tokens, cost_usd, context_tokens, account_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 side_conversation_parent_id = excluded.side_conversation_parent_id,
                 title = excluded.title,
@@ -1343,9 +1669,20 @@ public actor Store {
                 .int(Int64(session.lastReadSeq)),
                 .int(Int64(session.inputTokens)), .int(Int64(session.outputTokens)),
                 .double(session.costUSD), .int(Int64(session.contextTokens)),
+                .text(session.accountID),
             ]
         )
-        return session
+        try db.run(SessionSegmentColumns.ensureFirst, [.text(session.id)])
+    }
+
+    @discardableResult
+    public func update(
+        sessionID: SessionID,
+        fromSegment segment: SessionSegmentID,
+        _ change: @Sendable (inout Session) -> Void
+    ) throws -> Session? {
+        guard try activeSegment(sessionID: sessionID)?.id == segment else { return nil }
+        return try update(sessionID: sessionID, change)
     }
 
     @discardableResult
@@ -1356,7 +1693,8 @@ public actor Store {
         guard var row = try session(id: sessionID) else { return nil }
         change(&row)
         row.id = sessionID
-        return try upsert(row)
+        try writeSession(row)
+        return row
     }
 
     public func updateSessionPreferences(
@@ -1488,11 +1826,15 @@ public actor Store {
     }
 
     public func prepareTranscriptRewind(_ checkpoint: TurnCheckpoint) throws -> TranscriptRewindBackup {
+        if let active = try activeSegment(sessionID: checkpoint.sessionID), checkpoint.startSeq < active.enteredSeq {
+            throw ConversationRewindError.crossesHandoff
+        }
         let removed = try db.query(
             "SELECT * FROM messages WHERE session_id = ? AND seq >= ? ORDER BY seq",
             [.text(checkpoint.sessionID), .int(Int64(checkpoint.startSeq))]
         ).map(Self.message(from:))
-        guard let first = removed.first, first.seq == checkpoint.startSeq, first.kind == .user else {
+        guard let first = removed.first, first.seq == checkpoint.startSeq,
+              first.kind == .user || AppRequest.isHidden(kind: first.kind, payload: first.payload) else {
             throw SnapshotFailure("The original user message is unavailable for this rewind.")
         }
         let backup = TranscriptRewindBackup(
@@ -1532,15 +1874,18 @@ public actor Store {
             }
             try db.run("DELETE FROM messages WHERE session_id = ? AND seq >= ?", [.text(sessionID), .int(Int64(seq))])
             try db.run(WorkSuggestionColumns.deleteAnchored, [.text(sessionID), .int(Int64(seq))])
+            try db.run("DELETE FROM transcript_places WHERE session_id = ? AND anchor_seq >= ?", [.text(sessionID), .int(Int64(seq))])
             try db.run("UPDATE deliveries SET delivered_seq = NULL WHERE target_session_id = ? AND delivered_seq >= ?", [
                 .text(sessionID), .int(Int64(seq)),
             ])
             let current = try draft(sessionID: sessionID)
-            let restored = current.isEmpty ? backup.prompt : current + "\n\n" + backup.prompt
+            let restored = current.isEmpty || backup.prompt.isEmpty ? current + backup.prompt : current + "\n\n" + backup.prompt
             try saveDraft(sessionID: sessionID, body: restored)
             try db.run("UPDATE sessions SET last_read_seq = MIN(last_read_seq, ?), context_tokens = 0 WHERE id = ?", [
                 .int(Int64(seq - 1)), .text(sessionID),
             ])
+            try db.run(SessionSegmentColumns.restoreDelta, [.text(sessionID), .int(Int64(seq))])
+            try db.run(SessionSegmentColumns.clampCursors, [.int(Int64(seq - 1)), .text(sessionID)])
             let retired = try removeTurnCheckpoints(sessionID: sessionID, fromSeq: seq)
             try queueRetiredCheckpoints(retired, sessionID: sessionID)
             journal.stage = .complete
@@ -1796,6 +2141,28 @@ public actor Store {
         }
     }
 
+    public func replyQuotes(sessionID: SessionID) throws -> [ReplyQuote] {
+        try db.query(
+            "SELECT * FROM reply_quotes WHERE session_id = ? ORDER BY rowid", [.text(sessionID)]
+        ).compactMap(ReplyQuoteColumns.quote(from:))
+    }
+
+    public func add(_ quote: ReplyQuote, sessionID: SessionID) throws {
+        try db.run(
+            "INSERT INTO reply_quotes (id, session_id, quoted, summary, source_seq) VALUES (?, ?, ?, ?, ?)",
+            [
+                .text(quote.id), .text(sessionID), .text(quote.quoted), .text(quote.summary),
+                quote.sourceSeq.map { .int(Int64($0)) } ?? .null,
+            ]
+        )
+    }
+
+    public func removeReplyQuotes(ids: [ReplyQuoteID]) throws {
+        for id in ids {
+            try db.run("DELETE FROM reply_quotes WHERE id = ?", [.text(id)])
+        }
+    }
+
     public func workspaceDrafts() throws -> [WorkspaceDraft] {
         try db.query("SELECT * FROM workspace_drafts ORDER BY updated_at")
             .map(Self.workspaceDraft(from:))
@@ -1969,7 +2336,8 @@ public actor Store {
 
     @discardableResult
     public func enqueueDelivery(
-        _ delivery: Delivery, clearingDraftMatching draft: String?, sourcePlan: PlanArtefact? = nil
+        _ delivery: Delivery, clearingDraftMatching draft: String?,
+        clearingQuotes quotes: [ReplyQuoteID] = [], sourcePlan: PlanArtefact? = nil
     ) throws -> Delivery {
         try db.transaction {
             let queued = try enqueueDelivery(delivery)
@@ -1977,6 +2345,7 @@ public actor Store {
             if let draft, try self.draft(sessionID: delivery.targetSessionID) == draft {
                 try saveDraft(sessionID: delivery.targetSessionID, body: "")
             }
+            try removeReplyQuotes(ids: quotes)
             return queued
         }
     }
@@ -2002,8 +2371,9 @@ public actor Store {
             """
             INSERT INTO deliveries
                 (id, target_session_id, source_workspace_id, kind, verdict, body, crew_payload,
-                 created_at, delivered_at, delivered_seq, delivery_state, interaction_mode, provider_turn_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 created_at, delivered_at, delivered_seq, delivery_state, interaction_mode, provider_turn_id,
+                 canvas_document_path)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 .text(delivery.id),
@@ -2019,9 +2389,45 @@ public actor Store {
                 .text(delivery.state.rawValue),
                 delivery.interactionMode.map { .text($0.rawValue) } ?? .null,
                 delivery.providerTurnID.map { .text($0) } ?? .null,
+                delivery.canvasDocumentPath.map { .text($0) } ?? .null,
             ]
         )
         return delivery
+    }
+
+    public func sessionsHoldingCanvasComments(workspaceID: WorkspaceID) throws -> [SessionID] {
+        try db.query(
+            """
+            SELECT DISTINCT deliveries.target_session_id AS id FROM deliveries
+            JOIN sessions ON sessions.id = deliveries.target_session_id
+            WHERE sessions.workspace_id = ? AND sessions.archived_at IS NULL
+              AND deliveries.kind = ? AND deliveries.delivery_state IN ('pending', 'uncertain')
+            """,
+            [.text(workspaceID), .text(Delivery.Kind.canvasComment.rawValue)]
+        ).compactMap { $0.string("id").map(SessionID.init) }
+    }
+
+    public func cancelQueuedCanvasComments(workspaceID: WorkspaceID) throws -> [Delivery] {
+        try db.transaction {
+            let queued = try db.query(
+                """
+                SELECT deliveries.* FROM deliveries
+                JOIN sessions ON sessions.id = deliveries.target_session_id
+                WHERE sessions.workspace_id = ?
+                  AND deliveries.kind = ? AND deliveries.delivery_state IN ('pending', 'uncertain')
+                ORDER BY deliveries.created_at, deliveries.rowid
+                """,
+                [.text(workspaceID), .text(Delivery.Kind.canvasComment.rawValue)]
+            ).map(Self.delivery(from:))
+            for delivery in queued {
+                try db.run("DELETE FROM deliveries WHERE id = ?", [.text(delivery.id)])
+            }
+            return queued
+        }
+    }
+
+    public func rewriteQueuedDelivery(id: DeliveryID, body: String) throws {
+        try db.run("UPDATE deliveries SET body = ? WHERE id = ? AND delivery_state = 'pending'", [.text(body), .text(id)])
     }
 
     public func claimDelivery(id: DeliveryID) throws -> Bool {
@@ -2031,16 +2437,10 @@ public actor Store {
             let delivery = Self.delivery(from: row)
             var seq = delivery.deliveredSeq
             if seq == nil {
-                let payload = delivery.crewPayload ?? Data(JSONValue.object([
-                    "type": .string("user"),
-                    "message": .object(["role": .string("user"), "content": .array([
-                        .object(["type": .string("text"), "text": .string(delivery.body)]),
-                    ])]),
-                ]).compactJSON.utf8)
+                let recorded = Self.recordedRow(for: delivery)
                 let next = try nextSeqLocked(sessionID: delivery.targetSessionID)
                 _ = try insert(Message(sessionID: delivery.targetSessionID, seq: next,
-                    kind: delivery.crewPayload == nil ? .user : .crew, payload: payload,
-                    createdAt: delivery.createdAt))
+                    kind: recorded.kind, payload: recorded.payload, createdAt: delivery.createdAt))
                 seq = next
             }
             try db.run("UPDATE deliveries SET delivery_state = 'claimed', delivered_seq = ? WHERE id = ?", [
@@ -2048,6 +2448,17 @@ public actor Store {
             ])
             return true
         }
+    }
+
+    private static func recordedRow(for delivery: Delivery) -> (kind: MessageKind, payload: Data) {
+        if let crew = delivery.crewPayload { return (.crew, crew) }
+        if delivery.kind == .interruptedTurnResume { return (.handoff, HandoffMark.resuming.payload) }
+        return (.user, Data(JSONValue.object([
+            "type": .string("user"),
+            "message": .object(["role": .string("user"), "content": .array([
+                .object(["type": .string("text"), "text": .string(delivery.body)]),
+            ])]),
+        ]).compactJSON.utf8))
     }
 
     public func beginDeliveryDispatch(id: DeliveryID) throws {
@@ -2078,6 +2489,31 @@ public actor Store {
         try db.run("UPDATE deliveries SET delivery_state = 'pending' WHERE delivery_state = 'claimed'")
     }
 
+    @discardableResult
+    public func dropUnstartedResumes(sessionID: SessionID? = nil, onlyWaiting: Bool = false) throws -> Int {
+        try db.run(
+            """
+            DELETE FROM deliveries
+            WHERE kind = ? AND (? IS NULL OR target_session_id = ?)
+              AND (delivery_state = 'pending' OR (? = 0 AND delivery_state != 'accepted'))
+            """,
+            [
+                .text(Delivery.Kind.interruptedTurnResume.rawValue),
+                sessionID.map { .text($0) } ?? .null,
+                sessionID.map { .text($0) } ?? .null,
+                .int(onlyWaiting ? 1 : 0),
+            ]
+        )
+        return db.changedRowCount
+    }
+
+    public func hasOwnerTurn(sessionID: SessionID) throws -> Bool {
+        try !db.query(
+            "SELECT 1 AS found FROM messages WHERE session_id = ? AND kind IN ('\(MessageKind.user.rawValue)', '\(MessageKind.crew.rawValue)') LIMIT 1",
+            [.text(sessionID)]
+        ).isEmpty
+    }
+
     public func releaseDeliveryClaim(id: DeliveryID) throws {
         try db.run("UPDATE deliveries SET delivery_state = 'pending' WHERE id = ? AND delivery_state = 'claimed'", [.text(id)])
     }
@@ -2099,6 +2535,18 @@ public actor Store {
             )
         }
         return marked
+    }
+
+    public func settleQueue(rewriting modes: [DeliveryID: InteractionMode], taking: [Delivery]) throws -> [Delivery] {
+        try db.transaction {
+            for (id, mode) in modes {
+                try db.run(
+                    "UPDATE deliveries SET interaction_mode = ? WHERE id = ? AND delivery_state = 'pending'",
+                    [.text(mode.rawValue), .text(id)]
+                )
+            }
+            return try taking.filter { try cancelDelivery(id: $0.id) }
+        }
     }
 
     @discardableResult
@@ -2332,6 +2780,13 @@ public actor Store {
         )
     }
 
+    public func noteWorkSuggestionFailure(id: WorkSuggestionID, failure: String) throws {
+        try db.run(
+            "UPDATE work_suggestions SET failure = ? WHERE id = ? AND state = 'pending'",
+            [.text(failure), .text(id)]
+        )
+    }
+
     @discardableResult
     public func dismissWorkSuggestion(id: WorkSuggestionID, at date: Date = Date()) throws -> WorkSuggestion? {
         try db.run(
@@ -2360,14 +2815,21 @@ public actor Store {
 
     @discardableResult
     public func retargetRemoteWorkSuggestions(slug: String, to repoID: RepoID) throws -> Int {
-        try db.run(
-            """
-            UPDATE work_suggestions SET target_kind = 'project', target_value = ?
-            WHERE target_kind = 'remote' AND target_value = ? COLLATE NOCASE AND state = 'pending'
-            """,
-            [.text(repoID), .text(slug)]
-        )
-        return db.changedRowCount
+        guard let project = try repo(id: repoID) else { return 0 }
+        let waiting = try db.query(
+            "SELECT * FROM work_suggestions WHERE target_kind = 'remote' AND target_value = ? COLLATE NOCASE AND state = 'pending'",
+            [.text(slug)]
+        ).map(WorkSuggestionColumns.suggestion(from:))
+        var adopted = 0
+        for suggestion in waiting
+        where WorkSuggestionProfile.admits(project: project.profileID, from: try workSuggestionSource(suggestion)) {
+            try db.run(
+                "UPDATE work_suggestions SET target_kind = 'project', target_value = ? WHERE id = ? AND state = 'pending'",
+                [.text(repoID), .text(suggestion.id)]
+            )
+            adopted += db.changedRowCount
+        }
+        return adopted
     }
 
     @discardableResult
@@ -2794,6 +3256,36 @@ public actor Store {
         try db.query("SELECT value FROM settings WHERE key = ?", [.text(key)]).first?.string("value")
     }
 
+    public func transcriptPlace(sessionID: SessionID) throws -> TranscriptPlace? {
+        guard let row = try db.query(
+            "SELECT * FROM transcript_places WHERE session_id = ?", [.text(sessionID)]
+        ).first, let seq = row.int("anchor_seq"), let count = row.int("row_count") else { return nil }
+        return TranscriptPlace(
+            anchorSeq: Int(seq),
+            anchorDelta: row.double("anchor_delta") ?? 0,
+            isAtLiveEnd: row.bool("is_at_live_end"),
+            rowCount: Int(count)
+        )
+    }
+
+    public func setTranscriptPlace(_ place: TranscriptPlace, sessionID: SessionID) throws {
+        try db.run(
+            """
+            INSERT INTO transcript_places (session_id, anchor_seq, anchor_delta, is_at_live_end, row_count)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(session_id) DO UPDATE SET
+                anchor_seq = excluded.anchor_seq,
+                anchor_delta = excluded.anchor_delta,
+                is_at_live_end = excluded.is_at_live_end,
+                row_count = excluded.row_count
+            """,
+            [
+                .text(sessionID), .int(Int64(place.anchorSeq)), .double(place.anchorDelta),
+                .int(place.isAtLiveEnd ? 1 : 0), .int(Int64(place.rowCount)),
+            ]
+        )
+    }
+
     public func saveComposerControls(_ controls: ComposerControls, sessionID: SessionID) throws {
         try db.transaction {
             for (key, value) in controls.settings(sessionID: sessionID) {
@@ -2814,7 +3306,7 @@ public actor Store {
             next.agentKind = controls.agentKind
             next.permissionMode = controls.permissionMode
             next.interactionMode = controls.interactionMode
-            try upsert(next)
+            try writeSession(next)
             for (key, value) in controls.settings(sessionID: next.id) {
                 try setSetting(key, value)
             }
@@ -2837,7 +3329,7 @@ public actor Store {
             next.agentKind = controls.agentKind
             next.permissionMode = controls.permissionMode
             next.interactionMode = controls.interactionMode
-            try upsert(next)
+            try writeSession(next)
             for (key, value) in controls.settings(sessionID: next.id) {
                 try setSetting(key, value)
             }
@@ -2864,7 +3356,7 @@ public actor Store {
                 next.permissionMode = controls.permissionMode
             next.interactionMode = controls.interactionMode
             }
-            try upsert(next)
+            try writeSession(next)
             if let controls {
                 for (key, value) in controls.settings(sessionID: next.id) { try setSetting(key, value) }
             }
@@ -3000,7 +3492,8 @@ public actor Store {
             hidden: row.bool("hidden"),
             createdAt: row.date("created_at") ?? Date(),
             iconPath: row.string("icon_path"),
-            iconSource: RepoIconSource(rawValue: row.string("icon_source") ?? "") ?? .undetected
+            iconSource: RepoIconSource(rawValue: row.string("icon_source") ?? "") ?? .undetected,
+            profileID: ProfileID(row.string(ProfileColumns.column) ?? ProfileID.initial.rawValue)
         )
     }
 
@@ -3049,7 +3542,8 @@ public actor Store {
             deliveredSeq: row.int("delivered_seq").map(Int.init),
             state: Delivery.State(rawValue: row.string("delivery_state") ?? ""),
             interactionMode: row.string("interaction_mode").flatMap(InteractionMode.init(rawValue:)),
-            providerTurnID: row.string("provider_turn_id")
+            providerTurnID: row.string("provider_turn_id"),
+            canvasDocumentPath: row.string("canvas_document_path")
         )
     }
 
@@ -3110,7 +3604,7 @@ public actor Store {
     }
 
     private static func session(from row: Row) -> Session {
-        Session(
+        var session = Session(
             id: SessionID(row.string("id") ?? newID()),
             workspaceID: row.string("workspace_id").map(WorkspaceID.init),
             parentSessionID: row.string("parent_session_id").map(SessionID.init),
@@ -3133,6 +3627,8 @@ public actor Store {
             costUSD: row.double("cost_usd") ?? 0,
             contextTokens: Int(row.int("context_tokens") ?? 0)
         )
+        session.accountID = row.string("account_id").map(AgentAccountID.init)
+        return session
     }
 
     private static func quickPrompt(from row: Row) -> QuickPrompt {

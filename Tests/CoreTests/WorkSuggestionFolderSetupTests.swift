@@ -22,7 +22,7 @@ struct WorkSuggestionFolderSetupTests {
         defer { repo.cleanUp() }
         let manager = try manager("setup-plain")
 
-        let admitted = await WorkSuggestionLaunch.admit(repo.path, with: manager)
+        let admitted = await WorkSuggestionLaunch.admit(repo.path, profileID: .initial, with: manager)
         let projects = try await manager.store.repos()
 
         #expect((try? admitted.get()) != nil, "\(admitted)")
@@ -39,7 +39,7 @@ struct WorkSuggestionFolderSetupTests {
         try repo.write(".git/hooks/post-checkout.sample", "#!/bin/sh\nexit 0\n", executable: true)
         let manager = try manager("setup-remote")
 
-        let admitted = await WorkSuggestionLaunch.admit(repo.path, with: manager)
+        let admitted = await WorkSuggestionLaunch.admit(repo.path, profileID: .initial, with: manager)
 
         #expect((try? admitted.get()) != nil, "\(admitted)")
     }
@@ -51,7 +51,7 @@ struct WorkSuggestionFolderSetupTests {
         try repo.write(".git/hooks/post-checkout", "#!/bin/sh\nexit 0\n", executable: true)
         let manager = try manager("setup-hook")
 
-        let admitted = await WorkSuggestionLaunch.admit(repo.path, with: manager)
+        let admitted = await WorkSuggestionLaunch.admit(repo.path, profileID: .initial, with: manager)
         let projects = try await manager.store.repos()
 
         #expect(refusal(admitted)?.contains("post-checkout") == true, "\(admitted)")
@@ -71,7 +71,7 @@ struct WorkSuggestionFolderSetupTests {
         try FileManager.default.setAttributes([.posixPermissions: 0o111], ofItemAtPath: hooks)
         let manager = try manager("setup-unlistable")
 
-        let admitted = await WorkSuggestionLaunch.admit(repo.path, with: manager)
+        let admitted = await WorkSuggestionLaunch.admit(repo.path, profileID: .initial, with: manager)
         let projects = try await manager.store.repos()
 
         #expect(refusal(admitted)?.contains("post-checkout") == true, "\(admitted)")
@@ -89,7 +89,7 @@ struct WorkSuggestionFolderSetupTests {
         try FileManager.default.setAttributes([.posixPermissions: 0o111], ofItemAtPath: hooks)
         let manager = try manager("setup-unlistable-empty")
 
-        let admitted = await WorkSuggestionLaunch.admit(repo.path, with: manager)
+        let admitted = await WorkSuggestionLaunch.admit(repo.path, profileID: .initial, with: manager)
 
         #expect(refusal(admitted)?.contains("could not read") == true, "\(admitted)")
     }
@@ -147,7 +147,7 @@ struct WorkSuggestionFolderSetupTests {
         if setting[0].hasPrefix("filter.") { try repo.write(".gitattributes", "* filter=lfs\n") }
         let manager = try manager("setup-config")
 
-        let admitted = await WorkSuggestionLaunch.admit(repo.path, with: manager)
+        let admitted = await WorkSuggestionLaunch.admit(repo.path, profileID: .initial, with: manager)
         let projects = try await manager.store.repos()
 
         #expect(refusal(admitted)?.contains(setting[0].lowercased()) == true, "\(admitted)")

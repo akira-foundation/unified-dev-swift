@@ -117,7 +117,7 @@ one way, because what they act on differs: a rename is one column and takes a na
 an archive removes a worktree and takes the exact id `workspace_start` reported, so a slip of the
 name cannot cost anything.
 
-**The three readers take any active workspace.** `chat_list`, `chat_read` and `workspace_diff`
+**The three readers take any active workspace in the caller's profile.** `chat_list`, `chat_read` and `workspace_diff`
 read their own workspace when nothing is named, and may name any other that is not archived,
 because reading acts on nothing. What they bring back is fenced as untrusted content. See
 "Reading another workspace" below.
@@ -162,20 +162,64 @@ Like the token, this is not a security boundary: an agent that wants the owner's
 can start the shim from another directory. What it stops is the ordinary case, an agent holding the
 owner's tools because a config file was read. See `BridgeOwnerPlacement`.
 
+### The profile a caller is limited to
+
+**A caller lists, reads, starts and talks only to projects, workspaces and chats of its own profile.**
+`BridgeProfileScope` is the one place that decides it, and every tool takes its rows from there.
+
+| Caller | Its profile |
+| --- | --- |
+| `workspace`, an orchestrator included | The profile of the project its workspace belongs to |
+| `owner`, an Ask chat during a turn | The profile active when that turn started |
+| `owner`, the standalone token, or an Ask chat between turns | `Store.activeProfileID()`, read on each call |
+
+A `workspace` identity whose workspace or project row has gone has no profile, and its scope is empty.
+
+An Ask chat's pin is held in `BridgeRegistry`, in memory, by the chat's session. `TranscriptModel` sets it
+when the chat starts running, whether the owner sent a message or the agent started the turn itself, and
+releases it when the turn ends. A chat already running keeps the pin it has, so a switch of profile mid
+turn does not move what the chat is doing, and the next turn takes the profile active then. A pinned profile deleted during
+the turn leaves the scope empty rather than falling back to the active one.
+`reveal` is refused while the pin is not the active profile: the answer names the profile the workspace
+is in, and the window does not move.
+
+`workspace_start` and `project_add` answer with a `profile` field holding the name of the profile the
+workspace or project landed in, for every caller, so a caller can say where its work went.
+
+A workspace or a project in another profile is answered exactly as one that does not exist would be,
+archived rows included: the same refusal, with no name from that profile in it or in any list of known
+names. A path in `work_suggest` is treated the same way: a repository registered under another profile
+gets the `.folder` card an unregistered path gets, and the refusal comes at launch.
+
+The one exception is `project_add`, which only the owner has. Given the path of a repository registered
+under another profile, it refuses with a sentence saying it belongs to another profile, without naming
+that profile or returning its row, because the alternative is a second registration of one repository.
+
+A card stays inside the profile of the workspace that filed it. A `.remote` card is adopted only by a
+project in that profile, and `WorkSuggestionLaunch` refuses to start a card whose project is in any other,
+including one moved after the card was filed and a `.folder` that `WorkSuggestionLaunch.admit` resolves
+elsewhere. `WorkSuggestionProfile` holds that decision. A card from an Ask chat has no workspace and so
+no such limit.
+
+The scope is for answering a caller, not for running the app. `BridgeServer` reads every workspace
+when it places the owner's token, since a shim inside a workspace of any profile is refused. The
+ceiling on what the owner's client starts in a window counts across all profiles, because it limits
+this Mac rather than a profile.
+
 ## 3. The tools
 
-Forty-eight, each a type of its own in `Sources/Core/Bridge/`, each carrying its own role
+Fifty-three, each a type of its own in `Sources/Core/Bridge/`, each carrying its own role
 gate. A list of handlers rather than a switch, because a switch would put every tool in three
 places: the listing, the dispatch and the gate.
 
 | Tool | What it does | workspace | owner |
 | --- | --- | :---: | :---: |
 | `whoami` | What this connection is: the workspace and its branch, the worktree path, the project, whether the workspace was created by the owner or by another agent, and whether it is the project's orchestrator. From the owner's own client, which copy of Unified Dev was reached and how much it is holding | ✓ | ✓ |
-| `project_list` | Every project in the sidebar: name, path, default branch, how many workspaces it has, how many of those have an agent mid turn and how many have one stopped on a question, whether it is still where Unified Dev recorded it, whether it is hidden. A workspace agent calls it to find a project to hand work to | ✓ | ✓ |
+| `project_list` | Every project of the caller's profile: name, path, default branch, how many workspaces it has, how many of those have an agent mid turn and how many have one stopped on a question, whether it is still where Unified Dev recorded it, whether it is hidden. A workspace agent calls it to find a project to hand work to | ✓ | ✓ |
 | `project_add` | Register a git repository that **already exists** as a project | | ✓ |
 | `project_hide` | Take a project out of the sidebar. A view preference and nothing more | | ✓ |
 | `project_unhide` | Put it back, in the place it already had | | ✓ |
-| `workspace_list` | Every workspace, its state, its worktree path, its chats and their cost, what an agent is stopped on, what is queued and why, and which one is the project's orchestrator | | ✓ |
+| `workspace_list` | Every workspace of the caller's profile, its state, its worktree path, its chats and their cost, what an agent is stopped on, what is queued and why, and which one is the project's orchestrator | | ✓ |
 | `workspace_start` | Cut a worktree and put an agent in it with a task, on a new branch, existing branch or GitHub pull request, in the caller's own project or another it names. With notify_when_done, or always when the caller is the project's orchestrator, the calling chat is told once when the new agent's first turn comes to rest | ✓ | ✓ |
 | `workspace_rename` | Give a workspace the name the work in it turned out to be about. Its own, or one it started (by name or id), for a workspace agent; any of them, named out loud, for the owner | ✓ | ✓ |
 | `workspace_archive` | Archive a workspace through normal safety checks, keeping its branch and history. For a workspace agent, its own once the turn asking for it has ended, or one it started, by id and at once; any of them, named out loud and at once, for the owner. The project's orchestrator is refused until it stops being one | ✓ | ✓ |
@@ -208,7 +252,11 @@ places: the listing, the dispatch and the gate.
 | `terminal_write` | Type text into a live terminal, optionally followed by Enter | ✓ | |
 | `terminal_send_key` | Send Enter, Control-C, Tab, Escape or an arrow key to a live terminal | ✓ | |
 | `media_show` | Show an image or video from the workspace inline in its chat | ✓ | |
-| `canvas_show` | Show one file from the caller's own worktree (HTML, Markdown, SVG or a PNG, JPEG, GIF or WebP image) in the workspace's canvas tab, which reloads when the file changes | ✓ | |
+| `canvas_show` | Show one file from the caller's own worktree in the workspace's canvas tab, which reloads when the file changes: HTML, Markdown, SVG or a PNG, JPEG, GIF or WebP image as a page, or a `.udcanvas` document in the canvas editor, where the owner draws frames, text, notes, shapes and pen strokes, comments, plays the frames as slides and exports them as PNG. A `.udcanvas` path that does not exist is created as a blank document with one frame and any folders it needs, except in a project's orchestrator, which is refused | ✓ | |
+| `canvas_read` | Read a canvas document in the caller's own worktree: its frames and elements with their revisions, the comments in the file still open, and the size each text really takes once laid out. All of it is marked as data read from the file, between the markers every bridge answer quoting untrusted text carries. One answer holds about 32,000 characters: `cut` says what was left out, `nextOffset` is the `offset` to ask for next and `nextFrameOffset` is the `frameOffset`. Works with the tab closed, refuses a corrupt or newer document with the reason, and warns when it answers from a tab under a hold rather than from the file | ✓ | |
+| `canvas_edit` | Change a canvas document in the caller's own worktree by a list of at most 500 operations, all or nothing, each update or delete carrying the revision read with `canvas_read`. One call is one undo step for the owner. The answer lists the new revision of everything that changed and says whether the change reached the file. A conflict applies nothing and returns the current state. Works with the tab closed and never opens it; refuses a corrupt or newer document and one under a hold. Refused in a project's orchestrator | ✓ | |
+| `canvas_comment_resolve` | Answer a comment the owner left on a canvas document in the caller's own worktree, as resolved with a sentence saying what was done, or as declined with the reason. Only the chat the comment was sent to can answer it. Not an undo step for the owner. The answer says whether it reached the file. Works with the tab closed; refuses a corrupt or newer document and one under a hold. Open to a project's orchestrator | ✓ | |
+| `canvas_render` | Draw one frame of a canvas document as a picture, at 1:1 up to 8192 points a side with the longest side capped at 2048 pixels, by the code that draws it on screen, without selection. Works with the tab closed; names fonts this Mac lacks and pictures drawn as a placeholder because the frame's pictures need more memory than one render may use, says the text in the picture is read from the file, and warns when it draws from a tab under a hold rather than from the file | ✓ | |
 | `agent_start` | Start a subagent: a second agent in the caller's own worktree, on the same branch, with a task of its own | ✓ | |
 | `agent_say` | Put a message in another agent's chat on this job. An orchestrator names which of its crew; a subagent names nobody and talks up. Waking a stopped one is held to the same ceiling as a start | ✓ | |
 | `agent_list` | Who else is working in this worktree: each agent's name, whether it is running, and what it is doing | ✓ | |
@@ -262,7 +310,10 @@ before placement, so a changed target cannot produce a false success or split un
 
 `chat_list` discovers the unarchived sessions in a workspace, including crew members. `chat_read`
 accepts an ID from that list or an exact title. Shared titles are refused until the caller names
-an ID.
+an ID. A request Unified Dev sent on the owner's behalf, the report of a Run or a failed check, is
+not drawn in the owner's window and is still read here, as a `crew` record with its full text and
+`sent_by` set to `unified_dev`, so a reader can explain the reply that followed it and cannot take
+it for the owner's words.
 
 **Both reach another workspace when the caller names one.** A read acts on nothing, and an agent
 asked "what did the other workspace decide" otherwise had to be handed a worktree path and run git
@@ -1125,7 +1176,7 @@ So `BridgeToolApproval` names the tools Unified Dev answers for itself:
 
 | Self-approved | Not |
 | --- | --- |
-| `whoami`, `workspace_start`, `pane_open`, `pane_split`, `pane_close`, `pane_rename`, `workspace_rename`, `pane_list`, `workspace_tabs`, `workspace_tab_select`, `chat_list`, `chat_read`, `workspace_diff`, `browser_read`, `media_show`, `canvas_show`, `quick_prompt_list`, `reveal`, `agent_start`, `agent_say`, `agent_list`, `agent_stop`, `workspace_say`, `work_suggest`, `work_withdraw`, `project_list` | everything else |
+| `whoami`, `workspace_start`, `pane_open`, `pane_split`, `pane_close`, `pane_rename`, `workspace_rename`, `pane_list`, `workspace_tabs`, `workspace_tab_select`, `chat_list`, `chat_read`, `workspace_diff`, `browser_read`, `media_show`, `canvas_show`, `canvas_read`, `canvas_edit`, `canvas_render`, `canvas_comment_resolve`, `quick_prompt_list`, `reveal`, `agent_start`, `agent_say`, `agent_list`, `agent_stop`, `workspace_say`, `work_suggest`, `work_withdraw`, `project_list` | everything else |
 
 It is a list rather than "anything with our prefix", so a tool added later is opted in by somebody
 thinking about it rather than by inheriting a decision made before it existed.
@@ -1139,9 +1190,64 @@ agent would like to use Unified Dev". None of that is true of the tools the agen
 `Write` and `Edit` reach outside anything Unified Dev knows about, and nothing here touches them.
 
 `canvas_show` is on it because it shows one file that is already in the caller's own worktree, through
-the same containment rule the document preview applies, with no network and nothing written. A turn
-with nobody watching must not hang on a question about showing a file to the person it is for, and
-there is nothing for a person to weigh that the tool has not already decided.
+the same containment rule the document preview applies, with no network. It writes one thing: a path ending in
+`.udcanvas` that does not exist yet is created as a blank document with one frame, and any folders it needs, still
+inside that worktree, because a canvas has to exist before `canvas_edit` can change it. A blank file in the caller's
+own worktree costs nothing a person would weigh. An orchestrator has `Edit` and `Write` taken away, so there the same
+call writes nothing and is refused, by the same guard as `canvas_edit`. A turn with nobody watching must not hang on a
+question about showing a file to the person it is for, and there is nothing for a person to weigh that the tool has
+not already decided.
+
+`canvas_read` is on it for the same reason: it reads one document that is already in the caller's own worktree,
+through `CanvasFile`, and writes nothing. It goes through the workspace's document model rather than the tab, so
+it answers with the tab closed.
+
+`canvas_edit` and `canvas_render` are on it for the same reason, each decided on its own. `canvas_edit` does write,
+but only the one canvas document in the caller's own worktree that `CanvasFile` resolves, through the same keeper an
+owner edit goes through: every update or delete must carry the revision the agent read, so an edit the owner made in
+the meantime wins and the agent is told, and every call is one undo step the owner can take back. A turn with nobody
+watching must not hang on a question about editing a file, and the keeper refuses what a plain file write would not
+notice: a document under a hold. An orchestrator has `Edit` and `Write` taken away, so `canvas_edit` is on the list
+`OrchestratorToolGuard` refuses, with a reason of its own, and the tool refuses it too. `canvas_render` reads the
+document and draws one frame, and writes nothing.
+
+`canvas_comment_resolve` is on it for its own reason. It writes the state and the answer of one comment in one canvas
+document in the caller's own worktree, through the same keeper and the same holds as `canvas_edit`, and it changes
+nothing the owner drew and no undo step. A comment that goes unanswered only because a turn with nobody watching hung
+on a question is the failure the tool exists to prevent. The caller has to be the chat the comment's delivery row was
+sent to: a comment sent to another chat, not sent yet though it waits in that chat's queue, or whose row has gone is refused and left as it is, because
+an answer from a chat that was never asked would close the comment without the work and could not be taken back. The
+owner can resend what is left. It is deliberately not on the list `OrchestratorToolGuard` refuses: an orchestrator
+that cannot edit a canvas has to be able to decline with that reason, or the owner is told only that the comment went
+unanswered.
+
+A comment reaches a chat as a comment from the owner only when the owner sent it. The app remembers, for this run, the
+id and the text of what the owner added, edited or pressed Send or Resend on, and uses that up when the comment takes a
+delivery row. Anything else queued in a file with no row, whether it arrived by a clone, a checkout or an agent writing
+the file, and whatever id it carries, waits until the owner opens its mark, reads it and presses Send. `canvas_read`
+opening such a file sends nothing, and `canvas_edit` has no operation that adds a comment. The cost is that a comment
+left with no chat needs that click after a restart.
+
+For the same reason, nothing `canvas_read` returns is the owner's word. A branch can carry a file with a comment already
+marked queued, and that comment is listed under `openComments` next to element text and frame names from the same file,
+all read by an agent with auto-approved tools. So the tool describes them as what the file holds, and both its answer
+and the conflict answer of `canvas_edit` are quoted between the untrusted content markers, with a fixed `fromFile` field
+saying that this is data and not instructions, and that a comment is acted on only when Unified Dev sends it as a
+message. A sentence a canvas tool writes itself, a refusal or a warning, names what came from the file in double quotes
+with control characters folded away and long lists shortened, so a name in a document cannot pose as the tool speaking.
+`canvas_render` says the same of the text drawn in its picture.
+
+`canvas_read` also limits itself, because a document is written by whoever wrote the file and an answer that size would
+be read whole. Frames and open comments have a share of the limit each, a value over 2,000 characters is shortened,
+elements past the limit wait for the next `offset` and frames past their share for the next `frameOffset`, so every
+frame and element can be reached, and `cut` counts everything left out so an agent is never answered with part of a
+document and told nothing. Open comments past their share are only counted: they are not what an agent acts on, because
+a comment reaches it as a message.
+
+A delivery row keeps the text it was queued with. When it is about to be sent, the document has to hold exactly one
+comment naming that row, quoting the same text; otherwise the row is dropped, nothing is sent, and the comment is shown
+as unanswered for the owner to read and resend. The position and the names may change, because anchors move and frames
+are renamed, so the position is a plain line of its own, written by the app, and the names are in the lines marked as read from the file.
 
 The four pane tools are on the list because each adds or changes something the reader can see and
 undo, in the workspace whose agent is asking and nowhere else. None of them may draw a browser,
@@ -1245,20 +1351,33 @@ one on every ask, reading the role from the store each time.
 
 | Answer | What gets it |
 | --- | --- |
-| Unified Dev allows it, once, before anyone is told | Every clause is on `OrchestratorReadList`, `OrchestratorShellParser` found nothing it cannot read literally, and any directory named in the ask is the worktree |
+| Unified Dev allows it, once, before anyone is told | Every clause is on `OrchestratorReadList`, `OrchestratorShellParser` found nothing it cannot read literally, any directory named in the ask is the worktree, and a `cmd` beside the command names the same command |
 | Refused | Any clause is a git verb in `OrchestratorShellJudge.gitVerbs` |
 | Left for the agent and the owner | Everything else, including every command neither list names |
 
-The list is closed, so a command nobody thought about is never answered by Unified Dev. `ls`, `cat`,
-`grep`, `head`, `tail`, `wc`, `pwd` and `echo` take any argument but `--libxo`, which on macOS can
-load an encoder from a path, because none of them has a flag that writes. `git` and `gh` are lists of verbs, each with its own closed set of flags, because git
+The list is closed, so a command nobody thought about is never answered by Unified Dev, and so is
+every flag. `ls`, `cat`, `grep`, `head`, `tail`, `wc`, `pwd` and `echo` each take a closed set
+of flags, single letter ones running together as `-la` for `ls`, `cat`, `grep` and `wc`, and anything else is asked: a flag that
+follows a file or waits on it, one that reads a second file, `--libxo`, which on macOS can load an
+encoder from a path. A word that is not a flag must name a path inside the worktree for the six
+that read files, so an absolute path or a `..` is asked, because a read nobody saw could otherwise
+reach any file this user can open. The rule reads the words and not the disk, so a symbolic link
+inside the worktree is followed, and a directory changed by an approved `cd` moves what a relative
+path names. `echo` takes `-n` and any words. A word given to `git` that is not a flag is held to the same
+rule, because `git diff` with a path outside the repository compares files as if `--no-index` had
+been given. `git` is a list of verbs, each with its own closed set of flags, and `gh` a list of verbs sharing one closed set, because git
 has `--output` on a verb that otherwise reads, `-c` and `-C` that bring in other configuration, and
 `gh pr view --web` opens a browser in front of the owner. Nothing after a `--` may start with a dash,
 because git treats it as a file while a word by word reading would take it for a flag, and `--format`
 and `--sort` need their `=` on `git branch` and `git tag`, because the bare form consumes the next
 word and `--format --list new` creates a branch. `gh` takes no `--repo` and no URL, and `gh repo view`
 is not on the list, since each can name a host, and a read that ran unasked could then carry what it
-read to that host. `gh api` is not on it, since one flag turns it into a write. Neither is `sed`,
+read to that host. `gh` takes `--json` and no `--jq` or `--template`, because both filter
+languages can read the process environment, and no `--search`, because its text goes to GitHub as
+written, so a read could carry whatever the agent had read before it. The remaining filters and a `gh`
+positional also reach the API of this repository's host, which is what is left open: they take a
+word rather than a query, and no flag on the list names another host. Neither is `gh run watch`, `--watch` or `--interval`, nor `tail -f`, because each holds the call until
+what it follows ends or the Bash timeout cuts it off. `gh api` is not on it, since one flag turns it into a write. Neither is `sed`,
 `find`, `awk`, an interpreter, or any form of `git stash` or `git apply`.
 
 The parser works over Unicode scalars rather than Swift characters, so a `\r\n` or a combining mark
@@ -1266,7 +1385,12 @@ cannot hide an operator inside one grapheme. A clause counts as plain only with 
 would reinterpret: an unquoted character outside letters, digits and `_-./,:=+@%~` stops it, and so
 does `$` or a backtick inside double quotes, a subshell, a lone `&`, or a redirection to anything but
 `/dev/null`, `/dev/stdout`, `/dev/stderr` or another descriptor. A descriptor before `>` is one digit,
-because zsh reads a longer number as an argument and bash does not. `sh -c`, `cd`, `git -C` and a leading
+because zsh reads a longer number as an argument and bash does not. One after `>&` is a number or a
+lone `-`, because zsh takes anything else, a dash in front of a number among it, for a file name and
+writes it. The appending form takes no descriptor at all, because zsh reads what follows it as a
+file. A word that begins with `~` or `=`, or has `~` straight after a `=` or a `:`, stops it too,
+because the shell replaces those with a home directory or a command's path, and quotes with nothing
+in them do not change where a word begins. `sh -c`, `cd`, `git -C` and a leading
 `VAR=value` are never answered either, which is the cost of the list.
 
 A listed read is answered on the way in, the way a self-approved bridge tool is: no question is
@@ -1281,11 +1405,71 @@ What happens to the rest depends on the agent:
 | --- | --- | --- |
 | Claude, run by Unified Dev | `permissions.ask` raises it and the owner answers | `mcp__*` in `permissions.ask` outranks an allow rule in the owner's settings: measured on claude 2.1.309 with a stdio server and an allow rule for its tool, the tool ran unasked without that entry and raised `can_use_tool` with it. A stored approval does not answer it |
 | Claude in a terminal chat | Claude asks in the terminal, for listed reads too, because no runner sits between them | The same `permissions.ask` |
-| Codex | Runs in the read only sandbox, and reaches the owner only when it asks to leave it. It is answered only when the request names the command its item does. A command Codex wraps in its own shell is never answered | No approval request exists for an MCP tool call, so nothing here judges one |
+| Codex | Runs in the read only sandbox, and reaches the owner only when it asks to leave it. It is answered only when the request is a command request about running that command, names the command a known item runs, and carries no field beyond those known to change nothing about what runs; anything else goes to the owner, including a field added by a later version of Codex. A command Codex wraps in its own shell is never answered | No approval request exists for an MCP tool call, so nothing here judges one |
 | Grok | Asked on every call | Asked, and so are the bridge's own tools, since only Claude's runner answers those |
 
 The same judge decides the Run button on a code block: in an orchestrator it is offered only for a
 command on the list, through `CodeBlockCommand.mayRun`, and the copy button stays.
+
+### Running commands without asking
+
+A project's settings carry a switch, **Run commands without asking**, in the Workspaces pane. It is
+off by default, and off changes nothing above. It belongs to one project: another project's
+orchestrator does not inherit it, and a workspace that is not the orchestrator is not affected.
+
+On, a shell command that would have stopped for the owner is judged by `OrchestratorUnaskedJudge`,
+which reads the words of the whole command, including what sits inside a compound, a command
+substitution, a here document, `eval`, `sh -c` and programs known to run other programs:
+
+| Answer | What gets it |
+| --- | --- |
+| Refused | Anywhere in the command: a git verb in `OrchestratorShellJudge.gitVerbs`, `gh pr merge`, `gh pr checkout`, a redirection to a file, a program on the list of those that write files, or one whose flag says it writes or edits in place |
+| Left for the owner | The judge cannot read it, or the program is on `OrchestratorUnaskedPrograms.leftWithTheOwner`: a command name or git verb only known at run time, a script on standard input or inline, an environment variable set for a command, git flags that bring in other configuration, a git verb it does not know, a `gh` command off its short list, `gh` deleting or setting something, unterminated quoting, an ask with a field it does not know, or nesting and work beyond a fixed limit |
+| Unified Dev allows it, once | Everything else |
+
+The refusal outranks the other two, so one refused clause refuses the whole command. Tools other
+than the shell are untouched: file edits and terminals stay refused and another server's MCP tool
+still asks. The orchestrator still does not implement, and the refusal says so to the model.
+
+**The judge is its own reading of shell grammar and not the shell.** A construct it cannot place asks,
+but a construct it misreads can pass, so its refusals are a net rather than a wall, and they are not
+what makes the switch safe to turn on.
+
+**A program off those lists passes, because the owner asked for this to mean everything else.** The
+judge reads words and runs nothing, so what a program does once it is running is beyond it. A script
+or a build in the worktree can write files, or commit and push, and no list names every way to do
+that. The limits on paths and directories that hold the read list do not hold here, so a command
+can read outside the worktree and send what it read over the network. That is the cost of turning
+the switch on, along with the one the settings footer names: text planted in a file or an issue the
+orchestrator reads can run commands the owner does not see first. Each one still leaves its tool
+row in the transcript. The Run button on a code block is not affected.
+
+**The setting is read on every ask.** `SessionGrants` reads it from the store each time it judges a
+command, so turning it off applies to the next ask, in a chat already running, with no restart.
+
+| Agent | With the switch on |
+| --- | --- |
+| Claude, run by Unified Dev | Honoured, through `can_use_tool` |
+| Claude in a terminal chat | **Not honoured.** No runner sits between Claude and the owner, so it keeps asking in the terminal, as it does for listed reads. Honouring it would mean launching with a wider permission, which could not be withdrawn until the chat restarts |
+| Codex | Honoured for a command request about running what its known item runs, the rule that already holds answers there, and a command Codex wraps in its own shell is judged by what it wraps. A request outside that rule goes to the owner. A command inside the read only sandbox never asks, so none of this touches it |
+| Grok | Honoured, through `session/request_permission`. An ask with a field the guard does not know goes to the owner |
+
+**Only the app writes it.** It lives in the `settings` table of the app's database, under
+`OrchestratorUnaskedCommands.key(repoID:)`, and never in a settings file, because a file in a worktree
+is one an agent can edit. `SettingsLoader` knows no such key, no bridge tool writes settings, and
+`make lint` holds that the one call that saves it stays in the settings pane, and that `setSetting` appears
+nowhere in `Sources/Core/Bridge`, in `AppModel` or in a file that serves a tool. `OrchestratorUnaskedReachTests`
+calls every bridge tool's handler, in every role it is served to, with every field set to one of six values
+naming the switch or its owner, then with only the fields it requires and with every field, read from their
+names and filled with the quick prompt and suggestion ids that exist, and reads the switch back from the store
+after each call. It then cuts, sets up, archives, restores and opens a workspace with settings files planted in
+the project, which is where those paths read them, and loads the worktree's planted files through
+`SettingsLoader` directly, reading the switch back after each step. What it does not reach: the app's own
+closures behind the tools `AppModel.bridgeToolbox()` adds, which the suite replaces with stubs, so for those the
+handler is proven and the closure is held only by the lint above, one file deep; and the home directory's
+settings files, which the core reads through the same `SettingsLoader` the suite calls directly. `make lint`
+refuses an app tool the suite does not build. `sqlite3` and `defaults` are left with the owner. The database is still a file this user owns, so a program already running
+as this user can open it, which no app can prevent.
 
 ## 6. How each CLI is told the bridge exists
 

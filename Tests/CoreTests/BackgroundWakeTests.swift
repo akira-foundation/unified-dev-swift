@@ -142,7 +142,7 @@ struct BackgroundWakeStorageTests {
     func storedWhenIdle() async throws {
         let store = try makeTestStore("wake-idle")
         let session = try await makeSession(store)
-        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store)
+        let runner = AgentRunner(workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session))
 
         await runner.ingest(try line)
 
@@ -157,7 +157,8 @@ struct BackgroundWakeStorageTests {
         let store = try makeTestStore("wake-running")
         let session = try await makeSession(store)
         let runner = AgentRunner(
-            workspacePath: "/tmp/w", session: session.with { $0.apply(.turnStarted) }, store: store
+            workspacePath: "/tmp/w", session: session.with { $0.apply(.turnStarted) }, store: store,
+            segmentID: try await activeSegmentID(store, session)
         )
 
         await runner.ingest(try line)

@@ -1,9 +1,37 @@
 import Foundation
 
 public extension PreviewScenario {
+    static let initialProfileName = "Unified"
+
+    private var declaredProfileNames: Set<String> {
+        Set(profiles.map { $0.name.lowercased() }).union([Self.initialProfileName.lowercased()])
+    }
+
+    private var profileProblems: [String] {
+        var problems: [String] = []
+        var seen = Set([Self.initialProfileName.lowercased()])
+        for profile in profiles where !seen.insert(profile.name.lowercased()).inserted {
+            problems.append("profile \"\(profile.name)\" is declared twice, or is the profile Unified already has")
+        }
+        for profile in profiles where profile.name.trimmingCharacters(in: .whitespaces).isEmpty {
+            problems.append("a profile has no name")
+        }
+        let declared = declaredProfileNames
+        for project in projects {
+            if let name = project.profile, !declared.contains(name.lowercased()) {
+                problems.append("project \"\(project.name)\" is in profile \"\(name)\", which the scenario does not declare")
+            }
+        }
+        if let name = activeProfile, !declared.contains(name.lowercased()) {
+            problems.append("the active profile \"\(name)\" is not declared by the scenario")
+        }
+        return problems
+    }
+
     var problems: [String] {
         var problems: [String] = []
         if projects.isEmpty { problems.append("the scenario names no projects") }
+        problems += profileProblems
         var seen = Set<String>()
         for project in projects {
             let name = project.name
@@ -64,6 +92,18 @@ public extension PreviewScenario {
                             + "hours ago, and a preview cannot seed work done in the future"
                     )
                 }
+                if let hours = workspace.archivedAgo, hours < 0 || !workspace.state.isArchived {
+                    problems.append(
+                        "workspace \"\(workspace.name)\" in \"\(name)\" asks for an archivedAgo of \(hours) "
+                            + "hours, and only an archived workspace can have one, never in the future"
+                    )
+                }
+                if !(0...Workspace.recordMegabyteCeiling).contains(workspace.recordMegabytes) {
+                    problems.append(
+                        "workspace \"\(workspace.name)\" in \"\(name)\" asks for \(workspace.recordMegabytes) "
+                            + "recordMegabytes, and the preview seeds between 0 and \(Workspace.recordMegabyteCeiling)"
+                    )
+                }
                 if workspace.state.isArchived, !workspace.changes.isEmpty || workspace.spareFiles > 0 {
                     problems.append(
                         "workspace \"\(workspace.name)\" in \"\(name)\" is seeded archived and also carries "
@@ -112,11 +152,31 @@ public extension PreviewScenario {
 
     var accountProblems: [String] {
         var found: [String] = []
-        var providers = Set<AgentKind>()
+        var ids = Set<AgentAccountID>()
         for account in accounts {
             found += account.problems
-            if !providers.insert(account.provider).inserted {
-                found.append("\(account.provider.label) is given two accounts, and it can hold one")
+            if !ids.insert(account.id).inserted {
+                found.append(account.label == nil
+                    ? "\(account.provider.label) is given two default accounts, and it can hold one"
+                    : "\(account.provider.label) account \"\(account.label ?? "")\" is declared twice")
+            }
+        }
+        for account in accounts {
+            guard let named = account.profile, !declaredProfileNames.contains(named.lowercased()) else { continue }
+            found.append("an account names a profile, \(named), that the scenario does not declare")
+        }
+        for project in projects {
+            for (key, label) in project.accounts.sorted(by: { $0.key < $1.key }) {
+                guard let provider = AgentKind(rawValue: key) else {
+                    found.append("project \"\(project.name)\" chooses an account for \"\(key)\", which is no agent")
+                    continue
+                }
+                if !accounts.contains(where: { $0.provider == provider && $0.label == label }) {
+                    found.append(
+                        "project \"\(project.name)\" chooses \(provider.label) account \"\(label)\", "
+                            + "which the scenario does not declare"
+                    )
+                }
             }
         }
         return found
@@ -145,9 +205,29 @@ public extension PreviewScenario {
                 }
                 problems += question.problems
             }
-            for line in chat.messages where line.question == nil && line.text.isEmpty {
+            problems += handoffProblems(in: chat)
+            for line in chat.messages where line.question == nil && line.handoff == nil && line.text.isEmpty {
                 problems.append("a line in \"\(chat.title)\" says nothing and asks nothing")
             }
+        }
+        return problems
+    }
+
+    internal static func handoffProblems(in chat: Chat) -> [String] {
+        var problems: [String] = []
+        var running = chat.agent ?? .claudeCode
+        for line in chat.messages {
+            guard let handoff = line.handoff else { continue }
+            if line.from == .user || !line.text.isEmpty || line.question != nil {
+                problems.append("a move to another agent in \"\(chat.title)\" also carries prose or a question")
+            }
+            if handoff.model.trimmingCharacters(in: .whitespaces).isEmpty {
+                problems.append("a move to \(handoff.agent.label) in \"\(chat.title)\" names no model")
+            }
+            if handoff.agent == running {
+                problems.append("\"\(chat.title)\" already runs under \(running.label) where it is moved to it")
+            }
+            running = handoff.agent
         }
         return problems
     }

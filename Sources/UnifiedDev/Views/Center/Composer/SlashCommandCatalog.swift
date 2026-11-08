@@ -16,6 +16,21 @@ final class SlashCommandCatalog {
     private var codexCatalog: CodexSkillCatalog?
     private var codexPath: String?
 
+    var account: AgentAccountHome? {
+        didSet {
+            guard account != oldValue else { return }
+            restartScan()
+            codexPath = nil
+        }
+    }
+
+    var claudeAccount: AgentAccountHome? {
+        didSet {
+            guard claudeAccount != oldValue else { return }
+            restartScan()
+        }
+    }
+
     static let stalenessWindow: TimeInterval = 3
 
     private static var byPath: [String: SlashCommandCatalog] = [:]
@@ -25,6 +40,14 @@ final class SlashCommandCatalog {
         let made = SlashCommandCatalog()
         byPath[workspacePath] = made
         return made
+    }
+
+    private func restartScan() {
+        running?.cancel()
+        running = nil
+        runningPath = nil
+        loadedPath = nil
+        loadedAt = nil
     }
 
     func load(workspacePath: String) async {
@@ -60,16 +83,18 @@ final class SlashCommandCatalog {
             task = running
         } else {
             let home = NSHomeDirectory()
-            let codexHome = Shell.environment()["CODEX_HOME"]
+            let claudeHome = claudeAccount?.directory.path
+            let codexHome = AgentAccountEnvironment.codexHome(for: account, inheriting: Shell.environment())
             if codexPath != workspacePath {
-                codexCatalog = CodexSkillCatalog.live(project: workspacePath, codexHome: codexHome)
+                codexCatalog = CodexSkillCatalog.live(project: workspacePath, account: account)
                 codexPath = workspacePath
             }
             let codex = codexCatalog
             task = Task.detached(priority: .utility) {
                 let skills = await codex?.skills()
                 return SlashCommandIndex.discover(
-                    home: home, project: workspacePath, codexSkills: skills, codexHome: codexHome
+                    home: home, project: workspacePath, codexSkills: skills,
+                    codexHome: codexHome, claudeHome: claudeHome
                 )
             }
             running = task

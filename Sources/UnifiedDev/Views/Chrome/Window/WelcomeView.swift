@@ -185,6 +185,7 @@ struct WelcomeView: View {
             executable: executable,
             arguments: Array(parts.dropFirst()),
             directory: AgentScratchDirectory.current(),
+            account: nil,
             onExit: { _ in Task { @MainActor in onExit() } }
         )
     }

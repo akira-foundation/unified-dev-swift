@@ -26,6 +26,11 @@ enum Palette {
         return NSColor(white: 0, alpha: SearchPanelLayout.dim(isDark: isDark))
     })
 
+    static let floatingCard = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+            ? NSColor(white: 0.2, alpha: 1)
+            : NSColor(white: 1, alpha: 1)
+    })
     static let selected = Color(nsColor: .unemphasizedSelectedContentBackgroundColor)
     static let controlAccent = Color(nsColor: .controlAccentColor)
     static let selectedEmphasized = controlAccent

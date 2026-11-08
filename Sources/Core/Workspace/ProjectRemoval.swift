@@ -1,7 +1,7 @@
 import Foundation
 
 public enum ProjectRemoval {
-    public static func consequences(workspaces: [Workspace], runningAgents: Int) -> String {
+    public static func consequences(workspaces: [Workspace], runningAgents: Int, canvasLosses: [String] = []) -> String {
         let active = workspaces.filter { $0.state == .active }.count
 
         var text = "Unified Dev forgets this project"
@@ -22,6 +22,8 @@ public enum ProjectRemoval {
         if active > 0 {
             text += ", and the worktrees stay checked out, so they have to be removed with `git worktree remove` if they are no longer wanted"
         }
-        return text + "."
+        text += "."
+        guard !canvasLosses.isEmpty else { return text }
+        return text + "\n\nThis would lose:\n" + canvasLosses.map { "\u{2022} \($0)" }.joined(separator: "\n")
     }
 }

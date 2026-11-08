@@ -12,7 +12,7 @@ extension AppModel {
             workspaces: workspaces,
             running: runningWorkspaceIDs,
             waiting: waitingWorkspaceIDs,
-            runningAgents: workingAgentCount,
+            agentsByWorkspace: workingAgentsByWorkspace,
             quotas: quotas,
             accounts: accounts,
             unanswered: unansweredQuotaProviders,
@@ -25,8 +25,12 @@ extension AppModel {
                 runningCount: runningAgentCount,
                 at: now
             ),
-            now: now
+            now: now,
+            offers: quotaAccountOffers(at: now),
+            askIsWorking: askStatus == .running,
+            profile: activeProfile
         )
+        .scoped(to: profileWorkspaces)
     }
 
     func revealRunningOnHome() {

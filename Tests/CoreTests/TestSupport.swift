@@ -170,6 +170,10 @@ func makeTestStore(_ label: String = "store") throws -> Store {
     try Store(path: TestScratch.unique(label) + ".sqlite")
 }
 
+func activeSegmentID(_ store: Store, _ session: Session) async throws -> SessionSegmentID {
+    try #require(try await store.activeSegment(sessionID: session.id)).id
+}
+
 func waitUntil(
     _ description: Comment,
     within timeout: Duration = .seconds(6),
@@ -223,10 +227,18 @@ struct TempRepo {
         for worktree in linkedWorktrees() {
             try? FileManager.default.removeItem(atPath: worktree)
         }
-        let managed = WorkspaceManager.workspacesRoot
-            .appendingPathComponent((path as NSString).lastPathComponent, isDirectory: true)
-        try? FileManager.default.removeItem(at: managed)
+        removeManagedFolders()
         try? FileManager.default.removeItem(atPath: path)
+    }
+
+    func removeManagedFolders(under root: URL = WorkspaceManager.workspacesRoot) {
+        let name = (path as NSString).lastPathComponent
+        guard path.hasPrefix(TestProcessScratch.root), UUID(uuidString: String(name.suffix(36))) != nil else { return }
+        let manager = FileManager.default
+        let profileFolders = (try? manager.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? []
+        for folder in [root] + profileFolders {
+            try? manager.removeItem(at: folder.appendingPathComponent(name, isDirectory: true))
+        }
     }
 
     private func linkedWorktrees() -> [String] {
@@ -302,5 +314,12 @@ extension AgentEvent: CustomTestStringConvertible {
     public var testDescription: String {
         let body = String(decoding: raw.prefix(160), as: UTF8.self)
         return body.isEmpty ? "\(kind)" : "\(kind) \(body)"
+    }
+}
+
+extension WorkspaceManager {
+    @discardableResult
+    func addRepository(at path: String) async throws -> Repo {
+        try await addRepository(at: path, profileID: .initial)
     }
 }

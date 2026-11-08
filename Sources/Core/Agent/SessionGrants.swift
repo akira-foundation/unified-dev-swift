@@ -25,14 +25,19 @@ final class SessionGrants: Sendable {
     }
 
     func refusal(toolName: String, input: JSONValue) async -> String? {
-        guard let refusal = OrchestratorToolGuard.refusal(toolName: toolName, input: input) else { return nil }
-        return await isOrchestrator() ? refusal : nil
+        guard let workspaceID, let workspace = try? await store.workspace(id: workspaceID),
+              workspace.isOrchestrator else { return nil }
+        let runsUnasked = await OrchestratorUnaskedCommands.isOn(repoID: workspace.repoID, in: store)
+        return OrchestratorToolGuard.refusal(toolName: toolName, input: input, runsUnasked: runsUnasked)
     }
 
     func answersItself(toolName: String, input: JSONValue) async -> Bool {
         guard let workspaceID, let workspace = try? await store.workspace(id: workspaceID),
               workspace.isOrchestrator else { return false }
-        return OrchestratorToolGuard.answersItself(toolName: toolName, input: input, worktree: workspace.path)
+        let runsUnasked = await OrchestratorUnaskedCommands.isOn(repoID: workspace.repoID, in: store)
+        return OrchestratorToolGuard.answersItself(
+            toolName: toolName, input: input, worktree: workspace.path, runsUnasked: runsUnasked
+        )
     }
 
     func matching(_ ask: PermissionAsk) async -> [PermissionGrant]? {

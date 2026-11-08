@@ -53,8 +53,13 @@ extension AppModel {
         try? await store?.workspaceMessage(id: id)
     }
 
+    func canRevealWorkspace(_ id: WorkspaceID?) -> Bool {
+        guard let id else { return false }
+        return workspaces.contains { $0.id == id }
+    }
+
     func revealWorkspace(_ id: WorkspaceID?) {
-        guard let id, workspaces.contains(where: { $0.id == id }) else { return }
+        guard let id, canRevealWorkspace(id) else { return }
         selection = .workspace(id)
     }
 

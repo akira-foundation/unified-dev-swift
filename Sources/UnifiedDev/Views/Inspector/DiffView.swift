@@ -118,6 +118,7 @@ struct DiffView: View {
         case notice(symbol: String, title: String, detail: String)
         case gated(FileDiff, changed: Int, ignoringWhitespace: Bool)
         case ready(DiffDocument)
+        case image(ImageDiffSides)
     }
 
     private struct LoadID: Hashable {
@@ -127,6 +128,7 @@ struct DiffView: View {
         var scope: DiffScope
         var isCollapsed: Bool
         var ignoringWhitespace: Bool
+        var imageRevision: String?
     }
 
     private struct PendingDiscard: Equatable {
@@ -242,7 +244,9 @@ struct DiffView: View {
         .task(id: LoadID(
             language: effectiveLanguage,
             workspaceID: model.workspace.id, file: file, scope: model.diffScope,
-            isCollapsed: isCollapsed, ignoringWhitespace: ignoresWhitespace
+            isCollapsed: isCollapsed, ignoringWhitespace: ignoresWhitespace,
+            imageRevision: ImageDiff.isOffered(path: file.path, isBinary: file.isBinary)
+                ? model.viewedRevisions[file.path] : nil
         )) {
             guard !isCollapsed else {
                 priming?.cancel()
@@ -262,6 +266,10 @@ struct DiffView: View {
         }
         .onDisappear {
             priming?.cancel()
+            if case .image = phase {
+                phase = .loading
+                presented = nil
+            }
             if navigationTarget { onNavigationLayout?(false) }
         }
         .alert(
@@ -314,6 +322,7 @@ struct DiffView: View {
         ) {
             sourceContent
         }
+        .markdownLinkActions(TranscriptLink.actions(for: model, opensSourceLinks: false))
     }
 
     @ViewBuilder
@@ -364,7 +373,7 @@ struct DiffView: View {
         case .loading:
             LoadingView("Reading the diff")
                 .frame(
-                    maxWidth: .infinity, minHeight: embeddedWidth == nil ? nil : 120,
+                    maxWidth: .infinity, minHeight: loadingMinHeight,
                     maxHeight: .infinity
                 )
         case let .notice(symbol, title, detail):
@@ -373,6 +382,8 @@ struct DiffView: View {
             gate(fileDiff, changed: changed, ignoringWhitespace: ignoringWhitespace)
         case let .ready(document):
             diff(document)
+        case let .image(sides):
+            ImageDiffView(filename: file.filename, sides: sides, isEmbedded: embeddedWidth != nil)
         }
     }
 
@@ -417,7 +428,7 @@ struct DiffView: View {
             )
             return
         }
-        if parsed != source || preparedWhitespace != ignoringWhitespace || presentedLanguage != effectiveLanguage {
+        if showsImage(of: parsed) || parsed != source || preparedWhitespace != ignoringWhitespace || presentedLanguage != effectiveLanguage {
             await apply(parsed, ignoringWhitespace: ignoringWhitespace)
             guard !Task.isCancelled else { return }
             source = parsed
@@ -444,6 +455,14 @@ struct DiffView: View {
             )
             return
         }
+        if showsImage(of: fileDiff) {
+            let sides = await model.imageSides(for: file)
+            guard !Task.isCancelled else { return }
+            if !sides.columns.isEmpty {
+                phase = .image(sides)
+                return
+            }
+        }
         if let notice = Self.notice(for: fileDiff, file: file) {
             phase = notice
             return
@@ -455,6 +474,15 @@ struct DiffView: View {
             return
         }
         await present(fileDiff, raw: raw, ignoringWhitespace: ignoringWhitespace)
+    }
+
+    private var loadingMinHeight: CGFloat? {
+        guard embeddedWidth != nil else { return nil }
+        return ImageDiff.isOffered(path: file.path, isBinary: file.isBinary) ? ImageDiffView.embeddedHeight : 120
+    }
+
+    private func showsImage(of fileDiff: FileDiff) -> Bool {
+        ImageDiff.isOffered(path: file.path, isBinary: fileDiff.isBinary || file.isBinary)
     }
 
     private func revert() {

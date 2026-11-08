@@ -3,6 +3,14 @@ import SwiftUI
 enum SidebarMetrics {
     static let headerLead: CGFloat = 8
 
+    static let switcherEdge: CGFloat = 18
+
+    static let navIconSize: CGFloat = 16
+
+    static let navIconColumn: CGFloat = 21
+
+    static let navGap: CGFloat = 7
+
     static let caretGutter: CGFloat = 11
 
     static let rowIndent: CGFloat = caretGutter + Metrics.spacing
@@ -15,7 +23,9 @@ enum SidebarMetrics {
 
     static let subagentIndent: CGFloat = caretGutter
 
-    static let orchestratorChildIndent: CGFloat = markColumn + markGap
+    static func orchestratorChildIndent(foldsMarkColumn: Bool) -> CGFloat {
+        markColumn + markGap + (foldsMarkColumn ? caretGutter : 0)
+    }
 
     static func crewIndent(rowIndent: CGFloat) -> CGFloat {
         rowIndent + markColumn + markGap - markColumn / 2

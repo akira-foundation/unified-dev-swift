@@ -42,7 +42,7 @@ enum MarkdownTableProbe {
             styleMask: [.borderless], backing: .buffered, defer: false
         )
         window.contentViewController = controller
-        for (sampleIndex, sample) in samples.enumerated() {
+        for sample in samples {
             for streaming in [false, true] {
                 for scale: CGFloat in [1, 1.4] {
                     var wideHeight: CGFloat = 0
@@ -64,29 +64,13 @@ enum MarkdownTableProbe {
                         } else {
                             check(size.height > wideHeight, "narrow cells did not wrap onto more lines")
                         }
-                        if !streaming {
-                            let links = textViews(in: host)
-                            check(!links.isEmpty, "the native linked cell was missing")
-                            for link in links {
-                                let frame = link.convert(link.bounds, to: host)
-                                check(frame.minX >= -1 && frame.maxX <= width + 1, "linked cell extended beyond the table")
-                                let font = link.textStorage?.attribute(.font, at: 0, effectiveRange: nil) as? NSFont
-                                check(font?.pointSize == (12 * scale).rounded(), "table did not use the smaller label font")
-                            }
-                        }
-                        if sampleIndex == 0, streaming, scale == 1, width == 680 {
-                            let renderer = ImageRenderer(content:
-                                MarkdownView(sample, isStreaming: true)
-                                    .frame(width: width)
-                                    .background(Palette.windowBackground)
-                            )
-                            renderer.scale = 2
-                            if let image = renderer.nsImage,
-                               let tiff = image.tiffRepresentation,
-                               let bitmap = NSBitmapImageRep(data: tiff),
-                               let png = bitmap.representation(using: .png, properties: [:]) {
-                                try? png.write(to: URL(filePath: "/tmp/unifieddev-markdown-table-preview.png"))
-                            }
+                        let answers = MarkdownSelectionProbe.textViews(in: host)
+                        check(!answers.isEmpty, "the answer's text view was missing")
+                        for answer in answers {
+                            let frame = answer.convert(answer.bounds, to: host)
+                            check(frame.minX >= -1 && frame.maxX <= width + 1, "the answer extended beyond the table")
+                            let font = answer.textStorage?.attribute(.font, at: 0, effectiveRange: nil) as? NSFont
+                            check(font?.pointSize == (12 * scale).rounded(), "table did not use the smaller label font")
                         }
                     }
                 }
@@ -98,10 +82,6 @@ enum MarkdownTableProbe {
             FileHandle.standardOutput.write(data)
         }
         exit(failures.isEmpty ? 0 : 1)
-    }
-
-    private static func textViews(in view: NSView) -> [LinkTextView] {
-        (view as? LinkTextView).map { [$0] } ?? view.subviews.flatMap { textViews(in: $0) }
     }
 }
 #endif

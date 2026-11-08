@@ -36,7 +36,7 @@ struct CodexRunnerPersistenceFailureTests {
         let runner = CodexRunner(
             workspacePath: "/tmp/w",
             session: session,
-            store: store,
+            store: store, segmentID: try await activeSegmentID(store, session),
             makeClient: { configuration in
                 CodexClient(configuration: configuration, makeProcess: box.factory)
             }
@@ -54,8 +54,7 @@ struct CodexRunnerPersistenceFailureTests {
                 try? await Task.sleep(for: .seconds(5))
                 return nil
             }
-            // swiftlint:disable:next redundant_nil_coalescing
-            let winner = await group.next() ?? nil
+            let winner = await group.next().flatMap { $0 }
             group.cancelAll()
             return winner
         }
@@ -83,7 +82,7 @@ struct CodexRunnerPersistenceFailureTests {
         let runner = CodexRunner(
             workspacePath: "/tmp/w",
             session: session,
-            store: store,
+            store: store, segmentID: try await activeSegmentID(store, session),
             makeClient: { configuration in
                 CodexClient(configuration: configuration, makeProcess: box.factory)
             }
@@ -102,8 +101,7 @@ struct CodexRunnerPersistenceFailureTests {
                 try? await Task.sleep(for: .seconds(2))
                 return nil
             }
-            // swiftlint:disable:next redundant_nil_coalescing
-            let winner = await group.next() ?? nil
+            let winner = await group.next().flatMap { $0 }
             group.cancelAll()
             return winner
         }

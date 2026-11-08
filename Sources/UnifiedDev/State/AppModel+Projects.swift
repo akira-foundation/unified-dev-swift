@@ -21,7 +21,11 @@ extension AppModel {
     private func addKnownRepository(at path: String) async -> Repo? {
         guard let manager else { return nil }
         do {
-            return try await manager.addRepository(at: path)
+            let repo = try await manager.addRepository(at: path, profileID: activeProfileID)
+            if let sentence = ProfileNotice.alreadyElsewhere(repo, active: activeProfileID, profiles: profiles) {
+                notice = Notice(message: sentence)
+            }
+            return repo
         } catch {
             alert = AppAlert(title: "Could not add that folder", message: error.readableMessage)
             return nil
@@ -52,11 +56,18 @@ extension AppModel {
 
     func projectRemoval(_ repo: Repo) -> Confirmation {
         let mine = workspaces.filter { $0.repoID == repo.id }
+        let losses = canvasArchiveQuestion(of: modelledWorkspaceIDs(of: repo))?.losses ?? []
+        acknowledgedCanvasLosses[repo.id] = losses
         return ProjectRemoval.confirmation(
             for: repo,
             workspaces: mine,
-            runningAgents: mine.count { isRunning($0) }
+            runningAgents: mine.count { isRunning($0) },
+            canvasLosses: losses
         )
+    }
+
+    private func modelledWorkspaceIDs(of repo: Repo) -> [WorkspaceID] {
+        workspaceModels.filter { $0.value.workspace.repoID == repo.id }.map(\.key)
     }
 
     func removeRepository(_ repo: Repo) async {
@@ -69,6 +80,13 @@ extension AppModel {
         }
 
         let doomed = workspaceModels.filter { $0.value.workspace.repoID == repo.id }
+        await flushCanvasDocuments(of: doomed.keys)
+        let question = canvasArchiveQuestion(of: doomed.keys)
+        let acknowledged = acknowledgedCanvasLosses.removeValue(forKey: repo.id) ?? []
+        if let question, CanvasArchiveQuestion.asks(question.losses, acknowledged: acknowledged) {
+            alert = AppAlert(title: "\(repo.name) was not removed", message: question.refusal)
+            return
+        }
         for (_, model) in doomed { model.stopEverything() }
         for (id, model) in doomed {
             await model.shutdown()

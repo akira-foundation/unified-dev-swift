@@ -26,12 +26,12 @@ public enum TranscriptSearchText {
     public static func isIndexed(_ kind: MessageKind) -> Bool {
         switch kind {
         case .user, .assistantText, .thinking, .toolUse, .toolResult, .error, .crew: true
-        case .result, .system, .notice, .permissionAsk, .suggestion: false
+        case .result, .system, .notice, .permissionAsk, .suggestion, .handoff: false
         }
     }
 
     public static func indexable(kind: MessageKind, payload: Data) -> String? {
-        guard isIndexed(kind) else { return nil }
+        guard isIndexed(kind), !AppRequest.isHidden(kind: kind, payload: payload) else { return nil }
         guard let json = JSONValue.parse(payload) else {
             return clean(String(decoding: payload, as: UTF8.self))
         }

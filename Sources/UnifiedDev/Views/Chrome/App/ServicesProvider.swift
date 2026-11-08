@@ -21,7 +21,7 @@ final class ServicesProvider: NSObject {
             return
         }
 
-        guard let app, !app.repos.isEmpty else {
+        guard let app, !app.profileRepos.isEmpty else {
             error.pointee = "Add a project folder to Unified Dev before starting a workspace." as NSString
             return
         }

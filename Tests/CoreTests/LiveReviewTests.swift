@@ -60,7 +60,7 @@ struct LiveReviewTests {
         let record = try #require(ReviewTurn.split(composed))
         #expect(record.chips.count == 2)
 
-        let runner = AgentRunner(workspacePath: workspace.path, session: session, store: store)
+        let runner = AgentRunner(workspacePath: workspace.path, session: session, store: store, segmentID: try await activeSegmentID(store, session))
         let collected = EventLog()
         let pump = Task { for await event in runner.events { collected.record(event) } }
         try await runner.send(composed)

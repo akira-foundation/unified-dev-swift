@@ -32,6 +32,10 @@ struct ComposerOption: Identifiable, Hashable {
         return result
     }
 
+    static func effortLabel(for id: String, in options: [ComposerOption]) -> String {
+        ComposerEffort.label(for: id, among: options.map { AgentModelEffort(id: $0.id, label: $0.label) })
+    }
+
     static func label(for id: String, in options: [ComposerOption]) -> String {
         if let match = options.first(where: { $0.id == id }) { return match.label }
         guard !id.isEmpty else { return options.first?.label ?? id }

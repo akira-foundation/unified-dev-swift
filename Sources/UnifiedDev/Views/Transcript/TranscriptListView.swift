@@ -35,12 +35,9 @@ struct TranscriptListView: View {
             window: TranscriptResume.window(
                 remembered,
                 tailStart: TranscriptTail.start(in: rows.lazy.map(\.kind)),
-                rowCount: rows.count
+                seqs: rows.lazy.map(\.seq)
             )
         ))
-        _resumed = State(
-            initialValue: TranscriptResume.isResuming(remembered) ? transcript.session.id : nil
-        )
     }
 
     @State private var topInset: CGFloat?
@@ -55,6 +52,7 @@ struct TranscriptListView: View {
     @State private var bubbleWidth = TranscriptBubbleWidth()
     @State private var hoverHost = TranscriptHoverHost()
     @State private var didPosition = false
+    @State private var placeReady: SessionID?
     @State private var showsSetup = false
     @State private var isGrowing = GeometryBox(false)
     @State private var isLiveScrolling = GeometryBox(false)
@@ -67,6 +65,7 @@ struct TranscriptListView: View {
     @State private var topPlace = GeometryBox<(seq: Int, delta: CGFloat)?>(nil)
     @State private var pinnedQuestion: PinnedQuestion?
     @State private var atLiveEnd = GeometryBox(false)
+    @State private var seen = GeometryBox<(session: SessionID, state: TranscriptPaneState)?>(nil)
 
     @State private var arrivals = TranscriptArrivals()
 
@@ -143,22 +142,22 @@ struct TranscriptListView: View {
     }
 
     private var mustReachIndex: Int? {
-        let seqs = transcript.rows.lazy.map(\.seq)
-        if let target = app.pendingTranscriptTarget,
-           target.workspaceID == transcript.workspace?.id {
-            return TranscriptWindow.index(ofSeqAtOrAfter: target.seq, in: seqs)
+        let target = app.pendingTranscriptTarget.flatMap {
+            $0.sessionID == transcript.session.id ? $0.seq : nil
         }
-        if let unread = transcript.firstUnreadSeq {
-            return TranscriptWindow.index(ofSeqAtOrAfter: unread, in: seqs)
+        return TranscriptResume.mustReach(
+            target: target,
+            remembered: memory?.remembered(session: transcript.session.id),
+            firstUnread: transcript.firstUnreadSeq
+        ).flatMap {
+            TranscriptWindow.index(ofSeqAtOrAfter: $0, in: transcript.rows.lazy.map(\.seq))
         }
-        return nil
     }
 
     private var revealedSeqs: Set<Int> {
         var out = expanded
         if let seq = opening?.seq { out.insert(seq) }
-        if let target = app.pendingTranscriptTarget,
-           target.workspaceID == transcript.workspace?.id {
+        if let target = app.pendingTranscriptTarget, target.sessionID == transcript.session.id {
             out.insert(target.seq)
         }
         if let unread = transcript.firstUnreadSeq { out.insert(unread) }
@@ -419,8 +418,9 @@ struct TranscriptListView: View {
             }
         ))
 
-        for delivery in transcript.waitingDeliveries {
-            let isLast = delivery.id == transcript.waitingDeliveries.last?.id
+        let waiting = transcript.waitingDeliveries.filter { SendingSlot.drawing(of: $0) != nil }
+        for delivery in waiting {
+            let isLast = delivery.id == waiting.last?.id
             let holdSentence = isLast ? transcript.holdSentence : nil
             let canSteer = transcript.canSteer(delivery)
             out.append(TranscriptTableEntry(
@@ -453,7 +453,7 @@ struct TranscriptListView: View {
                         )
                     case nil:
                         return AnyView(EmptyView())
-                    case .ownerTurn:
+                    case .ownerTurn, .stuckRequest:
                         break
                     }
                     return AnyView(
@@ -556,7 +556,7 @@ struct TranscriptListView: View {
             if let pinnedQuestion {
                 PinnedQuestionView(
                     question: pinnedQuestion,
-                    onOpen: { showPinnedQuestion(pinnedQuestion) }
+                    onOpen: { show(seq: pinnedQuestion.seq) }
                 )
                 .transition(.opacity)
             }
@@ -569,7 +569,8 @@ struct TranscriptListView: View {
                 onSideChat: sideChatModel.map { model in
                     { [transcript] in _ = model.openSideConversation(from: transcript, quoting: $0.text) }
                 },
-                onReply: { transcript.reply(with: $0.text) }
+                agent: transcript.session.agentKind.label,
+                onReply: { transcript.reply(with: $0.text, from: $0.seq, typed: $1) }
             )
         }
         .overlay {
@@ -621,15 +622,21 @@ struct TranscriptListView: View {
         .onChange(of: transcript.liveEndRequests, initial: true) { _, _ in
             honourLiveEndRequest()
         }
-        .onChange(of: transcript.session.id) { _, _ in
+        .onChange(of: transcript.messageRevealRequests) { _, _ in
+            if let seq = transcript.messageRevealSeq { show(seq: seq) }
+        }
+        .onChange(of: transcript.session.id) { left, _ in
             remember()
+            _ = app.takeTranscriptTarget(for: left)
             scroller.stop()
             follower.stop()
             controller.releaseEnd()
             didPosition = false
+            placeReady = nil
             isLiveScrolling.value = false
             opening = nil
             pinnedQuestion = nil
+            selection.endReply()
             let remembered = memory?.remembered(session: transcript.session.id)
             liveEndRequest = TranscriptLiveEndRequest(handled: remembered?.liveEndRequest ?? 0)
             expanded = remembered?.expanded ?? []
@@ -645,13 +652,13 @@ struct TranscriptListView: View {
                 window: TranscriptResume.window(
                     remembered,
                     tailStart: TranscriptTail.start(in: transcript.rows.lazy.map(\.kind)),
-                    rowCount: transcript.rows.count
+                    seqs: transcript.rows.lazy.map(\.seq)
                 )
             )
             writingTo = memory.map { WriteTarget(memory: $0, session: transcript.session.id) }
-            resumed = TranscriptResume.isResuming(remembered) ? transcript.session.id : nil
             isGrowing.value = false
             topPlace.value = nil
+            seen.value = nil
             atLiveEnd.value = true
             arrivalSession = nil
         }
@@ -660,12 +667,17 @@ struct TranscriptListView: View {
             follower.onStop = { [controller] in controller.followerHandedBack() }
             follower.onRest = { [controller] in controller.goToEnd() }
             await transcript.load()
+            let session = transcript.session.id
+            await memory?.restorePlace(session: session)
+            guard !Task.isCancelled else { return }
+            resumed = TranscriptResume.isResuming(memory?.remembered(session: session)) ? session : nil
+            placeReady = session
             drawn = Drawn(
                 session: transcript.session.id,
                 window: TranscriptResume.window(
                     memory?.remembered(session: transcript.session.id),
                     tailStart: TranscriptTail.start(in: transcript.rows.lazy.map(\.kind)),
-                    rowCount: transcript.rows.count
+                    seqs: transcript.rows.lazy.map(\.seq)
                 )
             )
             TranscriptDrawn.note(drawn.window.count)
@@ -682,6 +694,7 @@ struct TranscriptListView: View {
 
             guard resumed != transcript.session.id else {
                 arrivalSession = transcript.session.id
+                notePlace(controller.geometry)
                 honourLiveEndRequest()
                 scheduleHistoryPreparation()
                 SwitchTrace.mark("transcript.window", workspace: transcript.workspace?.id)
@@ -703,6 +716,7 @@ struct TranscriptListView: View {
             guard !Task.isCancelled else { return }
             open(opening)
             arrivalSession = transcript.session.id
+            notePlace(controller.geometry)
             honourLiveEndRequest()
             scheduleHistoryPreparation()
             SwitchTrace.mark("transcript.history", workspace: transcript.workspace?.id)
@@ -736,11 +750,8 @@ struct TranscriptListView: View {
             viewportHeight: table.viewportHeight,
             offset: table.offset
         )
-        contentOffset.value = table.offset
-        if let place = controller.topmostPlace { topPlace.value = place }
+        notePlace(table)
         updatePinnedQuestion()
-        atLiveEnd.value = table.isAtEnd || controller.holdsEnd || follower.isFollowing
-            || follower.isSeekingLiveEnd
 
         var measured = TranscriptGeometry(
             paneHeight: TranscriptGeometry.height(table.viewportHeight),
@@ -759,7 +770,6 @@ struct TranscriptListView: View {
            drawn.window.canGrowDown(rowCount: transcript.rows.count) {
             measured.isNearBottom = false
             measured.isFarFromEnd = true
-            atLiveEnd.value = false
         }
         if measured != geometry {
             geometry = measured
@@ -790,7 +800,7 @@ struct TranscriptListView: View {
             guard let row = transcript.rows.last(where: { $0.seq == seq }) else { return }
             MessageContextMenu.present(for: row, selection: text, transcript: transcript, event: event, in: view)
         }
-        selection.onAttach = { [transcript] in transcript.reply(with: $0) }
+        selection.onAttach = { [transcript] in transcript.reply(with: $0, from: $1) }
         selection.start(controller: controller)
         let found = controller.scrollView
         if scroller.scrollView !== found { scroller.scrollView = found }
@@ -847,10 +857,10 @@ struct TranscriptListView: View {
         }
     }
 
-    private func showPinnedQuestion(_ question: PinnedQuestion) {
+    private func show(seq: Int) {
         let rows = transcript.rows
         guard let index = TranscriptWindow.index(
-            ofSeqAtOrAfter: question.seq, in: rows.lazy.map(\.seq)
+            ofSeqAtOrAfter: seq, in: rows.lazy.map(\.seq)
         ) else { return }
 
         scroller.stop()
@@ -873,7 +883,7 @@ struct TranscriptListView: View {
         Task { @MainActor in
             await Task.yield()
             controller.scroll(
-                to: .row(question.seq),
+                to: .row(seq),
                 delta: PinnedQuestionView.height + Metrics.spacingWide
             )
         }
@@ -893,7 +903,7 @@ struct TranscriptListView: View {
     }
 
     private func position() {
-        guard !transcript.rows.isEmpty, !didPosition else { return }
+        guard !transcript.rows.isEmpty, !didPosition, placeReady == transcript.session.id else { return }
         didPosition = true
 
         drawn = Drawn(session: transcript.session.id, window: drawnWindow)
@@ -901,7 +911,8 @@ struct TranscriptListView: View {
 
         switch TranscriptResume.placement(
             for: memory?.remembered(session: transcript.session.id),
-            rowCount: transcript.rows.count
+            seqs: transcript.rows.lazy.map(\.seq),
+            target: app.takeTranscriptTarget(for: transcript.session.id)?.seq
         ) {
         case .liveEnd:
             opening = .liveEnd
@@ -909,6 +920,8 @@ struct TranscriptListView: View {
             opening = .offset(y)
         case .row(let seq, let delta):
             opening = .rowOffset(seq, delta)
+        case .target(let seq):
+            opening = .row(seq, .center)
         case .first:
             opening = firstOpening()
         }
@@ -917,10 +930,6 @@ struct TranscriptListView: View {
     }
 
     private func firstOpening() -> Opening {
-        if let workspaceID = transcript.workspace?.id,
-           let target = app.takeTranscriptTarget(for: workspaceID) {
-            return .row(target.seq, .center)
-        }
         if let unread = transcript.firstUnreadSeq, unread != transcript.rows.first?.seq {
             return .row(unread, .top)
         }
@@ -959,6 +968,32 @@ struct TranscriptListView: View {
         return drawn.window
     }
 
+    private func notePlace(_ table: TranscriptTableGeometry) {
+        contentOffset.value = table.offset
+        if let place = controller.topmostPlace { topPlace.value = place }
+        let hasRowsBelow = drawn.session == transcript.session.id
+            && drawn.window.canGrowDown(rowCount: transcript.rows.count)
+        atLiveEnd.value = !hasRowsBelow && (
+            table.isAtEnd || controller.holdsEnd || follower.isFollowing || follower.isSeekingLiveEnd
+        )
+
+        let session = transcript.session.id
+        guard TranscriptResume.mayNoteSeen(
+            arrived: arrivalSession, drawnFor: drawn.session, showing: session
+        ) else { return }
+        let place = topPlace.value
+        let rowCount = transcript.rows.count
+        seen.value = (session, TranscriptPaneState(
+            expanded: [],
+            offset: table.offset,
+            anchorSeq: place?.seq,
+            anchorDelta: Double(place?.delta ?? 0),
+            isAtLiveEnd: atLiveEnd.value,
+            rowCount: rowCount,
+            drawn: windowToRemember(topSeq: place?.seq, rowCount: rowCount)
+        ))
+    }
+
     private func remember() {
         guard let target = writingTo,
               TranscriptResume.mayRemember(
@@ -966,25 +1001,14 @@ struct TranscriptListView: View {
                   writingTo: target.session,
                   drawnRows: drawn.window.count,
                   paneHeight: geometry.paneHeight
-              )
+              ),
+              let seen = seen.value, seen.session == target.session
         else { return }
-        let place = topPlace.value
-        let rowCount = transcript.rows.count
-        let rememberedWindow = windowToRemember(topSeq: place?.seq, rowCount: rowCount)
-        target.memory.remember(
-            TranscriptPaneState(
-                expanded: expanded,
-                unfolded: unfolded,
-                offset: contentOffset.value,
-                anchorSeq: place?.seq,
-                anchorDelta: Double(place?.delta ?? 0),
-                isAtLiveEnd: atLiveEnd.value,
-                rowCount: rowCount,
-                drawn: rememberedWindow,
-                liveEndRequest: liveEndRequest.handled
-            ),
-            session: target.session
-        )
+        var state = seen.state
+        state.expanded = expanded
+        state.unfolded = unfolded
+        state.liveEndRequest = liveEndRequest.handled
+        target.memory.remember(state, session: target.session)
     }
 
     private func growWindowDown() {

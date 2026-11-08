@@ -7,6 +7,10 @@ public struct ComposerDefaults: Equatable {
     public var backend: AgentKind = .claudeCode
     public var interactionMode: InteractionMode = .build
 
+    public static func applies(wasPrepared: Bool, agentSessionID: String?, messageCount: Int) -> Bool {
+        !wasPrepared && (agentSessionID ?? "").isEmpty && messageCount == 0
+    }
+
     public static func resolve(
         repo: RepoSettings,
         app: AppDefaults,
@@ -22,12 +26,7 @@ public struct ComposerDefaults: Equatable {
         )
         let resolved = DefaultBackend.resolve(
             model: model,
-            effort: firstNonEmpty(
-                repo.defaultEffort,
-                app.storedEffort,
-                repo.homeDefaultEffort,
-                fallback: app.effort
-            ),
+            effort: effort(repo: repo, app: app),
             app: app,
             running: running,
             models: models
@@ -41,6 +40,12 @@ public struct ComposerDefaults: Equatable {
             backend: resolved.kind,
             interactionMode: hasWorktree && app.planMode && resolved.kind == .codex ? .plan : .build
         )
+    }
+
+    static func effort(repo: RepoSettings, app: AppDefaults) -> String {
+        if let project = repo.defaultEffort, !ComposerEffort.isUnset(project) { return project }
+        if let stored = app.storedEffort { return stored }
+        return firstNonEmpty(repo.homeDefaultEffort, fallback: app.effort)
     }
 
     public static func firstNonEmpty(_ candidates: String?..., fallback: String) -> String {

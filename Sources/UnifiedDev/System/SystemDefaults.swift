@@ -13,6 +13,7 @@ enum SystemDefaults {
             SleepPrevention.settingKey: SleepPrevention.isOnByDefault,
             MenuBarStatusItem.settingKey: MenuBarStatusItem.isOnByDefault,
             CrashReporting.settingKey: CrashReporting.isOnByDefault,
+            LinkOpening.settingKey: LinkOpening.isOnByDefault,
         ])
     }
 }

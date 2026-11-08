@@ -84,6 +84,40 @@ First line of the session. Carries the fields Unified Dev needs to bind a sessio
 
 `session_id` is what `--resume` takes later. Persist it the moment this arrives.
 
+`--resume` looks for the transcript under `projects/` in the config directory the process starts
+with, and nowhere else. Measured on `claude 2.1.309` on 29 October 2026, in a throwaway config
+directory with no sign-in: with the transcript copied under `projects/` the session loads and the
+turn runs, and with it missing the CLI prints `No conversation found with session ID: <id>` and
+ends with `is_error: true`, `subtype: error_during_execution` and zero cost. The lookup happens
+before authentication is checked, so a session started under one account cannot be resumed under
+another, whichever of the two is signed in. `AgentSessionSettlement` is the decision: a stored id is
+never cleared by a change of account. When the account recorded on the session is known and differs
+from the one about to run, or when the owner deliberately moves a chat with no recorded account,
+`Store.switchSegment` parks the id on the segment it belongs to and the chat continues on another
+segment, which gets the id back if the chat returns to that account. A session with no recorded
+account is otherwise left as it is, because nothing says where its transcript lives.
+
+A `--resume` that finds no transcript ends the process at once: measured on `claude 2.1.309` on
+29 October 2026, for an id that does not exist anywhere and for one that exists under another
+config directory, no `system/init` arrives. The output is the plain line `No conversation found with session ID: <id>`,
+then one `result` with `subtype: error_during_execution` whose `session_id` is the id that was asked
+for, and exit status 1. `SegmentResume.refused` reads that shape, and only before the first `init` of
+a process the owner has not stopped. The runner clears the stored id and sets the segment's cursor
+to -1: the turn that was refused stays failed, and the next send opens a new session carrying the
+whole conversation. An `init` naming another id than the one asked for
+(`SegmentResume.lostHistory`) resets the cursor the same way, and nothing that turn replies moves it
+again, because the prompt already sent carried no delta. Only the first `init` of a process is read
+like this; a brand new session getting its first id is not a loss.
+
+The same design is applied to Codex and Grok, whose threads also live under the directory the
+account gives them (`CODEX_HOME`, `GROK_HOME`). All three variables are measured to move the home
+and to carry the login with it (`docs/AGENTS-INTEGRATION.md`), but resume itself was measured only
+for Claude Code. Nothing here says what `thread/resume` does in another Codex home or what Grok's
+resume does in another Grok home.
+Both runners treat any failed resume alike: they open a new thread or session, and only once that
+has worked do they reset the cursor and replace the stored id. A server that is down therefore
+changes nothing, and a resume that was really refused has the whole conversation in that same send.
+
 `model` is the string `--model` was given, echoed rather than resolved or checked. A `--model`
 nobody has ever heard of comes back in this field unchanged, so this line says what was asked for
 and never what will answer.
@@ -138,6 +172,14 @@ result:  "is_error":true, "subtype":"success", "terminal_reason":"api_error", "t
          "result":"There's an issue with the selected model (definitely-not-a-model). It may not
                    exist or you may not have access to it. Run --model to pick a different model."
 ```
+
+`terminal_reason: api_error` is a bucket shared by every failure that happens at the API: a refused
+model and a signed-out account both arrive under it, so it is only the anchor and the words decide.
+A signed-out account was measured on `claude 2.1.309` on 29 October 2026 as `subtype: success`,
+`is_error: true`, `num_turns: 1`, `terminal_reason: api_error` and `result: "Not logged in · Please
+run /login"`, after an assistant message from model `<synthetic>` carrying `error:
+authentication_failed`. `AgentAccountSignOut.measuredWords` and `measuredTerminalReason` are those
+two fields.
 
 The `subtype` stays `success`, so `is_error` is the only field in the `result` that marks it. The
 name of the refused model is in the stderr line as JSON and in the `result` sentence as English, so
@@ -276,6 +318,44 @@ then a whole turn, closed by a `result` with `origin: task-notification`. The no
 only line saying why that turn began, and its `summary` reads `Background command "<description>"
 completed (exit code 0)`. Unified Dev stores it when it arrives between turns and draws it as the turn's
 opening line. See `BackgroundWake`.
+
+### A turn stopped by the usage limit
+
+The stop is an `assistant` line, not a `result` and not a `system` line. It has model `<synthetic>`,
+zero usage, one `text` block and, beside `message`, the error fields. They have two spellings, and the
+one that reaches Unified Dev is the stream's:
+
+```json
+{"type":"assistant","message":{"model":"<synthetic>","role":"assistant","stop_reason":"stop_sequence",
+ "content":[{"type":"text","text":"You've hit your session limit · resets 7:10am (Europe/Luxembourg)"}]},
+ "error":"rate_limit","is_api_error_message":true,"api_error_status":429}
+```
+
+Claude Code's own transcript files (`~/.claude/projects`, versions 2.1.219 to 2.1.237) hold the same
+line as `isApiErrorMessage` and `apiErrorStatus`, and some versions add `quotaLimits` there. The stream
+has no `quotaLimits`: `claude 2.1.309` writes `api_error: usage_limit_reached` and
+`api_error_params.rate_limit_info` instead, and leaves out `api_error_status` on an error that has no
+status. Nothing stored in `messages` comes from those files, so `TurnStopCause` reads the stream's names
+alone.
+
+Not every part of this was captured. `Tests/fixtures/claude-turn-died-mid-response.ndjson` is a real
+stream capture of another API error, which proves the spelling and the shape, and the binary proves the
+fields of a limit. No real line carrying `api_error` has been seen, on the stream or on disk: that reading rests on the
+binary alone. The words of a limit line come from the transcript files, where they name the window
+that ran out (`session` in every sample); the `resets` clause is local time and carries no date. The
+`result` line that follows a limit on the stream is inferred from that capture, which closes with
+`subtype: success` and `is_error: true`.
+
+`AgentEvent.decode` turns the line into `.assistantText`, so it is stored as an `assistantText` row with
+the whole line as its payload. `TurnStopCause` reads that row. It needs model `<synthetic>` and `error:
+rate_limit`, and then `api_error` decides: `usage_limit_reached` is the limit, whatever the words say, and
+any other value is not, whatever the words say. The binary documents this as the field to key on, and
+says the other refusals that share `error: rate_limit` never carry that value. A line with no `api_error`,
+from an older CLI, needs `is_api_error_message: true`, status 429 and text starting `You've hit your` and
+containing `limit`. Only the last turn counts (rows after the last row that
+opens a turn, `MessageKind.opensTurn`), and the limit row must be the last output in it.
+`ConversationHandoff` counts that turn as unfinished whatever `result` follows it, because a limit
+outranks a clean `result`.
 
 ### `rate_limit_event`
 

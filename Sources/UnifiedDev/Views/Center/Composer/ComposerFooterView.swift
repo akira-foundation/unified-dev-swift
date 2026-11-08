@@ -4,6 +4,7 @@ import Core
 struct ComposerFooterView: View {
     var controls: ComposerControls
     var onChange: @MainActor (ComposerControls) -> Void
+    var onOpenInNewChat: (@MainActor (ComposerControls) -> Void)?
     var context: ContextWindowUsage?
     var isRunning: Bool = false
     var queues: Bool = false
@@ -21,13 +22,19 @@ struct ComposerFooterView: View {
     var showsAgentControls: Bool = true
     var usesCLIChat: Binding<Bool>?
     var supportsCLIChat: Bool = true
+    var account: ComposerAccountSection?
+    var accountHomes: ComposerAccountHomes?
 
     @State private var loadedSpeed: CodexSpeed?
     @State private var loadedSpeedRequest: [String]?
     @State private var speedFailed = false
 
     private var speedRequest: [String] {
-        [project ?? "", controls.agentKind.rawValue, controls.model, String(showsAgentControls)]
+        [
+            project ?? "", controls.agentKind.rawValue, controls.model, String(showsAgentControls),
+            accountHomes?.codex?.directory.path ?? "",
+            String(accountHomes != nil),
+        ]
     }
 
     private var codexSpeed: CodexSpeed? {
@@ -80,15 +87,18 @@ struct ComposerFooterView: View {
             remember(id, known: efforts, in: &extraEfforts)
         }
         .task { if showsAgentControls { catalog.load() } }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            if showsAgentControls { catalog.load() }
+        }
         .task(id: speedRequest) {
             let request = speedRequest
             loadedSpeed = nil
             loadedSpeedRequest = request
             speedFailed = false
-            guard showsAgentControls, controls.agentKind == .codex else { return }
+            guard showsAgentControls, controls.agentKind == .codex, let accountHomes else { return }
             do {
                 let speed = try await CodexSpeed.read(
-                    cwd: project ?? AgentScratchDirectory.current(), modelID: controls.model
+                    cwd: project ?? AgentScratchDirectory.current(), modelID: controls.model, account: accountHomes.codex
                 )
                 guard !Task.isCancelled else { return }
                 loadedSpeed = speed
@@ -97,9 +107,11 @@ struct ComposerFooterView: View {
                 speedFailed = true
             }
         }
-        .task(id: project) {
-            guard showsAgentControls else { return }
-            let catalog = ComposerOutputStyleCatalog.shared(for: project)
+        .task(id: OutputStyleKey(project: project, claude: accountHomes?.claude, known: accountHomes != nil)) {
+            guard showsAgentControls, let accountHomes else { return }
+            let catalog = ComposerOutputStyleCatalog.shelves.catalogue(
+                project: project, account: accountHomes.claude
+            )
             outputStyles = catalog
             await catalog.refreshIfStale(project: project)
         }
@@ -146,13 +158,15 @@ struct ComposerFooterView: View {
                     outputStyles: choices.outputStyles,
                     permissionModes: choices.permissionModes,
                     isCompact: isCompact,
+                    account: account,
                     onPreset: { preset in edit { $0 = $0.applying(preset, models: catalog.models) } },
                     onModel: selectModel,
                     onEffort: { id in edit { $0.effort = id } },
                     onOutputStyle: { id in edit { $0.outputStyle = id } },
                     onPermissionMode: selectPermissionMode,
                     onContextWindow: { tokens in edit { $0.codexContextWindow = tokens } },
-                    onInteractionMode: { mode in edit { $0.interactionMode = mode } }
+                    onInteractionMode: { mode in edit { $0.interactionMode = mode } },
+                    onOpenInNewChat: newChatOpener(offered: choices.models)
                 )
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { controlHeight = $0 }
 
@@ -214,13 +228,24 @@ struct ComposerFooterView: View {
         onChange(changed)
     }
 
+    private func newChatOpener(offered sections: [ComposerModelSection]) -> (@MainActor (AgentKind) -> Void)? {
+        guard let onOpenInNewChat else { return nil }
+        return { kind in
+            let offered = sections.first { $0.kind == kind }?.options.first?.id
+            guard let opening = BackendChange.newChatControls(
+                from: controls, on: kind, models: catalog.models, firstOffered: offered
+            ) else { return }
+            onOpenInNewChat(opening)
+        }
+    }
+
     private func selectPermissionMode(_ id: String) {
         guard let mode = PermissionMode(rawValue: id) else { return }
         edit { $0.permissionMode = mode }
     }
 
     private var efforts: [ComposerOption] {
-        catalog.efforts(for: controls.agentKind, model: controls.model)
+        catalog.efforts(for: controls.agentKind, model: controls.model, offeringAgentDefault: true)
     }
 
     private func selectModel(_ id: String) {
@@ -234,3 +259,9 @@ struct ComposerFooterView: View {
 }
 
 private let composerFooterSpace = "composer.footer"
+
+private struct OutputStyleKey: Equatable {
+    var project: String?
+    var claude: AgentAccountHome?
+    var known: Bool
+}

@@ -10,6 +10,7 @@ public struct CrewMessage: Sendable, Equatable, Codable {
         case cancelled
         case workspaceDone = "workspace_done"
         case workspaceStarted = "workspace_started"
+        case appRequest = "app_request"
     }
 
     public enum Sender: String, Sendable, Codable {
@@ -91,6 +92,10 @@ public struct CrewMessage: Sendable, Equatable, Codable {
                 '\(excerpt)'. Do not send it again unless the owner asks you to.
                 """
         )
+    }
+
+    public static func appRequest(_ text: String) -> CrewMessage {
+        CrewMessage(event: .appRequest, sender: .unifieddev, from: "Unified Dev", text: "", sent: text)
     }
 
     public static let type = "crew"

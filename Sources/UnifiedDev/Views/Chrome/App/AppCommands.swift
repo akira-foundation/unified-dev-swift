@@ -37,7 +37,7 @@ struct AppCommands: Commands {
     }
 
     private var projectSettingsRepo: Repo? {
-        model.selectedWorkspace.flatMap(model.repo(for:)) ?? model.repos.first
+        model.selectedWorkspace.flatMap(model.repo(for:)) ?? model.profileRepos.first
     }
 
     var body: some Commands {
@@ -65,7 +65,7 @@ struct AppCommands: Commands {
             MenuCommand(.newWorkspace) {
                 NotificationCenter.default.post(name: .udNewWorkspace, object: nil)
             }
-            .disabled(model.repos.isEmpty)
+            .disabled(model.profileRepos.isEmpty)
 
             MenuCommand(.newWorkspaceFromPullRequest) {
                 NotificationCenter.default.post(
@@ -73,7 +73,7 @@ struct AppCommands: Commands {
                     userInfo: [Notification.unifieddevPullRequestKey: true]
                 )
             }
-            .disabled(model.repos.isEmpty)
+            .disabled(model.profileRepos.isEmpty)
 
             MenuCommand(.projectSettings) {
                 guard let repo = projectSettingsRepo else { return }
@@ -84,6 +84,11 @@ struct AppCommands: Commands {
             MenuCommand(.newAskConversation) {
                 NotificationCenter.default.post(name: .udNewAskConversation, object: nil)
             }
+
+            MenuCommand(.newCanvas) {
+                model.newCanvas()
+            }
+            .disabled(model.selectedWorkspace == nil)
 
             MenuCommand(.searchFiles) {
                 SearchPanelModel.shared.openFiles(app: model)
@@ -153,7 +158,7 @@ struct AppCommands: Commands {
 
             Menu("Find") {
                 MenuCommand(.find, perform: find)
-                    .disabled(model.repos.isEmpty && !FindInPlace.isAvailable)
+                    .disabled(model.profileRepos.isEmpty && !FindInPlace.isAvailable)
 
                 MenuCommand(.findNext) { step(.nextMatch) }
 
@@ -167,7 +172,7 @@ struct AppCommands: Commands {
             MenuCommand(.search) {
                 NotificationCenter.default.post(name: .unifieddevFocusSearch, object: nil)
             }
-            .disabled(model.repos.isEmpty)
+            .disabled(model.profileRepos.isEmpty)
         }
 
         CommandGroup(after: .sidebar) {
@@ -199,23 +204,35 @@ struct AppCommands: Commands {
 
             Divider()
 
-            MenuCommand(.fileBack) {
+            MenuCommand(.fileBack, alternate: focusedBrowser?.paneState.usesAlternateTitle(.back) == true) {
+                if let focusedBrowser {
+                    focusedBrowser.run(.back)
+                    return
+                }
                 guard let workspace = model.selectedModel else { return }
                 SourceNavigation.shared.move(-1, in: workspace)
             }
-            .disabled(fileHistory?.canGoBack != true)
+            .disabled(focusedBrowser.map { !$0.paneState.isEnabled(.back) } ?? (fileHistory?.canGoBack != true))
 
-            MenuCommand(.fileForward) {
+            MenuCommand(.fileForward, alternate: focusedBrowser?.paneState.usesAlternateTitle(.forward) == true) {
+                if let focusedBrowser {
+                    focusedBrowser.run(.forward)
+                    return
+                }
                 guard let workspace = model.selectedModel else { return }
                 SourceNavigation.shared.move(1, in: workspace)
             }
-            .disabled(fileHistory?.canGoForward != true)
+            .disabled(focusedBrowser.map { !$0.paneState.isEnabled(.forward) } ?? (fileHistory?.canGoForward != true))
 
             MenuCommand(.nextChangedFile) { stepChangedFile(1) }
                 .disabled(!canStepChangedFiles)
 
             MenuCommand(.previousChangedFile) { stepChangedFile(-1) }
                 .disabled(!canStepChangedFiles)
+
+            Divider()
+
+            BrowserMenuCommands(session: focusedBrowser)
 
             Divider()
         }
@@ -236,17 +253,17 @@ struct AppCommands: Commands {
             MenuCommand(.nextWorkspace) {
                 model.selectNextWorkspace(offset: 1)
             }
-            .disabled(model.workspaces.isEmpty)
+            .disabled(model.profileWorkspaces.isEmpty)
 
             MenuCommand(.previousWorkspace) {
                 model.selectNextWorkspace(offset: -1)
             }
-            .disabled(model.workspaces.isEmpty)
+            .disabled(model.profileWorkspaces.isEmpty)
 
             MenuCommand(.nextUnread) {
                 model.selectNextUnread()
             }
-            .disabled(!model.workspaces.contains(where: \.unread))
+            .disabled(!model.profileWorkspaces.contains(where: \.unread))
 
             MenuCommand(.goToHome) {
                 model.selection = .home
@@ -352,23 +369,27 @@ struct AppCommands: Commands {
             .disabled((composerTranscript ?? subjectModel?.activeTranscript)?.isRunning != true)
         }
 
-        CommandGroup(replacing: .help) {
-            MenuCommand(.help) {
-                NSWorkspace.shared.open(AppRepository.readmeURL)
-            }
+        Group {
+            ProfileCommands(model: model)
 
-            MenuCommand(.welcome) {
-                WelcomeWindow.show(trigger: .firstRun, restarting: true)
-            }
+            CommandGroup(replacing: .help) {
+                MenuCommand(.help) {
+                    NSWorkspace.shared.open(AppRepository.readmeURL)
+                }
 
-            Divider()
+                MenuCommand(.welcome) {
+                    WelcomeWindow.show(trigger: .firstRun, restarting: true)
+                }
 
-            MenuCommand(.sendFeedback) {
-                FeedbackPresenter.shared.open(.report)
-            }
+                Divider()
 
-            MenuCommand(.submitPrompt) {
-                FeedbackPresenter.shared.open(.prompt)
+                MenuCommand(.sendFeedback) {
+                    FeedbackPresenter.shared.open(.report)
+                }
+
+                MenuCommand(.submitPrompt) {
+                    FeedbackPresenter.shared.open(.prompt)
+                }
             }
         }
     }
@@ -444,6 +465,16 @@ struct AppCommands: Commands {
               CenterTabStore.shared.tabs(for: workspace.workspace.id)
                   .first(where: { $0.id == id })?.kind == .terminal else { return nil }
         return id
+    }
+
+    private var focusedBrowser: BrowserSession? {
+        guard isMainWindowFocused == true, let workspace = model.selectedModel else { return nil }
+        let tabs = WorkspaceTabsStore.shared
+        guard let tab = tabs.selectedTab(in: workspace),
+              case .tool(let id) = tabs.content(of: tabs.focusedPane(of: tab), in: tab),
+              let browser = CenterTabStore.shared.tabs(for: workspace.workspace.id)
+                  .first(where: { $0.id == id && $0.kind == .browser }) else { return nil }
+        return CenterTabStore.shared.browser(for: browser, root: workspace.workspace.path)
     }
 
     private var canCommandTerminalPane: Bool {
@@ -610,7 +641,7 @@ struct AppCommands: Commands {
             return
         }
         switch FindCommand.find(
-            canFindInPlace: FindInPlace.isAvailable, hasProjects: !model.repos.isEmpty
+            canFindInPlace: FindInPlace.isAvailable, hasProjects: !model.profileRepos.isEmpty
         ) {
         case .findInPlace:
             FindInPlace.perform(.showFindInterface)

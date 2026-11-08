@@ -77,6 +77,13 @@ contribute for free.
 | Previous Tab / Next Tab | `⇧⌘[` `⇧⌘]` and `⌥⇧⇥` `⌥⇥` | the strip has more than one tab |
 | Go to Tab > (each tab) | `⌘1`…`⌘9` | the strip is not empty |
 | Next / Previous Changed File | `⌥⌘J` `⌥⌘K` | a review is open and something changed |
+| Go Back in Files / Go Forward in Files, worded Go Back / Go Forward on a browser pane | `⌘[` `⌘]` | the focused review or browser pane has somewhere to go |
+| Reload Page, worded Stop Loading while a page loads | `⌘R` | a browser pane with a page is focused and no review is open |
+| Responsive Preview | `⌥⌘R` | a browser pane is focused and no review is open |
+| Restore Full Browser Size | `⌥⌘0` | a browser pane at a set size is focused and no review is open |
+| Send a Screenshot to the Agent | `⌥⌘S` | a browser pane with a page is focused and nothing is being captured |
+| Comment on an Area, worded Finish Reviewing Page during a review | `⌥⌘C` | a browser pane with a page is focused, and no review is being saved and no comment is being typed |
+| Open in Default Browser | `⌥⌘O` | a browser pane with a web address is focused |
 | Toggle Sidebar | `⌃⌘S` | always |
 | Toggle Inspector | `⌥⌘I` | a workspace is selected |
 | Next / Previous Workspace | `⌥⌘↓` `⌥⌘↑` | any workspace exists |
@@ -84,6 +91,16 @@ contribute for free.
 | Go to Home | `⇧⌘H` | not already on Home |
 | Zoom In / Zoom Out / Actual Size | `⌘+` `⌘-` `⌘0` | the focused text can zoom |
 | Enter Full Screen | `⌃⌘F` | AppKit |
+
+### Profile
+
+`ProfileCommands`. Switching changes what the window shows and stops nothing.
+
+| Item | Key | Enabled when |
+| --- | --- | --- |
+| One item per profile, the active one ticked | `⌃⌘1`…`⌃⌘9`, in list order | the profile exists at that position |
+| New Profile… | | always |
+| Profile Settings… | | a profile is active |
 
 ### Workspace
 
@@ -226,22 +243,24 @@ loud somewhere a user can read it.
 
 | Action | Where it lives | In the menu bar | Key |
 | --- | --- | --- | --- |
-| Back / Forward | toolbar arrows | **no** | none |
+| Back / Forward | toolbar arrows | yes, View | `⌘[` `⌘]` |
 | Jump back or forward several pages | right click on an arrow | **no** | none |
-| Reload / Stop | toolbar | **no** | none |
-| Send a Screenshot to the Agent | toolbar, and the page menu | **no** | none |
-| Comment on an Area | labelled Comment button in the toolbar, and the page menu | **no** | none |
+| Reload / Stop | toolbar | yes, View | `⌘R` |
+| Responsive Preview | toolbar, and the page menu | yes, View | `⌥⌘R` |
+| Restore Full Browser Size | toolbar, and the page menu | yes, View | `⌥⌘0` |
+| Send a Screenshot to the Agent | toolbar, and the page menu | yes, View | `⌥⌘S` |
+| Comment on an Area | labelled Comment button in the toolbar, and the page menu | yes, View | `⌥⌘C` |
 | Add selected area and comment to the draft | inline review-comment editor | **no** | `Return` or `⌘Return` |
-| Finish reviewing the page | Done in the toolbar or selection controls | **no** | `Escape` outside the editor |
+| Finish reviewing the page | Done in the toolbar or selection controls | yes, View, as Finish Reviewing Page | `⌥⌘C`, or `Escape` outside the editor |
 | Select All / Clear Selection | region capture's Selection menu | **no** | none |
 | Edit / Remove image comment | saved comment band on the page | **no** | none |
 | Send image comments | composer below the browser, or the adjacent conversation | **no** | `Return` or `⌘Return` |
 | Share | toolbar | **no** | none |
-| Open in Default Browser | toolbar, and the page menu | **no** | none |
+| Open in Default Browser | toolbar, and the page menu | yes, View | `⌥⌘O` |
 | Find in page, next, previous | find bar | yes, Edit > Find | `⌘F` `⌘G` `⇧⌘G` |
 | Downloads bar dismissal | the bar itself | **no** | none |
 
-A browser with no Back in any menu is the second most obvious gap after the split.
+A toolbar button with a key names that key in its tooltip, read from `MenuBarCatalogue`. Share is the one without a key.
 
 ### The inspector
 
@@ -318,7 +337,9 @@ in its own doc comment.
 Agents, appearance, prompts and the per project settings are all reachable from `⌘,` and `⇧⌘,`.
 Removing a project from Settings, and removing a run script, are buttons inside those windows and
 belong there. Storage was a pane here and is not any more: what the archived work costs, and the
-only way to give the space back, are on Home's Archived chip, beside the rows they are about.
+way to give the space back by hand, are on Home's Archived chip, beside the rows they are about.
+Settings, Workspaces can also delete archived records by age or by total size. Both limits are off
+until chosen, and are checked when the app opens and every hour.
 
 ## Keys, and who wins
 
@@ -388,10 +409,7 @@ actions are published, and the standard menus are checked for shape.
 
 **Left for a second pass**, in the order they are worth doing:
 
-1. **The browser.** Back, Forward, Reload and Stop, Open in Default Browser, Send a Screenshot to
-   the Agent, Share. Needs no new plumbing: `CenterTabStore.liveBrowser(for:)` already hands over
-   the session, and `BrowserToolbar.Control.name` already holds the wording. `⌘[`, `⌘]` and `⌘R`
-   are free.
+1. **The browser's Share.** The one toolbar action with no row in the bar and no key.
 2. **The inspector.** The tab picker, the diff scope, the file bar's three toggles, Discard,
    Copy path, and the remaining pull request items. Two of these need `⌘E` and `⌘S` moved off their
    hidden buttons onto `@FocusedValue`s, which is what `FocusedMenuValues` already asks for.
@@ -415,7 +433,7 @@ actions are published, and the standard menus are checked for shape.
 - **Merging and choosing the merge method.** Both belong in the pull request panel, where the
   checks, conflicts and target branch are visible. The split button performs the merge; its
   chevron chooses the per-project method, which the project settings window also shows. A project
-  with no method of its own uses the default in Settings, General, which is a merge commit.
+  with no method of its own uses the default in Settings, Workspaces, which is a merge commit.
 - **Anything inside Settings or the project settings window.** Removing a run script is a button in
   the editor that owns it. A menu bar item for it would have to name which script.
 - **Discovered Seas.** A `Window` scene contributes its own Window menu item, and a command of our

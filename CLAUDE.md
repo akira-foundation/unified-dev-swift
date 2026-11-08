@@ -11,8 +11,9 @@ Longer documents, pointed at rather than repeated here: `README.md` for what the
 `RELEASING.md` for signing and notarising, `docs/CODEX.md` for the Codex app-server
 protocol as measured, `docs/GROK.md` for Grok's ACP over stdio, `docs/PROTOCOL.md` for Claude Code's stream-json,
 `docs/AGENTS-INTEGRATION.md` for how the five CLIs are detected, `docs/PREVIEW-APPS.md` for the
-preview app every worktree can build and the scenario it is seeded with, `docs/BRIDGE.md` for the MCP
-bridge an agent calls back in through and which callers may call what, `docs/PLAN.md` for what was
+preview app every worktree can build and the scenario it is seeded with, `docs/CHAT-SEGMENTS.md` for how one chat
+is run by several agents in turn and what the agent that comes in is told, `docs/BRIDGE.md` for the MCP
+bridge an agent calls back in through and which callers may call what, `docs/PROFILES.md` for the groups of projects the window shows one at a time, `docs/PLAN.md` for what was
 built and in what order, `docs/start-from.html` for the design note the create sheet's source picker
 was drawn from, which is a page to open in a browser rather than to read here.
 
@@ -195,9 +196,10 @@ depends on its prefix, a `feat/*` or `fix/*` may also target a `milestone/*` or 
 branch, and a prefix the file does not recognise, `ci/*` among them, may target `develop` alone.
 
 `.github/workflows/test.yml` runs on **push to `develop` and to `main`, on pull request, and from
-the Actions tab**. A pull request run builds the head already merged into its base rather than the
-head, because no checkout step in it names a `ref:`. So the merge a pull request would produce is
-tested, and where the branch protection's up to date rule was respected the merge that lands has
+the Actions tab**, and `release.yml` calls it on every tagged commit and publishes nothing until it
+is green there. A pull request run builds the head already merged into its base rather than the
+head, because the `ref:` its checkout steps name is empty unless `release.yml` passed one. So the
+merge a pull request would produce is tested, and where the branch protection's up to date rule was respected the merge that lands has
 that same tree. Where it was not, and `enforce_admins` is off on `develop` so it binds nobody,
 the tree that lands was built by nothing: that was a third of the merges over thirty days, and
 the push on `develop` is there to catch them. `main` was on that list throughout and `develop` was
@@ -224,6 +226,48 @@ for ten. Whole-value writes rolled each other back, and the worst of it was a ro
 workspace was live after its worktree had been deleted. `Tests/CoreTests/WorkspaceWriteIsolationTests.swift`
 is that bug written down: a write changes the columns it names and no others. Add a column and
 `update` picks it up; reach for `upsert` on an existing row and the bug is back.
+
+The account an agent runs under is written in two different shapes, and they are not the same thing.
+A **choice** by the owner lives in `repo_agent_accounts`, one row per project and provider, and
+changes only through `chooseAgentAccount(_:forRepo:)`, which takes a `ChosenAgentAccount` so the
+provider is always the chosen account's own. A workspace has no choice of its own: every workspace
+and chat of a project runs the project's account. A
+**record** of where a chat's history lives is `sessions.account_id`, and changes only through
+`update(sessionID:accountID:)`, through `switchSegment` or through `forgetAgentAccount`. `upsert` writes that column when it
+inserts a new session and leaves it out of `ON CONFLICT` on purpose, and the closure form of
+`update` ends in the same write, `writeSession`, so
+`update(sessionID:) { $0.accountID = x }` compiles, looks like the normal route and changes nothing.
+The property is `internal(set)` so the same line does not compile outside `Core`. `Repo` and
+`Workspace` have no such property at all: the choice is not on their row, so a stale whole-value
+write cannot carry one back.
+
+Deleting an account frees both shapes, and by two different rules. A choice row goes with the account,
+because `account_id` in the choice table is `NOT NULL REFERENCES agent_accounts(id) ON DELETE
+CASCADE`; it goes with the project too, by a second cascade on `repo_id`, which is why no choice
+outlives its owner. `forgetAgentAccount` refuses a default and
+sets `sessions.account_id` and `session_segments.account_id` to NULL, because that chat's history stays
+where it is. It also clears `agent_session_id` and sets the cursor to -1 on every segment that account
+held, and on the active segment and `sessions.agent_session_id` of every chat recorded on it, since
+`update(sessionID:accountID:)` does not touch the segment. The next send of such a chat carries the
+whole conversation instead of failing a turn.
+
+The id of a default account is `"default." + provider.rawValue`, so `AgentKind.rawValue` is written
+into the database in two ways: a column that holds the case, and a column that holds an account id
+built from it. **Renaming a case damages both, silently, and in two different ways.** A column read
+behind a `guard let` makes its row vanish: the account drops out of `agentAccounts()`, the owner's
+choice out of `agentAccountChoices()`, the reading out of the quotas. A column read with
+`?? .claudeCode` does something worse, because it does not look broken: a Codex chat reopens as
+Claude Code, and its spend is counted against the wrong agent. The rows that vanish are still on
+disk, choices until their project is deleted and accounts for ever, because nothing
+owns those.
+
+**Do not count those columns here.** This paragraph has been wrong four times, each time somewhere
+different, because a list written from memory rots the moment somebody adds a table. The list lives
+in `AgentKindColumns.aRenameMustMigrate`, and `AgentKindColumnsTests` walks the built schema for
+every column that holds the case or carries a foreign key into `agent_accounts` and refuses to pass
+unless the two agree. Add a table with a `provider` column or an account of its own and that test
+fails until it is declared. Whoever renames a case migrates what that value names, and reads each
+one to see which of the two things it would do.
 
 ## Views
 
@@ -252,6 +296,7 @@ in `Tools/house-rules.sh` is back to the three helper types it was meant to hold
     Persistence/    Store, SQLite, the settings file, the old app's leftovers
     Model/          the row types, the typed ids, and the lifecycle rules over them
     Presentation/   decisions that exist for the window and hold no UI framework
+    Canvas/         the canvas document and its format, the keeper, history, comments and their delivery, export
     Ocean/          the chart, which is its own small world
     Preview/        a worktree's preview app: its identity and the scenario it is seeded with
     Spend/          what the agents cost: the transcripts, the prices, and the board over them
@@ -278,7 +323,7 @@ directory per region of the window (`Sidebar`, `Center`, `Inspector`, `Home`, `T
 `Terminal`, `Chrome`, `Tabs`) and one per thing that gets a window or a sheet of its own
 (`Archive`, `Code`, `DocumentPreview`, `Markdown`, `Oceans`, `OpenIn`, `RepoSettings`, `Spend`), and the
 two that outgrew a single directory are split by what they are for rather than by what they are:
-`Center/Composer`, `Center/Panes`, `Center/Attachments`, `Center/Browser`, `Center/NewWorkspace`; `Chrome/Window`,
+`Center/Composer`, `Center/Panes`, `Center/Attachments`, `Center/Browser`, `Center/Canvas`, `Center/NewWorkspace`; `Chrome/Window`,
 `Chrome/Settings`, `Chrome/MenuBar`, `Chrome/App`, `Chrome/Feedback`, `Chrome/Notices`.
 
 Four directories sit beside `Views/` and are not panes, because none of them is drawn in one

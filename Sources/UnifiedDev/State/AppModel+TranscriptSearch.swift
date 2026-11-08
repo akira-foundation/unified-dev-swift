@@ -20,7 +20,7 @@ extension AppModel {
     func searchTranscripts(_ query: String) {
         transcriptSearchTask?.cancel()
         guard TranscriptSearch.matchExpression(for: query) != nil else {
-            transcriptResults = []
+            foundTranscripts = []
             return
         }
 
@@ -28,9 +28,18 @@ extension AppModel {
             try? await Task.sleep(for: Self.transcriptSearchDebounce)
             guard !Task.isCancelled, let store = self?.store else { return }
             let results = (try? await store.searchTranscripts(query)) ?? []
+            guard !Task.isCancelled, let self else { return }
+            let archived = await self.archivedWorkspaces()
             guard !Task.isCancelled else { return }
-            self?.transcriptResults = results
+            self.foundTranscriptOwners = Dictionary(
+                (self.workspaces + archived).map { ($0.id, $0.repoID) }, uniquingKeysWith: { first, _ in first }
+            )
+            self.foundTranscripts = results
         }
+    }
+
+    var transcriptResults: [TranscriptWorkspaceMatches] {
+        ProfileScope.transcripts(foundTranscripts, owners: foundTranscriptOwners, repos: repos, in: activeProfileID)
     }
 
     func open(_ match: TranscriptMatch) async {
@@ -50,8 +59,8 @@ extension AppModel {
         openArchived(archived)
     }
 
-    func takeTranscriptTarget(for workspaceID: WorkspaceID) -> TranscriptSearchTarget? {
-        guard let target = pendingTranscriptTarget, target.workspaceID == workspaceID else { return nil }
+    func takeTranscriptTarget(for sessionID: SessionID) -> TranscriptSearchTarget? {
+        guard let target = pendingTranscriptTarget, target.sessionID == sessionID else { return nil }
         pendingTranscriptTarget = nil
         return target
     }

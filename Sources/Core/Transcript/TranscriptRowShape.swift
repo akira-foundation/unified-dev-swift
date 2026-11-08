@@ -6,6 +6,7 @@ public enum TranscriptRowShape: Sendable, Hashable, CaseIterable {
     case tool
     case footer
     case notice
+    case divider
     case fold
     case other
 
@@ -16,6 +17,7 @@ public enum TranscriptRowShape: Sendable, Hashable, CaseIterable {
         case .toolUse, .toolResult, .permissionAsk: .tool
         case .result: .footer
         case .error, .notice, .system, .suggestion: .notice
+        case .handoff: .divider
         }
     }
 }

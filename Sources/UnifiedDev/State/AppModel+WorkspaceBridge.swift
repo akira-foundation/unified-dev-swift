@@ -38,6 +38,22 @@ extension AppModel {
                 guard let self else { return .refused("Unified Dev is still starting up.") }
                 return await self.showCanvasForBridge(order, in: workspaceID)
             },
+            CanvasReadTool { [weak self] path, workspaceID in
+                guard let self else { return .refused("Unified Dev is still starting up.") }
+                return await self.readCanvasForBridge(path, in: workspaceID)
+            },
+            CanvasEditTool { [weak self] path, operations, workspaceID in
+                guard let self else { return .refused("Unified Dev is still starting up.") }
+                return await self.editCanvasForBridge(path, operations: operations, in: workspaceID)
+            },
+            CanvasCommentResolveTool { [weak self] order, workspaceID in
+                guard let self else { return .refused("Unified Dev is still starting up.") }
+                return await self.resolveCanvasCommentForBridge(order, in: workspaceID)
+            },
+            CanvasRenderTool { [weak self] path, frame, workspaceID in
+                guard let self else { return .refused("Unified Dev is still starting up.") }
+                return await self.renderCanvasForBridge(path, frame: frame, in: workspaceID)
+            },
             PaneSplitTool { [weak self] order, axis, anchor, workspaceID in
                 guard let self else { return .refused("Unified Dev is still starting up.") }
                 return await self.splitPaneForBridge(order, axis: axis, anchor: anchor, in: workspaceID)
@@ -180,7 +196,7 @@ extension AppModel {
                 codexFastMode: codexFastMode
             )
         }
-        controls = try await workspaceControls(for: order, inheriting: controls)
+        controls = try await workspaceControls(for: order, in: repo, inheriting: controls)
 
         let workspace = try await startWorkspace(
             in: repo,
@@ -204,6 +220,7 @@ extension AppModel {
 
     private func workspaceControls(
         for order: AgentWorkspaceOrder,
+        in repo: Repo,
         inheriting inherited: ComposerControls
     ) async throws -> ComposerControls {
         var controls = inherited
@@ -231,7 +248,10 @@ extension AppModel {
                 controls.model = AppDefaults.fallbackModel
             }
         } else {
-            guard let source = AgentModelSource.live(store: store)[agent] else {
+            let account = try await account(for: agent, in: AccountScope(workspaceID: nil, repoID: repo.id))
+            guard let source = AgentModelSource.live(
+                store: store, accounts: account.map { [agent: $0] } ?? [:]
+            )[agent] else {
                 throw BridgeWorkspaceModelFailure.noneAvailable(agent)
             }
             if order.model == nil, agent == inheritedAgent { return controls }
@@ -248,7 +268,9 @@ extension AppModel {
                 throw BridgeWorkspaceModelFailure.noneAvailable(agent)
             }
             controls.model = chosen.id
-            controls.effort = chosen.resolvedEffort(preferring: controls.effort)
+            controls.effort = DefaultBackend.effort(
+                controls.effort, on: agent, model: chosen.id, models: [agent: models]
+            )
         }
 
         return controls

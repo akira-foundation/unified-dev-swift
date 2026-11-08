@@ -10,7 +10,7 @@ struct RepoSettingsView: View {
 
     @State private var model: RepoSettingsModel
     @State private var name = ""
-    @State private var navigation = SettingsNavigation(current: RepoSettingsPane.requested ?? .project)
+    @State private var navigation: SettingsNavigation<RepoSettingsPane>
     @State private var isConfirmingRemove = false
     @State private var iconNotice: String?
     @FocusState private var isEditingName: Bool
@@ -18,6 +18,9 @@ struct RepoSettingsView: View {
     init(repo: Repo) {
         self.repo = repo
         _model = State(initialValue: RepoSettingsModel(repo: repo))
+        _navigation = State(initialValue: SettingsNavigation(
+            current: RepoSettingsPaneRequest.takePending(for: repo.id) ?? RepoSettingsPane.requested ?? .project
+        ))
     }
 
     static var idealSize: CGSize { SettingsWindowShell<RepoSettingsPane, EmptyView>.idealSize }
@@ -35,6 +38,11 @@ struct RepoSettingsView: View {
         .task {
             name = repo.name
             await model.load()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: RepoSettingsPaneRequest.name)) { notification in
+            guard let pane = RepoSettingsPaneRequest.pane(in: notification, for: repo.id) else { return }
+            _ = RepoSettingsPaneRequest.takePending(for: repo.id)
+            navigation.select(pane)
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             Task { await model.refresh() }
@@ -66,12 +74,18 @@ struct RepoSettingsView: View {
                         removeSection
                     }
                     .settingsForm()
+                case .agents:
+                    Form {
+                        AgentAccountSection(target: AccountScope(workspaceID: nil, repoID: repo.id))
+                    }
+                    .settingsForm()
                 case .workspaces:
                     Form {
                         branchSection
                         RepoMergeMethodSection(repo: repo)
                         browserSection
                         RepoFilesToCopySection(model: model)
+                        RepoOrchestratorSection(repo: repo)
                     }
                     .settingsForm()
                 case .scripts:

@@ -26,11 +26,11 @@ private func makeRunner(
     store: Store,
     session: Session,
     box: ProcessBox
-) -> CodexRunner {
+) async throws -> CodexRunner {
     CodexRunner(
         workspacePath: "/tmp/w",
         session: session,
-        store: store,
+        store: store, segmentID: try await activeSegmentID(store, session),
         makeClient: { configuration in
             CodexClient(configuration: configuration, makeProcess: box.factory)
         }
@@ -73,7 +73,7 @@ private func eventually(
         let store = try makeTestStore("codex-late-stop")
         let (session, _) = try await makeCodexSession(store)
         let box = scriptedBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
         try await runner.send("first turn")
         runner.cancelNow()
         box.reply(to: "turn/start", with: .object([
@@ -126,7 +126,7 @@ private func eventually(
         defer { requestSink.finish() }
         let box = scriptedBox { requestSink.yield($0) }
         box.ignore(delayed)
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
         let sending = Task {
             defer { requestSink.finish() }
             do {
@@ -165,7 +165,7 @@ private func eventually(
         let store = try makeTestStore("codex-runner-start")
         let (session, _) = try await makeCodexSession(store)
         let box = scriptedBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
 
         try await runner.send("hello")
 
@@ -190,7 +190,7 @@ private func eventually(
         if resumed { session.agentSessionID = "existing-chat" }
         session = try await store.upsert(session)
         let box = scriptedBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
 
         try await runner.send("create a workspace and explore the project")
 
@@ -206,7 +206,7 @@ private func eventually(
         let store = try makeTestStore("codex-child-isolation")
         let (session, _) = try await makeCodexSession(store)
         let box = scriptedBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
         try await runner.send("work with a child")
         box.process.emit(#"{"method":"item/completed","params":{"threadId":"01a02144-3b7e-7233-97f2-73ebd5105085","turnId":"parent-turn","item":{"id":"root-self","type":"subAgentActivity","agentThreadId":"01a02144-3b7e-7233-97f2-73ebd5105085","agentPath":"/root","kind":"interacted"}}}"#)
         box.process.emit(#"{"method":"item/completed","params":{"threadId":"child","turnId":"child-turn","item":{"id":"child-text","type":"agentMessage","text":"Child-only output"}}}"#)
@@ -233,7 +233,7 @@ private func eventually(
             "/tmp/tools/codex"
         )
         let box = scriptedBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
 
         try await runner.send("hello")
 
@@ -246,7 +246,7 @@ private func eventually(
         try await store.upsert(PermissionGrant(repoID: repoID, toolName: "Bash", ruleContent: "echo parent"))
         let box = scriptedBox()
         box.reply(to: "turn/steer", with: .object([:]))
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
         try await runner.send("review")
         box.process.emit(#"{"method":"item/completed","params":{"threadId":"01a02144-3b7e-7233-97f2-73ebd5105085","turnId":"parent-turn","item":{"id":"spawn","type":"subAgentActivity","agentThreadId":"child","agentPath":"/root/review","kind":"started"}}}"#)
         box.process.emit(#"{"method":"item/started","params":{"threadId":"01a02144-3b7e-7233-97f2-73ebd5105085","turnId":"parent-turn","item":{"id":"shared","type":"commandExecution","command":"echo parent","status":"inProgress"}}}"#)
@@ -269,7 +269,7 @@ private func eventually(
         let store = try makeTestStore("codex-question-answer")
         let (session, _) = try await makeCodexSession(store)
         let box = scriptedBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
         try await runner.send("ask me")
         box.process.emit(#"{"id":71,"method":"item/tool/requestUserInput","params":{"threadId":"01a02144-3b7e-7233-97f2-73ebd5105085","turnId":"parent-turn","itemId":"question","isBlocking":false,"questions":[{"id":"scope","header":"Scope","question":"Which scope?","options":[{"label":"All","description":"Everything"}]}]}}"#)
         await eventually("question card") {
@@ -301,7 +301,7 @@ private func eventually(
         let store = try makeTestStore("codex-runner-resume")
         let (session, _) = try await makeCodexSession(store, agentSessionID: "01a02144-3b7e-7233-97f2-73ebd5105085")
         let box = scriptedBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
 
         try await runner.send("again")
 
@@ -313,7 +313,7 @@ private func eventually(
         let store = try makeTestStore("codex-runner-user")
         let (session, _) = try await makeCodexSession(store)
         let box = scriptedBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
 
         try await runner.send("write the tests first")
 
@@ -335,7 +335,7 @@ private func eventually(
         session.interactionMode = mode
         try await store.setSetting("session.\(session.id).codexFastMode", value)
         let box = scriptedBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
         try await runner.send("hello")
         let turn = try #require(box.process.sentFrame { $0["method"]?.stringValue == "turn/start" })
         #expect(turn["params"]?["serviceTier"]?.stringValue == (value == "1" ? "priority" : "default"))
@@ -355,7 +355,7 @@ private func eventually(
         let (session, _) = try await makeCodexSession(store)
         try await store.setSetting(ComposerControls.fastModeKey(sessionID: session.id), "1")
         let box = scriptedBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
         try await runner.send("hello")
         let turn = try #require(box.process.sentFrame { $0["method"]?.stringValue == "turn/start" })
         #expect(turn["params"]?["serviceTier"] == nil)
@@ -366,7 +366,7 @@ private func eventually(
         let store = try makeTestStore("codex-runner-turn")
         let (session, _) = try await makeCodexSession(store)
         let box = scriptedBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
 
         try await runner.send("hello")
 
@@ -406,7 +406,7 @@ private func eventually(
         let store = try makeTestStore("codex-runner-approve-for-me")
         let (session, _) = try await makeCodexSession(store, permissionMode: .autoReview)
         let box = scriptedBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
 
         try await runner.send("hello")
 
@@ -420,7 +420,7 @@ private func eventually(
         let store = try makeTestStore("codex-runner-replay")
         let (session, _) = try await makeCodexSession(store)
         let box = scriptedBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
 
         try await runner.send("Reply with exactly one word: unifieddev")
         for line in try fixtureLines("codex-turn.ndjson") {
@@ -445,7 +445,7 @@ private func eventually(
         let store = try makeTestStore("codex-runner-stop")
         let (session, _) = try await makeCodexSession(store)
         let box = scriptedBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
 
         try await runner.send("count to three hundred")
         runner.cancelNow()
@@ -472,7 +472,7 @@ private func eventually(
         let store = try makeTestStore("codex-runner-ask")
         let (session, _) = try await makeCodexSession(store)
         let box = scriptedBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
 
         try await runner.send("create note.txt")
         for line in try fixtureLines("codex-approval.ndjson") {
@@ -519,12 +519,12 @@ private func eventually(
         let (session, _) = try await makeCodexSession(store, permissionMode: .bypassPermissions)
         try await store.setOrchestrator(true, workspaceID: try #require(session.workspaceID))
         let box = scriptedBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
         defer { runner.terminateNow() }
         try await runner.send("look")
 
         box.process.emit(commandStarted("read", "git log -1"))
-        box.process.emit(commandApproval(61, "read"))
+        box.process.emit(commandApproval(61, "read", command: "git log -1"))
         await eventually("the read accepted") {
             box.process.sentFrame { $0["id"]?.intValue == 61 && $0["result"] != nil } != nil
         }
@@ -534,9 +534,9 @@ private func eventually(
         #expect(try await !store.messages(sessionID: session.id).contains { $0.kind == .permissionAsk })
 
         box.process.emit(commandStarted("write", "rm -rf Sources"))
-        box.process.emit(commandApproval(62, "write"))
+        box.process.emit(commandApproval(62, "write", command: "rm -rf Sources"))
         box.process.emit(commandStarted("later", "git status"))
-        box.process.emit(commandApproval(63, "later"))
+        box.process.emit(commandApproval(63, "later", command: "git status"))
         await eventually("the later read accepted") {
             box.process.sentFrame { $0["id"]?.intValue == 63 && $0["result"] != nil } != nil
         }
@@ -544,23 +544,96 @@ private func eventually(
         #expect(try await store.pendingPermissionAsks(sessionID: session.id).count == 1)
     }
 
+    @Test func theRunWithoutAskingSwitchIsReadOnEachAskOfARunningThread() async throws {
+        let store = try makeTestStore("codex-runner-orchestrator-unasked")
+        let (session, _) = try await makeCodexSession(store, permissionMode: .bypassPermissions)
+        try await store.setOrchestrator(true, workspaceID: try #require(session.workspaceID))
+        let box = scriptedBox()
+        let runner = try await makeRunner(store: store, session: session, box: box)
+        defer { runner.terminateNow() }
+        try await runner.send("look")
+        @Sendable func decided(_ id: Int) -> String? {
+            box.process.sentFrame { $0["id"]?.intValue == id && $0["result"] != nil }?["result"]?["decision"]?.stringValue
+        }
+        let compound = "make build && echo a"
+        let wrapped = "/bin/zsh -lc 'make build && echo a'"
+
+        box.process.emit(commandStarted("off", compound))
+        box.process.emit(commandApproval(71, "off", command: compound))
+        await eventually("the question to wait") {
+            ((try? await store.pendingPermissionAsks(sessionID: session.id)) ?? []).count == 1
+        }
+        #expect(decided(71) == nil)
+
+        try await OrchestratorUnaskedCommands.turn(true, for: session, in: store)
+        box.process.emit(commandStarted("on", compound))
+        box.process.emit(commandApproval(72, "on", command: compound))
+        await eventually("the command accepted") { decided(72) != nil }
+        #expect(decided(72) == CodexApprovalDecision.accept.rawValue)
+
+        box.process.emit(commandStarted("wrapped", wrapped))
+        box.process.emit(commandApproval(73, "wrapped", command: wrapped))
+        await eventually("the wrapped command accepted") { decided(73) != nil }
+        #expect(decided(73) == CodexApprovalDecision.accept.rawValue)
+
+        box.process.emit(commandStarted("refused", "eval git push"))
+        box.process.emit(commandApproval(74, "refused", command: "eval git push"))
+        await eventually("the command declined") { decided(74) != nil }
+        #expect(decided(74) == CodexApprovalDecision.decline.rawValue)
+
+        box.process.emit(commandStarted("other", compound))
+        box.process.emit(commandApproval(75, "other", command: "make build && echo b"))
+        await eventually("the mismatched request to wait") {
+            ((try? await store.pendingPermissionAsks(sessionID: session.id)) ?? []).count == 2
+        }
+        #expect(decided(75) == nil)
+
+        try await OrchestratorUnaskedCommands.turn(false, for: session, in: store)
+        box.process.emit(commandStarted("off-again", compound))
+        box.process.emit(commandApproval(76, "off-again", command: compound))
+        await eventually("the last question to wait") {
+            ((try? await store.pendingPermissionAsks(sessionID: session.id)) ?? []).count == 3
+        }
+        #expect(decided(76) == nil)
+    }
+
     @Test func aRequestNamingAnotherCommandThanItsItemIsNotAccepted() async throws {
         let store = try makeTestStore("codex-runner-orchestrator-mismatch")
         let (session, _) = try await makeCodexSession(store, permissionMode: .bypassPermissions)
         try await store.setOrchestrator(true, workspaceID: try #require(session.workspaceID))
         let box = scriptedBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
         defer { runner.terminateNow() }
         try await runner.send("look")
 
         box.process.emit(commandStarted("swap", "ls"))
         box.process.emit(commandApproval(71, "swap", command: "rm -rf Sources"))
         box.process.emit(commandStarted("later", "git status"))
-        box.process.emit(commandApproval(72, "later"))
+        box.process.emit(commandApproval(72, "later", command: "git status"))
         await eventually("the later read accepted") {
             box.process.sentFrame { $0["id"]?.intValue == 72 && $0["result"] != nil } != nil
         }
         #expect(box.process.sentFrame { $0["id"]?.intValue == 71 && $0["result"] != nil } == nil)
+    }
+
+    @Test func aRequestNamingNoCommandIsNotAccepted() async throws {
+        let store = try makeTestStore("codex-runner-orchestrator-unnamed")
+        let (session, _) = try await makeCodexSession(store, permissionMode: .bypassPermissions)
+        try await store.setOrchestrator(true, workspaceID: try #require(session.workspaceID))
+        let box = scriptedBox()
+        let runner = try await makeRunner(store: store, session: session, box: box)
+        defer { runner.terminateNow() }
+        try await runner.send("look")
+
+        box.process.emit(commandStarted("unnamed", "git log -1"))
+        box.process.emit(commandApproval(81, "unnamed"))
+        box.process.emit(commandStarted("later", "git status"))
+        box.process.emit(commandApproval(82, "later", command: "git status"))
+        await eventually("the later read accepted") {
+            box.process.sentFrame { $0["id"]?.intValue == 82 && $0["result"] != nil } != nil
+        }
+        #expect(box.process.sentFrame { $0["id"]?.intValue == 81 && $0["result"] != nil } == nil)
+        #expect(try await store.pendingPermissionAsks(sessionID: session.id).count == 1)
     }
 
     @Test func anOrchestratorDeclinesAFileChangeAStoredGrantWouldAllow() async throws {
@@ -568,7 +641,7 @@ private func eventually(
         let (session, repoID) = try await makeCodexSession(store, permissionMode: .bypassPermissions)
         try await store.setOrchestrator(true, workspaceID: try #require(session.workspaceID))
         let box = scriptedBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
         let path = try #require(try fixtureLines("codex-approval.ndjson").compactMap { line -> String? in
             guard let json = JSONValue.parse(line), json["params"]?["item"]?["type"]?.stringValue == "fileChange"
             else { return nil }
@@ -604,7 +677,7 @@ private func eventually(
         let store = try makeTestStore("codex-runner-grant")
         let (session, repoID) = try await makeCodexSession(store)
         let box = scriptedBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
 
         let paths = try fixtureLines("codex-approval.ndjson")
             .compactMap { line -> String? in
@@ -650,7 +723,7 @@ private func eventually(
         let store = try makeTestStore("codex-runner-stop-keeps-server")
         let (session, _) = try await makeCodexSession(store)
         let box = scriptedBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
 
         try await runner.send("count to three hundred")
         runner.cancelNow()
@@ -679,7 +752,7 @@ private func eventually(
         let store = try makeTestStore("codex-runner-terminate")
         let (session, _) = try await makeCodexSession(store)
         let box = scriptedBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
 
         try await runner.send("count to three hundred")
         #expect(box.process.isRunning)
@@ -694,7 +767,7 @@ private func eventually(
         let store = try makeTestStore("codex-runner-terminate-ask")
         let (session, _) = try await makeCodexSession(store)
         let box = scriptedBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
 
         let events = runner.events
         let watching = Task { () -> PermissionResolution? in
@@ -735,7 +808,7 @@ private func eventually(
         let store = try makeTestStore("codex-runner-terminate-resume")
         let (session, _) = try await makeCodexSession(store)
         let box = scriptedBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
 
         try await runner.send("hello")
         runner.terminateNow()
@@ -753,7 +826,7 @@ private func eventually(
         let store = try makeTestStore("codex-runner-streams")
         let (session, _) = try await makeCodexSession(store)
         let box = scriptedBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
 
         let firstEvents = runner.events
         let secondEvents = runner.events
@@ -828,7 +901,7 @@ private func eventually(
             ComposerControls.contextWindowKey(sessionID: session.id), "1000000"
         )
         let box = scriptedBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
 
         try await runner.send("hello")
 
@@ -841,7 +914,7 @@ private func eventually(
         let store = try makeTestStore("codex-runner-window-change")
         let (session, _) = try await makeCodexSession(store)
         let box = scriptedBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
 
         try await runner.send("first")
         #expect(box.processes.count == 1)
@@ -864,7 +937,7 @@ private func eventually(
             ComposerControls.contextWindowKey(sessionID: session.id), "500000"
         )
         let box = scriptedBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
 
         try await runner.send("first")
         try await runner.send("second")
@@ -900,7 +973,7 @@ struct SideConversationCodexRunnerTests {
         let parent = try #require(try await store.session(id: createdParent.id))
         let child = try await store.openSideConversation(parentID: parent.id, streamingText: "Original context")
         let box = scriptedBox()
-        let runner = makeRunner(store: store, session: child, box: box)
+        let runner = try await makeRunner(store: store, session: child, box: box)
         box.fail("turn/start", code: -32000, message: "Try again")
         do {
             try await runner.send("Why?")
@@ -912,7 +985,7 @@ struct SideConversationCodexRunnerTests {
         await runner.shutdown()
         let resumed = try #require(try await store.session(id: child.id))
         let retryBox = scriptedBox()
-        let retryRunner = makeRunner(store: store, session: resumed, box: retryBox)
+        let retryRunner = try await makeRunner(store: store, session: resumed, box: retryBox)
         try await retryRunner.send("Why?")
         let frames = box.process.stdin + retryBox.process.stdin
         let starts = frames.compactMap(JSONValue.parse).filter { $0["method"]?.stringValue == "turn/start" }
@@ -937,7 +1010,7 @@ extension CodexRunnerTests {
         let claimed = try await store.claimDelivery(id: delivery.id)
         #expect(claimed)
         let box = scriptedBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
         try await runner.sendDelivery(delivery)
         #expect(try await store.delivery(id: delivery.id)?.state == .accepted)
         #expect(try await store.delivery(id: delivery.id)?.providerTurnID == "01a02144-3bab-7fe3-a92c-6eec594d84fd")
@@ -949,7 +1022,7 @@ extension CodexRunnerTests {
         let store = try makeTestStore("codex-family-stop")
         let (session, _) = try await makeCodexSession(store)
         let box = scriptedBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
         try await runner.send("Start a child")
         box.process.emit(#"{"method":"turn/started","params":{"threadId":"child","turn":{"id":"child-turn","status":"inProgress","items":[]}}}"#)
         box.process.emit(#"{"method":"item/completed","params":{"threadId":"01a02144-3b7e-7233-97f2-73ebd5105085","turnId":"01a02144-3bab-7fe3-a92c-6eec594d84fd","item":{"id":"spawn-child","type":"subAgentActivity","agentPath":"/root/child","agentThreadId":"child","kind":"started"}}}"#)
@@ -967,7 +1040,7 @@ extension CodexRunnerTests {
         let store = try makeTestStore("codex-idle-guard")
         let (session, _) = try await makeCodexSession(store, agentSessionID: "resumable")
         let box = scriptedBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
         let delivery = try await store.enqueueDelivery(Delivery(targetSessionID: session.id, body: "waiting"))
         let queuedEviction = await runner.evictIfIdle(for: .zero)
         #expect(!queuedEviction)
@@ -989,7 +1062,7 @@ extension CodexRunnerTests {
         let store = try makeTestStore("codex-ambiguous-steer")
         let (session, _) = try await makeCodexSession(store)
         let box = scriptedBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
         try await runner.send("first")
         box.fail("turn/steer", code: -32603, message: "internal failure after dispatch")
         let delivery = try await store.enqueueDelivery(Delivery(targetSessionID: session.id, body: "follow up"))
@@ -1005,7 +1078,7 @@ extension CodexRunnerTests {
         let (session, _) = try await makeCodexSession(store)
         let box = scriptedBox()
         box.fail("turn/start", code: -32602, message: "invalid model parameter")
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
         let delivery = try await store.enqueueDelivery(Delivery(targetSessionID: session.id, body: "safe to retry"))
         _ = try await store.claimDelivery(id: delivery.id)
         await #expect(throws: CodexRPCError.self) { try await runner.sendDelivery(delivery) }
@@ -1032,7 +1105,7 @@ extension CodexRunnerTests {
         let store = try makeTestStore("codex-rewind-background-command")
         let (session, _) = try await makeCodexSession(store)
         let box = rewindableBox()
-        let runner = makeRunner(store: store, session: session, box: box)
+        let runner = try await makeRunner(store: store, session: session, box: box)
         try await runner.send("Start the dev server")
         box.process.emit(#"{"method":"item/started","params":{"threadId":"\#(Self.parentThread)","turnId":"\#(Self.parentTurn)","item":{"type":"commandExecution","id":"exec-dev","command":"/bin/zsh -lc 'npm run dev'","status":"inProgress"}}}"#)
         box.process.emit(#"{"method":"turn/completed","params":{"threadId":"\#(Self.parentThread)","turn":{"id":"\#(Self.parentTurn)","status":"completed","items":[]}}}"#)

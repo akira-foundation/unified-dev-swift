@@ -126,8 +126,6 @@ public struct SubagentRoster: Sendable, Hashable {
         self[id] ?? history.first { $0.id == id }
     }
 
-    public var hasTasks: Bool { !subagents.isEmpty || !history.isEmpty }
-
     public func subagent(forToolUseID toolUseID: String) -> Subagent? {
         guard !toolUseID.isEmpty, let id = byToolUse[toolUseID] else { return nil }
         return subagents.first { $0.id == id }

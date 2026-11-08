@@ -40,6 +40,7 @@ struct RootView: View {
                         WindowToolbar(
                             app: app,
                             centreWidth: centreWidth,
+                            showsProfileMark: columns.showsProfileMark,
                             startFreshAskConversation: { Task { await app.ask.newConversation() } }
                         )
                     }
@@ -93,6 +94,9 @@ struct RootView: View {
                 ProjectSetupSheet(request: request) { path in
                     Task { await app.finishProjectSetup(path) }
                 }
+            }
+            .sheet(item: $app.profileSheet) { request in
+                ProfileSheet(request: request, profiles: app.profiles, source: app.accountChoices.accounts.source(of:))
             }
             .confirmationDialog(
                 "Archive this workspace?",
@@ -169,7 +173,7 @@ struct RootView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .unifieddevOpenRepoSettings)) { note in
             let named = note.object as? String
-            let repo = app.repos.first { $0.name == named } ?? app.repos.first
+            let repo = ProfileScope.repo(named: named, in: app.repos, preferring: app.activeProfileID) ?? app.profileRepos.first
             guard let repo else { return }
             openWindow(id: RepoSettingsWindow.id, value: repo.id)
         }
@@ -191,7 +195,7 @@ struct RootView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .unifieddevStartTerminalWorkspace)) { note in
             let named = note.object as? String
-            let repo = app.repos.first { $0.name == named } ?? app.repos.first
+            let repo = ProfileScope.repo(named: named, in: app.repos, preferring: app.activeProfileID) ?? app.profileRepos.first
             guard let repo else { return }
             Task { await app.createWorkspace(in: repo, prompt: "", opensWith: .terminal) }
         }

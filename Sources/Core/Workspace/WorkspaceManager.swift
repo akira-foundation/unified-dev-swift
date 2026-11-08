@@ -44,8 +44,12 @@ public struct WorkspaceManager: Sendable {
 
     public static let workspacesRoot: URL = WorkspacesRoot.resolve()
 
+    private func profileFolder(of repo: Repo) async throws -> String {
+        try await store.profile(id: repo.profileID)?.folder ?? ProfileID.initial.rawValue
+    }
+
     @discardableResult
-    public func addRepository(at path: String) async throws -> Repo {
+    public func addRepository(at path: String, profileID: ProfileID) async throws -> Repo {
         let expanded = (path as NSString).expandingTildeInPath
         switch await Git.repositoryAnswer(expanded) {
         case .repository: break
@@ -65,7 +69,8 @@ public struct WorkspaceManager: Sendable {
             accent: Accent.next(usedBy: existingRepos),
             sortOrder: existingRepos.count,
             iconPath: icon?.path,
-            iconSource: icon == nil ? .monogram : .detected
+            iconSource: icon == nil ? .monogram : .detected,
+            profileID: profileID
         )
         let added = try await store.upsert(repo)
         await adoptRemoteSuggestions(for: added)
@@ -143,9 +148,10 @@ public struct WorkspaceManager: Sendable {
         let stem = Git.branchStem(prompt: prompt, prefix: settings.branchPrefix, branch: branch)
         let finalBranch = Git.uniqueBranch(stem, taken: existingBranches)
 
+        let profileFolder = try await profileFolder(of: repo)
         let worktreePath = WorktreePath.free(
             preferred: WorktreePath.preferred(
-                branch: finalBranch, project: repo.name, under: workspacesRoot
+                branch: finalBranch, project: repo.name, profileFolder: profileFolder, under: workspacesRoot
             )
         ) { FileManager.default.fileExists(atPath: $0) }
 
@@ -197,9 +203,10 @@ public struct WorkspaceManager: Sendable {
             throw BranchInUse(branch: branch, holder: holder)
         }
 
+        let profileFolder = try await profileFolder(of: repo)
         let worktreePath = WorktreePath.free(
             preferred: WorktreePath.preferred(
-                branch: branch, project: repo.name, under: workspacesRoot
+                branch: branch, project: repo.name, profileFolder: profileFolder, under: workspacesRoot
             )
         ) { FileManager.default.fileExists(atPath: $0) }
 

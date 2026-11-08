@@ -19,6 +19,41 @@ struct WorkspaceManagerTests {
         #expect(try await manager.store.repos().count == 1)
     }
 
+    @Test("a project of another profile gets its worktree under that profile's folder")
+    func worktreeGoesUnderProfileFolder() async throws {
+        let repo = try await TempRepo()
+        defer { repo.cleanUp() }
+        let store = try makeTestStore("wm")
+        let root = URL(fileURLWithPath: TestScratch.unique("wm-root"), isDirectory: true)
+        let manager = WorkspaceManager(store: store, workspacesRoot: root)
+        let profile = try await store.createProfile(name: "Debtges", colour: "blue", symbol: "building")
+        let before = try await manager.addRepository(at: repo.path, profileID: .initial)
+        let earlier = try await manager.createWorkspace(repo: before, prompt: "Earlier work")
+
+        let moved = try #require(try await store.update(repoID: before.id) { $0.profileID = profile.id })
+        let later = try await manager.createWorkspace(repo: moved, prompt: "Later work")
+
+        let projectFolder = "/" + moved.name + "/"
+        #expect(later.path.hasPrefix(root.path + "/" + profile.folder + projectFolder))
+        #expect(earlier.path.hasPrefix(root.path + "/unified" + projectFolder))
+        #expect(try await store.workspace(id: earlier.id)?.path == earlier.path)
+    }
+
+    @Test("a repository already registered keeps its profile")
+    func registeredRepositoryKeepsProfile() async throws {
+        let repo = try await TempRepo()
+        defer { repo.cleanUp() }
+        let store = try makeTestStore("wm")
+        let manager = WorkspaceManager(store: store)
+        let profile = try await store.createProfile(name: "Debtges", colour: "blue", symbol: "building")
+
+        let first = try await manager.addRepository(at: repo.path, profileID: profile.id)
+        let again = try await manager.addRepository(at: repo.path, profileID: .initial)
+
+        #expect(first.profileID == profile.id)
+        #expect(again.profileID == profile.id)
+    }
+
     @Test("refuses a folder that is not a repository")
     func refusesNonRepository() async throws {
         let manager = WorkspaceManager(store: try makeTestStore("wm"))

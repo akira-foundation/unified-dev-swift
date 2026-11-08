@@ -10,6 +10,7 @@ struct ComposerPlace {
     var projectQuickPrompts: [ProjectQuickPrompt] = []
     var onOpenQuickPrompts: (@MainActor () -> Void)?
     var isDraftLoaded = true
+    var account: AccountScope = .none
 }
 
 struct ComposerSend {
@@ -25,12 +26,16 @@ struct ComposerConversation {
     var reviewComments: [ReviewComment] = []
     var onRemoveReviewComment: @MainActor (ReviewCommentID) -> Void = { _ in }
     var onOpenReviewComment: @MainActor (ReviewComment) -> Void = { _ in }
+    var replyQuotes: [ReplyQuote] = []
+    var onRemoveReplyQuote: @MainActor (ReplyQuoteID) -> Void = { _ in }
+    var onOpenReplyQuote: @MainActor (ReplyQuote) -> Void = { _ in }
     var onOpenCommand: (@MainActor (String) -> Void)?
     var context: ContextWindowUsage?
     var isRunning = false
     var queues = false
     var onStop: @MainActor () -> Void = {}
     var onSideConversation: (@MainActor () -> Void)?
+    var onOpenInNewChat: (@MainActor (ComposerControls) -> Void)?
 }
 
 struct ComposerSurface: View {
@@ -47,6 +52,9 @@ struct ComposerSurface: View {
     var onOpenAttachment: @MainActor (PromptAttachment) -> Void
     var onEscape: @MainActor () -> Void
 
+    @Environment(AppModel.self) private var app
+    @State private var loaded: ComposerAccountReading?
+
     var body: some View {
         ComposerPrompt(
             text: $text,
@@ -58,6 +66,9 @@ struct ComposerSurface: View {
             reviewComments: conversation.reviewComments,
             onRemoveReviewComment: conversation.onRemoveReviewComment,
             onOpenReviewComment: conversation.onOpenReviewComment,
+            replyQuotes: conversation.replyQuotes,
+            onRemoveReplyQuote: conversation.onRemoveReplyQuote,
+            onOpenReplyQuote: conversation.onOpenReplyQuote,
             placeholder: place.placeholder,
             editorHeight: editorHeight,
             onContentHeightChange: onContentHeightChange,
@@ -66,11 +77,13 @@ struct ComposerSurface: View {
             onOpenCommand: conversation.onOpenCommand,
             isFloating: true,
             isBusy: conversation.isRunning,
-            isDraftLoaded: place.isDraftLoaded
+            isDraftLoaded: place.isDraftLoaded,
+            accountHomes: reading?.homes
         ) { actions in
             ComposerFooterView(
                 controls: controls,
                 onChange: onControlsChange,
+                onOpenInNewChat: conversation.onOpenInNewChat,
                 context: conversation.context,
                 isRunning: conversation.isRunning,
                 queues: conversation.queues,
@@ -85,9 +98,25 @@ struct ComposerSurface: View {
                 onStop: conversation.onStop,
                 onSideConversation: conversation.onSideConversation,
                 usesCLIChat: send.usesCLIChat,
-                supportsCLIChat: send.supportsCLIChat
+                supportsCLIChat: send.supportsCLIChat,
+                account: reading?.section,
+                accountHomes: reading?.homes
             )
         }
+        .task(id: accountKey) {
+            let key = accountKey
+            let found = await app.composerAccounts(for: key)
+            guard !Task.isCancelled else { return }
+            loaded = found
+        }
+    }
+
+    private var accountKey: ComposerAccountKey {
+        app.composerAccountKey(for: place.account, provider: controls.agentKind)
+    }
+
+    private var reading: ComposerAccountReading? {
+        loaded.flatMap { $0.key == accountKey ? $0 : nil }
     }
 
     private func handle(key: ComposerKey) -> Bool {

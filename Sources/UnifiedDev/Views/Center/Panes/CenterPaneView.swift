@@ -214,7 +214,8 @@ struct CenterPaneView: View {
             tab: TerminalTab(id: TerminalTabID(terminal.id), workspaceID: model.workspace.id, title: terminal.title),
             workspace: model.workspace, repo: model.repo, port: model.port,
             output: (model.sessions.first { $0.id == sessionID }?.agentKind ?? .claudeCode)
-                .interactiveSetupOutput(prompt: model.pendingCLIPrompts[sessionID], log: model.setupOutput)
+                .interactiveSetupOutput(prompt: model.pendingCLIPrompts[sessionID], log: model.setupOutput),
+            onOpenLink: { BrowserTab.follow($0, in: model, asksForExternal: $1) }
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

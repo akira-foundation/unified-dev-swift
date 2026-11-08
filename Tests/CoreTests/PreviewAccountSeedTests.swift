@@ -45,7 +45,7 @@ struct PreviewAccountSeedTests {
         #expect(identity?.email == "ada@lovelace.dev")
         #expect(identity?.organisationName == "Lantern")
         #expect(identity?.plan == "Max")
-        #expect(identity?.authMethod == .subscription)
+        #expect(identity?.isEmpty == false)
     }
 
     @Test("a seeded Claude account can carry either rate limit tier")
@@ -79,6 +79,27 @@ struct PreviewAccountSeedTests {
         let plain = try JSONDecoder().decode(PreviewScenario.Account.self, from: Data(#"{"email":"a@b.c"}"#.utf8))
         #expect(tiered.rateLimitTier == "default_claude_max_20x")
         #expect(plain.rateLimitTier == nil)
+    }
+
+    @Test("a scenario reads a labelled account, a missing one and a project's choice from its file")
+    func labelledAccountsAndChoicesDecode() throws {
+        let labelled = try JSONDecoder().decode(
+            PreviewScenario.Account.self,
+            from: Data(#"{"email":"a@b.c","label":"client","missing":true}"#.utf8)
+        )
+        let plain = try JSONDecoder().decode(PreviewScenario.Account.self, from: Data(#"{"email":"a@b.c"}"#.utf8))
+        let project = try JSONDecoder().decode(
+            PreviewScenario.Project.self,
+            from: Data(#"{"name":"billing","accounts":{"codex":"lab"}}"#.utf8)
+        )
+        let bare = try JSONDecoder().decode(PreviewScenario.Project.self, from: Data(#"{"name":"billing"}"#.utf8))
+
+        #expect(labelled.label == "client")
+        #expect(labelled.missing)
+        #expect(plain.label == nil)
+        #expect(!plain.missing)
+        #expect(project.accounts == ["codex": "lab"])
+        #expect(bare.accounts.isEmpty)
     }
 
     @Test("a seeded Codex account is read back from the one file that serves both roles")
@@ -121,11 +142,101 @@ struct PreviewAccountSeedTests {
     @Test("a scenario naming an account twice for one agent, or with no email, is refused")
     func problemsAreReported() {
         let twice = scenario([.init(email: "a@b.c"), .init(email: "d@e.f")])
-        #expect(twice.problems.contains { $0.contains("two accounts") })
+        #expect(twice.problems.contains { $0.contains("two default accounts") })
         #expect(scenario([.init(email: " ")]).problems.contains { $0.contains("no email") })
         #expect(
             scenario([.init(provider: .grok, email: "a@b.c")]).problems
                 .contains { $0.contains("no identity on disk") }
         )
+    }
+
+    @Test("a labelled account and a project's choice of it are refused when they do not add up")
+    func labelledAccountProblemsAreReported() {
+        let client = PreviewScenario.Account(email: "a@b.c", label: "client")
+        let twice = scenario([client, client])
+        #expect(twice.problems.contains { $0.contains("account \"client\" is declared twice") })
+        #expect(scenario([.init(email: "a@b.c", missing: true)]).problems.contains { $0.contains("cannot be missing") })
+        #expect(scenario([.init(email: "a@b.c", label: "a/b")]).problems.contains { $0.contains("plain folder name") })
+
+        let choosing = PreviewScenario(
+            projects: [PreviewScenario.Project(name: "billing", accounts: ["claudeCode": "lab", "nobody": "client"])],
+            accounts: [client]
+        )
+        #expect(choosing.problems.contains { $0.contains("chooses Claude Code account \"lab\"") })
+        #expect(choosing.problems.contains { $0.contains("\"nobody\", which is no agent") })
+
+        let otherAgent = PreviewScenario(
+            projects: [PreviewScenario.Project(name: "billing", accounts: ["codex": "client"])],
+            accounts: [client]
+        )
+        #expect(otherAgent.problems.contains { $0.contains("\"client\"") })
+
+        let differentCase = scenario([client, .init(email: "d@e.f", label: "Client")])
+        #expect(differentCase.problems.contains { $0.contains("is declared twice") })
+    }
+
+    @Test("a labelled account is added beside the default and the project runs it")
+    func aLabelledAccountIsAddedAndChosen() async throws {
+        let home = URL(filePath: TestScratch.unique("account-home"), directoryHint: .isDirectory)
+        let made = try seeder()
+        let store = made.manager.store
+        let repo = try await store.upsert(Repo(name: "billing", path: TestScratch.unique("repo")))
+        let seeded = PreviewScenario(
+            projects: [PreviewScenario.Project(name: "billing", accounts: ["claudeCode": "client"])],
+            accounts: [
+                .init(email: "ada@home.invalid"),
+                .init(email: "ada@client.invalid", label: "client"),
+                .init(email: "ada@gone.invalid", label: "gone", missing: true),
+            ]
+        )
+
+        #expect(try made.seedAgentAccounts(seeded, home: home, at: now) == 3)
+        try await made.seedAccountChoices(seeded, repos: ["billing": repo.id], home: home)
+
+        let client = try #require(PreviewScenarioSeeder.place(of: seeded.accounts[1], home: home))
+        let gone = try #require(PreviewScenarioSeeder.place(of: seeded.accounts[2], home: home))
+        #expect(AgentAccountIdentities.read([client])[client.id]?.email == "ada@client.invalid")
+        #expect(!FileManager.default.fileExists(atPath: gone.directory.path))
+        let rows = try await store.agentAccounts()
+        #expect(Set(rows.map(\.id)).isSuperset(of: [client.id, gone.id]))
+        #expect(rows.first { $0.id == client.id }?.label == "client")
+        #expect(try await store.agentAccountChoices().repos[repo.id] == [.claudeCode: client.id])
+    }
+
+    @Test("a labelled account that names a profile belongs to it, and can be that profile's default")
+    func aProfileAccountIsOwnedByItsProfile() async throws {
+        let home = URL(filePath: TestScratch.unique("account-home"), directoryHint: .isDirectory)
+        let made = try seeder()
+        let store = made.manager.store
+        let akira = try await store.createProfile(name: "Akira", colour: Accent.all[1], symbol: "star")
+        let seeded = PreviewScenario(
+            projects: [PreviewScenario.Project(name: "billing")],
+            accounts: [
+                .init(email: "ada@home.invalid"),
+                .init(email: "ada@akira.invalid", label: "akira", profile: "Akira", isProfileDefault: true),
+                .init(email: "ada@client.invalid", label: "client"),
+            ],
+            profiles: [PreviewScenario.Profile(name: "Akira", colour: "4C8DF6", symbol: "star")]
+        )
+
+        _ = try made.seedAgentAccounts(seeded, home: home, at: now)
+        try await made.seedAccountChoices(seeded, repos: [:], profiles: ["akira": akira.id], home: home)
+
+        let owned = try #require(PreviewScenarioSeeder.place(of: seeded.accounts[1], home: home))
+        let owners = Dictionary(uniqueKeysWithValues: try await store.agentAccounts().map { ($0.id, $0.profileID) })
+        #expect(owners[owned.id] == akira.id)
+        #expect(owners.values.filter { $0 == .initial }.count == 1)
+        #expect(try await store.agentAccountChoices().profiles[akira.id] == [.claudeCode: owned.id])
+    }
+
+    @Test("an account naming an undeclared profile, or a login of this Mac naming any, is refused")
+    func profileProblems() {
+        let unknown = scenario([.init(email: "a@b.c", label: "a", profile: "Nowhere")])
+        let login = scenario([.init(email: "a@b.c", profile: "Unified")])
+        let unlabelledDefault = scenario([.init(email: "a@b.c", isProfileDefault: true)])
+        #expect(unknown.problems.contains { $0.contains("Nowhere") })
+        #expect(login.problems.contains { $0.contains("belongs to Unified") })
+        #expect(unlabelledDefault.problems.contains { $0.contains("account with a label") })
+        #expect(scenario([.init(email: "a@b.c", label: "a", profile: "Unified")]).problems.isEmpty)
     }
 }

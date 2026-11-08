@@ -19,6 +19,8 @@ final class ComposerModelCatalog {
     private(set) var lastFailure: String?
 
     private var sources: [AgentKind: AgentModelSource]
+    private var accounts: [AgentKind: AgentAccountHome] = [:]
+    private var accountsAreKnown = false
     private var loadTask: Task<Void, Never>?
     private var loadGeneration = UUID()
 
@@ -28,14 +30,24 @@ final class ComposerModelCatalog {
 
     func configure(store: Store) {
         Task { await ComposerPlanningSupport.shared.refresh(from: store) }
-        sources = AgentModelSource.live(store: store)
+        sources = AgentModelSource.live(store: store, accounts: accounts)
+        guard accountsAreKnown else { return }
+        refresh()
+    }
+
+    func adopt(accounts adopted: [AgentKind: AgentAccountHome], store: Store) {
+        guard adopted != accounts || !accountsAreKnown else { return }
+        accountsAreKnown = true
+        accounts = adopted
+        sources = AgentModelSource.live(store: store, accounts: adopted)
         refresh()
     }
 
     func load() {
-        guard loadTask == nil else { return }
-        let needed = AgentKind.runnable.filter { sources[$0] != nil && (models[$0] ?? []).isEmpty }
+        guard accountsAreKnown, loadTask == nil else { return }
+        let needed = AgentModelSource.kindsAwaitingModels(sources: sources, loaded: models)
         guard !needed.isEmpty else { return }
+        lastFailure = nil
         isLoading = true
         let generation = loadGeneration
         loadTask = Task { [sources] in
@@ -63,6 +75,7 @@ final class ComposerModelCatalog {
         loadGeneration = UUID()
         let generation = loadGeneration
         models = [:]
+        lastFailure = nil
         isLoading = true
         loadTask = Task { [sources] in
             for source in sources.values { await source.invalidate() }
@@ -101,11 +114,13 @@ final class ComposerModelCatalog {
         )
     }
 
-    func efforts(for kind: AgentKind, model: String) -> [ComposerOption] {
-        guard kind != .claudeCode, let found = models[kind]?.first(where: { $0.id == model }) else {
-            return ComposerOption.efforts
+    func efforts(for kind: AgentKind, model: String, offeringAgentDefault: Bool) -> [ComposerOption] {
+        let announced = kind.announcesModelEfforts ? models[kind]?.first { $0.id == model } : nil
+        let supported = announced?.supportedEfforts
+            ?? ComposerOption.efforts.map { AgentModelEffort(id: $0.id, label: $0.label) }
+        return ComposerEffort.choices(supported, offeringUnset: offeringAgentDefault).map {
+            ComposerOption(id: $0.id, label: $0.label)
         }
-        return found.supportedEfforts.map { ComposerOption(id: $0.id, label: $0.label) }
     }
 
     func resolvedEffort(_ wanted: String, for kind: AgentKind, model: String) -> String {

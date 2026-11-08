@@ -5,6 +5,12 @@ import Testing
 @Suite("Sleep daemon connection")
 @MainActor
 struct SleepDaemonConnectionTests {
+    @Test("stops waiting for an answer that never comes")
+    func waitingForAnAnswerEnds() async {
+        let answer = await SleepDaemonFixture.first(withinTurns: 3) { (_: @escaping @Sendable (Bool) -> Void) in }
+        #expect(answer == nil)
+    }
+
     @Test("answers false off the main queue when the daemon cannot be reached, without trapping")
     func unreachableDaemonRepliesFalse() async {
         let connection = SleepDaemonConnection.open(machServiceName: SleepDaemonFixture.absentService(), options: []) {}

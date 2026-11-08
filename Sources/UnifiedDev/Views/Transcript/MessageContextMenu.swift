@@ -23,7 +23,7 @@ enum MessageContextMenu {
         menu.add("Copy message as Markdown", enabled: markdown != nil) { markdown.map(Clipboard.copy) }
         menu.addItem(.separator())
         menu.add("Attach selection as context", key: "l", modifiers: [.command, .shift], enabled: selection != nil) {
-            selection.map(transcript.reply(with:))
+            if let selection { transcript.reply(with: selection, from: row.seq) }
         }
 
         NSMenu.popUpContextMenu(menu, with: event, for: view)

@@ -9,12 +9,19 @@ struct UnifiedDevApp: App {
         #if DEBUG
         if SourceEditorProbe.isRequested { SourceEditorProbe.runAndExit() }
         if AppChromeProbe.isRequested { AppChromeProbe.runAndExit() }
+        if BackgroundTaskProbe.isRequested { BackgroundTaskProbe.runAndExit() }
         if ComposerInputProbe.isRequested { ComposerInputProbe.runAndExit() }
         if MarkdownTableProbe.isRequested { MarkdownTableProbe.runAndExit() }
+        if MarkdownSelectionProbe.isRequested { MarkdownSelectionProbe.runAndExit() }
         if MenuBarSpendProbe.isRequested { MenuBarSpendProbe.schedule() }
         if SpendScreenProbe.isRequested { SpendScreenProbe.runAndExit() }
+        if AgentAccountProbe.isRequested { AgentAccountProbe.runAndExit() }
         if OrchestratorSidebarProbe.isRequested { OrchestratorSidebarProbe.runAndExit() }
+        if RepoOrchestratorProbe.isRequested { RepoOrchestratorProbe.runAndExit() }
         if UpdateAlertProbe.isRequested { UpdateAlertProbe.runAndExit() }
+        if ArchiveRetentionProbe.isRequested { ArchiveRetentionProbe.runAndExit() }
+        if ProfileProbe.isRequested { ProfileProbe.runAndExit() }
+        if CanvasEditorProbe.isRequested { CanvasEditorProbe.runAndExit() }
         #endif
         if BrowserViewportDemo.isRequested { BrowserViewportDemo.schedule() }
         CrashReportingService.shared.start()
@@ -56,6 +63,7 @@ struct UnifiedDevApp: App {
         if UnboundedHeightProbe.isRequested { UnboundedHeightProbe.schedule() }
         if StreamingRenderingProbe.isRequested { StreamingRenderingProbe.schedule() }
         if MergeContrastProbe.isRequested { MergeContrastProbe.schedule() }
+        if ReplyQuoteProbe.isRequested { ReplyQuoteProbe.schedule() }
         if WelcomeRestartProbe.isRequested { WelcomeRestartProbe.schedule() }
 
         if IdleProbe.isRequested { IdleProbe.schedule() }

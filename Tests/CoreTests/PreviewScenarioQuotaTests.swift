@@ -64,7 +64,7 @@ struct PreviewScenarioQuotaTests {
     @Test("a stored silence is read back as the agents that report usage, and nothing else")
     func silenceReadBack() {
         #expect(PreviewScenario.agents(storedAs: ["claudeCode", "codex"]) == [.claudeCode, .codex])
-        #expect(PreviewScenario.agents(storedAs: ["grok"]).isEmpty)
+        #expect(PreviewScenario.agents(storedAs: ["cursor"]).isEmpty)
         #expect(PreviewScenario.agents(storedAs: ["nobody"]).isEmpty)
         #expect(PreviewScenario.agents(storedAs: []).isEmpty)
     }
@@ -94,7 +94,7 @@ struct PreviewScenarioQuotaTests {
     }
 
     @Test("a reading that could not have been reported is refused, and says why", arguments: [
-        (#"{"projects":[{"name":"a"}],"quotas":[{"provider":"grok","window":"x"}]}"#, "reports no usage"),
+        (#"{"projects":[{"name":"a"}],"quotas":[{"provider":"cursor","window":"x"}]}"#, "reports no usage"),
         (#"{"projects":[{"name":"a"}],"quotas":[{"provider":"codex","window":" "}]}"#, "names no window"),
         (#"{"projects":[{"name":"a"}],"quotas":[{"provider":"codex","window":"primary","used":-0.1}]}"#, "negative amount"),
         (#"{"projects":[{"name":"a"}],"quotas":[{"provider":"codex","window":"primary","used":71}]}"#, "more than the whole limit"),
@@ -102,8 +102,8 @@ struct PreviewScenarioQuotaTests {
         (#"{"projects":[{"name":"a"}],"quotas":[{"provider":"codex","window":"primary","resetsInMinutes":0}]}"#, "resets in the past"),
         (#"{"projects":[{"name":"a"}],"quotas":[{"provider":"codex","window":"primary"},{"provider":"codex","window":"primary"}]}"#, "named twice"),
         (#"{"projects":[{"name":"a"}],"quotas":[{"provider":"codex","window":"primary","readMinutesAgo":-1}]}"#, "read in the future"),
-        (#"{"projects":[{"name":"a"}],"silentAgents":["grok"]}"#, "reports no usage"),
-        (#"{"projects":[{"name":"a"}],"agentsWithoutLimits":["grok"]}"#, "without limits reports no usage"),
+        (#"{"projects":[{"name":"a"}],"silentAgents":["cursor"]}"#, "reports no usage"),
+        (#"{"projects":[{"name":"a"}],"agentsWithoutLimits":["cursor"]}"#, "without limits reports no usage"),
     ])
     func refuses(json: String, reason: String) {
         do {

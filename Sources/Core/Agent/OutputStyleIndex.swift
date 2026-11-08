@@ -1,7 +1,7 @@
 import Foundation
 
 public enum OutputStyleIndex {
-    public static func discover(home: String, project: String?) -> [OutputStyle] {
+    public static func discover(home: String, project: String?, claudeHome: String? = nil) -> [OutputStyle] {
         var found = OutputStyle.builtIns
         var known = Set(found.map(\.name))
 
@@ -11,7 +11,7 @@ public enum OutputStyleIndex {
             }
         }
 
-        add(styles(in: "\(home)/.claude/output-styles"))
+        add(styles(in: "\(claudeHome ?? "\(home)/.claude")/output-styles"))
         if let project {
             add(styles(in: "\(project)/.claude/output-styles"))
         }

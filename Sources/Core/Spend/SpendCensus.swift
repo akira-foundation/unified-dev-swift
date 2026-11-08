@@ -21,6 +21,13 @@ public struct SpendCensus: Sendable, Hashable, Codable {
 
     public static let settingKey = "spend.census"
 
+    public mutating func add(_ provider: AgentKind, files: Int, pending: Int) {
+        var seen = self[provider] ?? SpendProviderCensus(keepsTranscripts: true, files: 0, pending: 0)
+        seen.files += files
+        seen.pending += pending
+        self[provider] = seen
+    }
+
     public subscript(provider: AgentKind) -> SpendProviderCensus? {
         get { providers[provider.rawValue] }
         set { providers[provider.rawValue] = newValue }

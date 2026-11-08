@@ -11,7 +11,7 @@ struct ModelPresetEditor: View {
     var onCancel: () -> Void
 
     @State private var preset: ModelPreset
-    @State private var outputStyles = ComposerOutputStyleCatalog()
+    @State private var outputStyles = ComposerOutputStyleCatalog.forDefaultAccount()
 
     init(
         draft: ModelPresetDraft,
@@ -30,15 +30,19 @@ struct ModelPresetEditor: View {
 
                 SettingsRow("Model") {
                     ModelAndEffortPickers(
-                        model: $preset.model, effort: $preset.effort, backend: backendBinding
+                        model: $preset.model, effort: $preset.effort, backend: backendBinding,
+                        offersAgentDefault: true
                     )
                 }
 
                 if preset.backend == .claudeCode {
-                    Picker("Output style", selection: $preset.outputStyle) {
+                    Picker(selection: $preset.outputStyle) {
                         ForEach(outputStyles.options(includingCurrent: preset.outputStyle)) { option in
                             Text(option.label).tag(option.id)
                         }
+                    } label: {
+                        Text("Output style")
+                        Text("From the default Claude Code account")
                     }
                 }
 

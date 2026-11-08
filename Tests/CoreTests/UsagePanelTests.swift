@@ -381,13 +381,13 @@ struct UsageLayoutTests {
     @Test("a provider dropped on another lands on the side the drag came from")
     func providerOrder() {
         var layout = UsageLayout()
-        #expect(layout.orderedProviders() == [.claudeCode, .codex])
+        #expect(layout.orderedProviders() == [.claudeCode, .codex, .grok])
 
         layout.moveProvider(.claudeCode, toward: .codex)
-        #expect(layout.orderedProviders() == [.codex, .claudeCode])
+        #expect(layout.orderedProviders() == [.codex, .claudeCode, .grok])
 
         layout.moveProvider(.claudeCode, toward: .codex)
-        #expect(layout.orderedProviders() == [.claudeCode, .codex])
+        #expect(layout.orderedProviders() == [.claudeCode, .codex, .grok])
 
         let metrics = UsageCatalogue.metrics(quotas: [
             quota(.claudeCode, .named("five_hour"), .fraction(0.3), resetsIn: fiveHours / 2),
@@ -478,7 +478,7 @@ struct SVGPathTests {
         #expect(SVGPath("M-1.5.5").commands == [.move(CGPoint(x: -1.5, y: 0.5))])
     }
 
-    @Test("both provider marks parse whole, inside their hundred point square")
+    @Test("the provider marks parse whole and fill the square they are drawn in")
     func marks() throws {
         for provider in [AgentKind.claudeCode, .codex] {
             let mark = try #require(ProviderMark.path(for: provider))
@@ -486,7 +486,19 @@ struct SVGPathTests {
             #expect(mark.bounds.minX >= 0 && mark.bounds.maxX <= 100)
             #expect(mark.bounds.width > 50)
         }
-        #expect(ProviderMark.path(for: .cursor) == nil)
+        for provider in [AgentKind.cursor, .openCode] {
+            #expect(ProviderMark.path(for: provider) == nil)
+        }
+    }
+
+    @Test("Grok is drawn by its own mark, not by a symbol standing in for one")
+    func grokMark() throws {
+        let mark = try #require(ProviderMark.path(for: .grok))
+
+        #expect(mark.commands.count > 20)
+        #expect(mark.bounds.minX >= 0 && mark.bounds.maxX <= 512)
+        #expect(mark.bounds.width > 256 && mark.bounds.height > 256)
+        #expect(mark.commands.contains { if case .curve = $0 { return true } else { return false } })
     }
 }
 

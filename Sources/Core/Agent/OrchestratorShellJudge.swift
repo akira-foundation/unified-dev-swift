@@ -28,7 +28,7 @@ enum OrchestratorShellJudge {
         return gitVerb(in: rest).map(gitVerbs.contains) ?? false
     }
 
-    private static func isAssignment(_ word: String) -> Bool {
+    static func isAssignment(_ word: String) -> Bool {
         guard let equals = word.firstIndex(of: "="), equals != word.startIndex else { return false }
         return word[..<equals].allSatisfy { $0.isLetter || $0.isNumber || $0 == "_" }
     }

@@ -162,6 +162,18 @@ struct NotificationPreferencesTests {
 
 @Suite("Notification coalescing")
 struct NotificationDigestTests {
+    @Test("a digest carries every workspace it covers, so a profile can be named only if they share one")
+    func digestCarriesItsBatch() throws {
+        let first = NotificationDraft(event: .agentFailed, workspaceID: WorkspaceID("a"), workspaceName: "A")
+        let second = NotificationDraft(event: .agentFailed, workspaceID: WorkspaceID("b"), workspaceName: "B")
+
+        let digest = try #require(NotificationDigest.prepare([first, second]))
+        let single = try #require(NotificationDigest.prepare([first]))
+
+        #expect(digest.workspaceIDs == [first.workspaceID, second.workspaceID])
+        #expect(single.workspaceIDs == [first.workspaceID])
+    }
+
     private func draft(
         _ event: NotificationEvent = .turnFinished,
         id: String,

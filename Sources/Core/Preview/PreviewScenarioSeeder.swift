@@ -47,11 +47,14 @@ public struct PreviewScenarioSeeder: Sendable {
         try await makeLooseFolders(scenario)
 
         var outcome = Outcome(projects: 0, workspaces: 0, chats: 0, quotas: 0)
+        let profileIDs = try await seedProfiles(scenario)
+        var repos: [String: RepoID] = [:]
         for project in scenario.projects {
             let path = try await makeRepository(project)
             try await publishBranches(project, at: path)
-            let repo = try await manager.addRepository(at: path)
+            let repo = try await manager.addRepository(at: path, profileID: profileIDs[project.profile?.lowercased() ?? Self.initialKey] ?? .initial)
             outcome.projects += 1
+            repos[project.name] = repo.id
             var started: [String: WorkspaceID] = [:]
             for workspace in project.workspaces {
                 let (workspaceID, chats) = try await start(workspace, in: repo, among: started, at: now)
@@ -67,8 +70,14 @@ public struct PreviewScenarioSeeder: Sendable {
             try await publishRemoteAhead(project)
             try await slowDownRemote(project, at: path)
         }
+        if let active = scenario.activeProfile, let id = profileIDs[active.lowercased()] {
+            try await manager.store.setActiveProfile(id)
+        }
         outcome.transcripts = try seedTranscripts(scenario, at: now, home: TranscriptHome.seedable())
         outcome.accounts = try seedAgentAccounts(scenario, home: TranscriptHome.seedable(), at: now)
+        try await seedAccountChoices(
+            scenario, repos: repos, profiles: profileIDs, home: TranscriptHome.seedable()
+        )
         outcome.suggestions = try await seedSuggestions(scenario)
         outcome.recentFolders = try await seedRecentFolders(scenario)
         if !scenario.quotas.isEmpty {
@@ -154,23 +163,27 @@ public struct PreviewScenarioSeeder: Sendable {
         try Self.apply(workspace.changes, to: started.workspace.path)
         try Self.scatter(workspace.spareFiles, into: started.workspace.path)
         for (order, chat) in workspace.chats.enumerated() {
-            let session = try await manager.store.upsert(Session(
-                workspaceID: started.workspace.id,
-                title: chat.title,
-                sortOrder: order
-            ))
+            let session = try await manager.store.upsert(Self.session(of: chat, in: started.workspace.id, at: order))
+            try await manager.store.setSetting(ComposerControls.defaultsAppliedKey(sessionID: session.id), "1")
             for (place, line) in chat.messages.enumerated() {
                 if let question = line.question {
                     try await ask(question, at: place, in: session)
                     continue
                 }
+                if let handoff = line.handoff {
+                    try await manager.store.switchSegment(sessionID: session.id, to: SessionSegmentTarget(
+                        agentKind: handoff.agent, accountID: nil, model: handoff.model, effort: ""
+                    ))
+                    continue
+                }
                 _ = try await manager.store.appendNext(
                     sessionID: session.id,
-                    kind: line.from == .user ? .user : .assistantText,
+                    kind: Self.kind(of: line.from),
                     payload: try Self.payload(line.text, from: line.from)
                 )
             }
         }
+        try await seedRecord(of: workspace.recordMegabytes, in: started.workspace.id)
         try await manager.store.touch(
             workspaceID: started.workspace.id,
             unread: workspace.unread ? true : nil,
@@ -189,8 +202,24 @@ public struct PreviewScenarioSeeder: Sendable {
                 deleteBranch: !workspace.state.keepsItsBranch,
                 force: true
             )
+            if let moment = workspace.archivedMoment(from: now) {
+                _ = try await manager.store.update(workspaceID: started.workspace.id) { $0.archivedAt = moment }
+            }
         }
         return (started.workspace.id, workspace.chats.count)
+    }
+
+    private func seedRecord(of megabytes: Int, in workspaceID: WorkspaceID) async throws {
+        guard megabytes > 0 else { return }
+        let session = try await manager.store.upsert(Session(workspaceID: workspaceID, title: "Long transcript"))
+        let line = String(repeating: "x", count: 1_000_000)
+        for _ in 0..<megabytes {
+            _ = try await manager.store.appendNext(
+                sessionID: session.id,
+                kind: .assistantText,
+                payload: try Self.payload(line, from: .agent)
+            )
+        }
     }
 
     private func ask(
@@ -248,7 +277,23 @@ public struct PreviewScenarioSeeder: Sendable {
         try write(Dictionary(uniqueKeysWithValues: names.map { ($0, "Something nobody committed.\n") }), into: path)
     }
 
+    static func kind(of speaker: PreviewScenario.Line.Speaker) -> MessageKind {
+        switch speaker {
+        case .user: .user
+        case .agent: .assistantText
+        case .app: .crew
+        }
+    }
+
+    static func session(of chat: PreviewScenario.Chat, in workspaceID: WorkspaceID, at order: Int) -> Session {
+        var session = Session(workspaceID: workspaceID, title: chat.title, sortOrder: order)
+        if let agent = chat.agent { session.agentKind = agent }
+        if let model = chat.model { session.model = model }
+        return session
+    }
+
     static func payload(_ text: String, from speaker: PreviewScenario.Line.Speaker) throws -> Data {
+        if speaker == .app { return try CrewMessage.appRequest(text).payload() }
         let role = speaker == .user ? "user" : "assistant"
         let message: [String: Any] = [
             "type": role,

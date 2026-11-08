@@ -14,7 +14,7 @@ struct HomeView: View {
 
     @State private var footprints = ArchiveCleanup(footprints: [])
     @State private var databaseSize: DatabaseSize?
-    @State private var measuredRevision: Int?
+    @State private var measured: Measurement?
     @State private var isCompacting = false
     @State private var isDeleting = false
 
@@ -42,7 +42,7 @@ struct HomeView: View {
                   let row = row(for: WorkspaceID(raw)), !row.isArchived else { return }
             renaming = row.id
         }
-        .task(id: app.archivedRevision) {
+        .task(id: Measurement(revision: app.archivedRevision, profile: app.activeProfileID)) {
             archived = await app.archivedWorkspaces()
             await loadFootprints()
         }
@@ -58,8 +58,8 @@ struct HomeView: View {
         } onConfirm: { deletion in
             Task { await delete(deletion) }
         }
-        .onChange(of: app.workspaces, initial: true) { _, _ in rebuild() }
-        .onChange(of: app.repos) { _, _ in rebuild() }
+        .onChange(of: app.profileWorkspaces, initial: true) { _, _ in rebuild() }
+        .onChange(of: app.profileRepos) { _, _ in rebuild() }
         .onChange(of: archived) { _, _ in rebuild() }
         .onChange(of: app.runningWorkspaceIDs) { _, _ in rebuild() }
         .onChange(of: app.waitingWorkspaceIDs) { _, _ in rebuild() }
@@ -241,13 +241,13 @@ struct HomeView: View {
     }
 
     private var hasAnyWorkspace: Bool {
-        !app.workspaces.isEmpty || !archived.isEmpty
+        !app.profileWorkspaces.isEmpty || !app.inActiveProfile(archived).isEmpty
     }
 
     @ViewBuilder
     private var emptyState: (some View)? {
         if let state = HomeEmptyState.resolve(
-            hasProjects: !app.repos.isEmpty,
+            hasProjects: !app.profileRepos.isEmpty,
             hasAnyWorkspace: hasAnyWorkspace,
             isListEmpty: listing.isEmpty,
             query: filter.query,
@@ -287,7 +287,7 @@ struct HomeView: View {
 
     private var projectPhrase: String {
         filter.projects.count == 1
-            ? (app.repos.first { filter.projects.contains($0.id) }?.name ?? "that project")
+            ? (app.profileRepos.first { filter.projects.contains($0.id) }?.name ?? "that project")
             : "\(filter.projects.count) projects"
     }
 
@@ -295,9 +295,9 @@ struct HomeView: View {
         let stamp = Date()
         now = stamp
         listing = HomeList.build(
-            repos: app.repos,
-            workspaces: app.workspaces,
-            archived: archived,
+            repos: app.profileRepos,
+            workspaces: app.profileWorkspaces,
+            archived: app.inActiveProfile(archived),
             transcripts: app.transcriptResults,
             filter: filter,
             activity: HomeActivity(
@@ -314,13 +314,22 @@ struct HomeView: View {
         }
     }
 
+    private struct Measurement: Hashable {
+        let revision: Int
+        let profile: ProfileID
+    }
+
     private func loadFootprints() async {
         guard filter.scope.showsFootprints else { return }
-        let revision = app.archivedRevision
-        guard measuredRevision != revision else { return }
-        footprints = await app.archiveCleanup()
-        databaseSize = await app.databaseSize()
-        measuredRevision = revision
+        let current = Measurement(revision: app.archivedRevision, profile: app.activeProfileID)
+        guard measured != current else { return }
+        let measuredFootprints = await app.archiveCleanup()
+        let size = await app.databaseSize()
+        guard !Task.isCancelled,
+              current == Measurement(revision: app.archivedRevision, profile: app.activeProfileID) else { return }
+        footprints = measuredFootprints
+        databaseSize = size
+        measured = current
         rebuild()
     }
 

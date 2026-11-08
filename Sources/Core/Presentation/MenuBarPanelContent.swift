@@ -5,7 +5,7 @@ public struct MenuBarPanelContent: Equatable, Sendable {
         public var workspaces: [Workspace]
         public var running: Set<WorkspaceID>
         public var waiting: Set<WorkspaceID>
-        public var runningAgents: Int
+        public var agentsByWorkspace: [WorkspaceID: Int]
         public var quotas: [AgentQuota]
         public var accounts: [AgentKind: AgentAccount]
         public var unanswered: Set<AgentKind>
@@ -14,12 +14,16 @@ public struct MenuBarPanelContent: Equatable, Sendable {
         public var layout: UsageLayout
         public var hold: KeepAwake.Hold
         public var now: Date
+        public var offers: [AgentKind: QuotaAccountOffer]
+        public var askIsWorking: Bool
+        public var profile: Profile?
+        public var hasAgentsElsewhere = false
 
         public init(
             workspaces: [Workspace],
             running: Set<WorkspaceID>,
             waiting: Set<WorkspaceID>,
-            runningAgents: Int,
+            agentsByWorkspace: [WorkspaceID: Int],
             quotas: [AgentQuota],
             accounts: [AgentKind: AgentAccount],
             unanswered: Set<AgentKind>,
@@ -27,12 +31,15 @@ public struct MenuBarPanelContent: Equatable, Sendable {
             lastReported: [AgentKind: Date],
             layout: UsageLayout,
             hold: KeepAwake.Hold,
-            now: Date
+            now: Date,
+            offers: [AgentKind: QuotaAccountOffer] = [:],
+            askIsWorking: Bool = false,
+            profile: Profile? = nil
         ) {
             self.workspaces = workspaces
             self.running = running
             self.waiting = waiting
-            self.runningAgents = runningAgents
+            self.agentsByWorkspace = agentsByWorkspace
             self.quotas = quotas
             self.accounts = accounts
             self.unanswered = unanswered
@@ -41,6 +48,13 @@ public struct MenuBarPanelContent: Equatable, Sendable {
             self.layout = layout
             self.hold = hold
             self.now = now
+            self.offers = offers
+            self.askIsWorking = askIsWorking
+            self.profile = profile
+        }
+
+        public var runningAgents: Int {
+            agentsByWorkspace.values.reduce(0, +) + (askIsWorking ? 1 : 0)
         }
     }
 
@@ -79,18 +93,21 @@ public struct MenuBarPanelContent: Equatable, Sendable {
         public var reading: Reading
         public var section: UsageLayout.Section?
         public var note: String?
+        public var offer: QuotaAccountOffer?
         public var id: AgentKind { kind }
 
         public init(
             kind: AgentKind,
             reading: Reading,
             section: UsageLayout.Section? = nil,
-            note: String? = nil
+            note: String? = nil,
+            offer: QuotaAccountOffer? = nil
         ) {
             self.kind = kind
             self.reading = reading
             self.section = section
             self.note = note
+            self.offer = offer
         }
 
         public var isFoldable: Bool {
@@ -126,7 +143,13 @@ public struct MenuBarPanelContent: Equatable, Sendable {
 
     public static let agentLimit = 5
     public static let statusTitle = "What's going on?"
-    public static let setupSentence = "Sign in to Claude Code or Codex and their limits show here."
+    public static let setupSentence = "Sign in to \(usageAgentNames) and their limits show here."
+
+    static var usageAgentNames: String {
+        let names = UsageLayout.defaultProviderOrder.map(\.label)
+        return names.dropLast().joined(separator: ", ") + " or " + (names.last ?? "")
+    }
+
     public static let setupAction = "Open Agent Settings\u{2026}"
     public static let agentsTitle = "Agents"
     public static let noAgentsLine = MenuBarSummary.emptyTitle
@@ -148,6 +171,7 @@ public struct MenuBarPanelContent: Equatable, Sendable {
     public var moreAgents: Int
     public var notices: [LimitNotice]
     public var needsSetup: Bool
+    public var profile: Profile?
 
     public static func make(_ input: Input) -> MenuBarPanelContent {
         let listed = agents(in: input)
@@ -172,6 +196,7 @@ public struct MenuBarPanelContent: Equatable, Sendable {
                 waiting: waiting,
                 notices: notices,
                 hold: input.hold,
+                hasAgentsElsewhere: input.hasAgentsElsewhere,
                 needsSetup: needsSetup,
                 now: input.now
             ),
@@ -180,7 +205,8 @@ public struct MenuBarPanelContent: Equatable, Sendable {
             agents: Array(listed.prefix(agentLimit)),
             moreAgents: max(0, listed.count - agentLimit),
             notices: notices,
-            needsSetup: needsSetup
+            needsSetup: needsSetup,
+            profile: input.profile
         )
     }
 
@@ -215,23 +241,25 @@ public struct MenuBarPanelContent: Equatable, Sendable {
         return input.layout.orderedProviders()
             .filter { known.contains($0) && input.layout.isEnabled($0) }
             .compactMap { kind -> Provider? in
+                let offer = input.offers[kind]
                 if input.unanswered.contains(kind) {
-                    return Provider(kind: kind, reading: .unavailable, note: reason(for: kind, in: input))
+                    return Provider(kind: kind, reading: .unavailable, note: reason(for: kind, in: input), offer: offer)
                 }
                 if let section = sections[kind] {
                     return Provider(
                         kind: kind,
                         reading: .measured,
                         section: section,
-                        note: note(for: kind, drawing: section, in: input)
+                        note: note(for: kind, drawing: section, in: input),
+                        offer: offer
                     )
                 }
                 guard metrics[kind]?.isEmpty ?? true else { return nil }
-                return Provider(kind: kind, reading: .unavailable, note: reason(for: kind, in: input))
+                return Provider(kind: kind, reading: .unavailable, note: reason(for: kind, in: input), offer: offer)
             }
     }
 
-    static func limitNotices(_ quotas: [AgentQuota], at now: Date) -> [LimitNotice] {
+    public static func limitNotices(_ quotas: [AgentQuota], at now: Date) -> [LimitNotice] {
         QuotaBoard.make(from: quotas, at: now).all
             .filter { QuotaSeverity.of($0.fraction) == .spent }
             .map { LimitNotice(provider: $0.provider, title: UsageCatalogue.title(for: $0), resetsAt: $0.resetsAt) }

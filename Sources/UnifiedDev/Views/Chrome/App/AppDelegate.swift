@@ -17,6 +17,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     var isInstallingUpdate = false
 
+    private(set) var isAskingBeforeQuitting = false
+
     func attach(_ model: AppModel) {
         Log.launchStep("window appeared")
         appModel = model
@@ -80,14 +82,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard !isTerminating else { return .terminateLater }
+        isTerminating = true
 
-        if !isInstallingUpdate, let running = appModel?.runningAgentCount, running > 0 {
-            askBeforeQuitting(running: running)
-            return .terminateLater
+        Task { @MainActor in
+            await appModel?.flushCanvasDocuments()
+            guard let question = appModel?.canvasQuitQuestion else {
+                askAboutAgentsThenQuit()
+                return
+            }
+            ask(canvasAlert(question)) { self.askAboutAgentsThenQuit() }
         }
-
-        beginTeardown()
         return .terminateLater
+    }
+
+    @MainActor
+    private func askAboutAgentsThenQuit() {
+        if !isInstallingUpdate, let running = appModel?.runningAgentCount, running > 0 {
+            ask(quitAlert(running: running)) { self.beginTeardown() }
+            return
+        }
+        beginTeardown()
     }
 
     private func beginTeardown() {
@@ -105,30 +119,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     @MainActor
-    private func askBeforeQuitting(running: Int) {
-        let alert = quitAlert(running: running)
-
-        guard let window = NSApp.keyWindow ?? NSApp.mainWindow ?? NSApp.windows.first(where: \.isVisible) else {
-            NSApp.activate()
-            if alert.runModal() == .alertFirstButtonReturn {
-                beginTeardown()
-            } else {
-                NSApp.reply(toApplicationShouldTerminate: false)
+    private func ask(_ alert: NSAlert, thenQuit quit: @escaping @MainActor () -> Void) {
+        isAskingBeforeQuitting = true
+        let answer: @MainActor (NSApplication.ModalResponse) -> Void = { response in
+            self.isAskingBeforeQuitting = false
+            if response == .alertFirstButtonReturn {
+                quit()
+                return
             }
+            self.isTerminating = false
+            SoftwareUpdater.shared.terminationWasCancelled()
+            NSApp.reply(toApplicationShouldTerminate: false)
+        }
+        NSApp.activate()
+        guard let window = NSApp.keyWindow ?? NSApp.mainWindow ?? NSApp.windows.first(where: \.isVisible) else {
+            answer(alert.runModal())
             return
         }
-
-        NSApp.activate()
         window.makeKeyAndOrderFront(nil)
         alert.beginSheetModal(for: window) { response in
-            MainActor.assumeIsolated {
-                if response == .alertFirstButtonReturn {
-                    self.beginTeardown()
-                } else {
-                    NSApp.reply(toApplicationShouldTerminate: false)
-                }
-            }
+            MainActor.assumeIsolated { answer(response) }
         }
+    }
+
+    @MainActor
+    private func canvasAlert(_ question: CanvasQuitQuestion) -> NSAlert {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = question.title
+        alert.informativeText = question.detail
+        alert.addButton(withTitle: "Quit anyway")
+        alert.addButton(withTitle: "Keep working")
+        alert.buttons.last?.keyEquivalent = "\r"
+        alert.buttons.first?.keyEquivalent = ""
+        return alert
     }
 
     @MainActor

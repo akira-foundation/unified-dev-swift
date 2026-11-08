@@ -2,12 +2,15 @@ import Core
 
 extension AppModel {
     func archiveCleanup() async -> ArchiveCleanup {
+        let shownRepos = profileRepos
         guard let store, var footprints = try? await store.archivedFootprints() else {
             return ArchiveCleanup(footprints: [])
         }
+        let shown = Set(shownRepos.map(\.id))
+        footprints = footprints.filter { shown.contains($0.workspace.repoID) }
 
         var localBranches: [RepoID: Set<String>] = [:]
-        for repo in repos where footprints.contains(where: { $0.workspace.repoID == repo.id }) {
+        for repo in shownRepos where footprints.contains(where: { $0.workspace.repoID == repo.id }) {
             guard let branches = try? await Git.branches(of: repo.path) else { continue }
             localBranches[repo.id] = Set(branches)
         }
@@ -25,6 +28,12 @@ extension AppModel {
 
     @discardableResult
     func deleteArchived(_ ids: [WorkspaceID]) async -> ArchiveDeletionOutcome {
+        let outcome = await removeArchivedRecords(ids)
+        if outcome.didDelete { invalidateArchived() }
+        return outcome
+    }
+
+    func removeArchivedRecords(_ ids: [WorkspaceID]) async -> ArchiveDeletionOutcome {
         guard let store, !ids.isEmpty else { return .deleted(0) }
         let removed: [WorkspaceID]
         do {
@@ -34,6 +43,7 @@ extension AppModel {
         }
         guard !removed.isEmpty else { return .deleted(0) }
 
+        await flushCanvasDocuments(of: removed)
         if let open = selection.archivedWorkspaceID, removed.contains(open) {
             selection = .home
         }
@@ -41,7 +51,6 @@ extension AppModel {
             workspaceModels[id]?.teardown()
             workspaceModels[id] = nil
         }
-        invalidateArchived()
         return .deleted(removed.count)
     }
 
@@ -118,12 +127,14 @@ extension AppModel {
         }
 
         hazards.isAgentMidTurn = isAgentMidTurn(workspace)
+        await flushCanvasDocuments(of: [workspace.id])
+        hazards.canvasLosses = canvasArchiveQuestion(of: [workspace.id])?.losses ?? []
         let isSafe = report.isSafeToDiscard(
             deletingBranch: hazards.isDeletingBranch,
             isPullRequestMerged: hazards.isPullRequestMerged
         )
 
-        guard isSafe, !hazards.isAgentMidTurn, !alwaysConfirm else {
+        guard isSafe, !hazards.isAgentMidTurn, hazards.canvasLosses.isEmpty, !alwaysConfirm else {
             let request = ArchiveRequest(
                 workspace: workspace, report: report, deleteBranch: deleteBranch, hazards: hazards
             )
@@ -291,6 +302,20 @@ extension AppModel {
             return .refused("Unified Dev is still starting up. Try again in a moment.")
         }
 
+        await flushCanvasDocuments(of: [workspace.id])
+        let canvasLosses = canvasArchiveQuestion(of: [workspace.id])?.losses ?? []
+        if CanvasArchiveQuestion.asks(canvasLosses, acknowledged: hazards.canvasLosses) {
+            var unacknowledged = hazards
+            unacknowledged.canvasLosses = canvasLosses
+            let request = ArchiveRequest(
+                workspace: workspace, report: report ?? WorkspaceSafetyReport(), deleteBranch: deleteBranch, hazards: unacknowledged
+            )
+            if allowsConfirmation {
+                updateArchiveConfirmation(.offer(request), present: presentConfirmation)
+            }
+            return .refused(archiveRefusal(request))
+        }
+
         guard hideFromSidebar(workspace.id) else {
             return .refused("This workspace is already being archived. Check workspace_list shortly.")
         }
@@ -309,6 +334,7 @@ extension AppModel {
                 mergedPullRequestHead: hazards.mergedPullRequestHead,
                 measuredTip: measuredTip
             )
+            _ = try? await store?.cancelQueuedCanvasComments(workspaceID: workspace.id)
             if let home = ArchiveNavigation.destination(leaving: selection, archiving: workspace.id) {
                 selection = home
             }
@@ -451,6 +477,14 @@ extension AppModel {
         defer { restoring.remove(workspace.id) }
 
         do {
+            guard try await manager.store.workspace(id: workspace.id) != nil else {
+                invalidateArchived()
+                alert = AppAlert(
+                    title: "Could not bring \(workspace.name) back",
+                    message: "Its archived record has been deleted, so there is nothing left to restore."
+                )
+                return
+            }
             let outcome = try await manager.restore(workspace: workspace, repo: repo)
             invalidateArchived()
             await reload()

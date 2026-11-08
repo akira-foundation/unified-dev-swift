@@ -24,6 +24,7 @@ public enum MenuBarCatalogue {
         MenuBarItem(.newWorkspace, in: .file, "New Workspace…", key: .command("n"), availability: .needsProject),
         MenuBarItem(.newWorkspaceFromPullRequest, in: .file, "New Workspace from Pull Request…", availability: .needsProject),
         MenuBarItem(.newAskConversation, in: .file, "New Ask Unified Dev Conversation", availability: .always),
+        MenuBarItem(.newCanvas, in: .file, "New Canvas", availability: .needsWorkspace),
         MenuBarItem(.projectSettings, in: .file, "Project Settings…", key: .init("comma", .command, .shift), availability: .needsProject),
         MenuBarItem(.searchFiles, in: .file, "Search Files…", key: .command("p"), availability: .needsWorkspace),
         MenuBarItem(.newSession, in: .file, "New Session", key: .command("t"), availability: .needsConversationArea),
@@ -57,10 +58,16 @@ public enum MenuBarCatalogue {
             alternateKey: .init(.tab, .option), availability: .needsSeveralTabs
         ),
         MenuBarItem(.goToTab, in: .view, "Go to Tab", availability: .needsTab),
-        MenuBarItem(.fileBack, in: .view, "Go Back in Files", key: .init("[", .command), availability: .needsReview),
-        MenuBarItem(.fileForward, in: .view, "Go Forward in Files", key: .init("]", .command), availability: .needsReview),
+        MenuBarItem(.fileBack, in: .view, "Go Back in Files", alternateTitle: "Go Back", key: .init("[", .command), availability: .sometimes),
+        MenuBarItem(.fileForward, in: .view, "Go Forward in Files", alternateTitle: "Go Forward", key: .init("]", .command), availability: .sometimes),
         MenuBarItem(.nextChangedFile, in: .view, "Next Changed File", key: .init("j", .command, .option), availability: .needsReview),
         MenuBarItem(.previousChangedFile, in: .view, "Previous Changed File", key: .init("k", .command, .option), availability: .needsReview),
+        MenuBarItem(.browserReload, in: .view, "Reload Page", alternateTitle: "Stop Loading", key: .command("r"), availability: .needsBrowserPane),
+        MenuBarItem(.browserResponsivePreview, in: .view, "Responsive Preview", key: .init("r", .command, .option), availability: .needsBrowserPane),
+        MenuBarItem(.browserFullSize, in: .view, "Restore Full Browser Size", key: .init("0", .command, .option), availability: .needsBrowserPane),
+        MenuBarItem(.browserScreenshot, in: .view, "Send a Screenshot to the Agent", key: .init("s", .command, .option), availability: .needsBrowserPane),
+        MenuBarItem(.browserComment, in: .view, "Comment on an Area", alternateTitle: "Finish Reviewing Page", key: .init("c", .command, .option), availability: .needsBrowserPane),
+        MenuBarItem(.browserOpenInDefaultBrowser, in: .view, "Open in Default Browser", key: .init("o", .command, .option), availability: .needsBrowserPane),
         MenuBarItem(.toggleSidebar, in: .view, "Toggle Sidebar", key: .init("s", .command, .control)),
         MenuBarItem(.toggleInspector, in: .view, "Toggle Inspector", key: .init("i", .command, .option), availability: .needsWorkspace),
         MenuBarItem(.nextWorkspace, in: .view, "Next Workspace", key: .init(.downArrow, .command, .option), availability: .needsAnyWorkspace),
@@ -112,6 +119,7 @@ public enum MenuBarAction: String, CaseIterable, Sendable {
     case newWorkspace
     case newWorkspaceFromPullRequest
     case newAskConversation
+    case newCanvas
     case projectSettings
     case newSession
     case newTerminalTab
@@ -143,6 +151,12 @@ public enum MenuBarAction: String, CaseIterable, Sendable {
     case fileForward
     case nextChangedFile
     case previousChangedFile
+    case browserReload
+    case browserResponsivePreview
+    case browserFullSize
+    case browserScreenshot
+    case browserComment
+    case browserOpenInDefaultBrowser
     case toggleSidebar
     case toggleInspector
     case nextWorkspace
@@ -224,6 +238,7 @@ public enum MenuBarAvailability: String, Equatable, Sendable {
     case needsSplittablePane
     case needsTerminalPane
     case needsReview
+    case needsBrowserPane
     case absentWhenUnavailable
 }
 

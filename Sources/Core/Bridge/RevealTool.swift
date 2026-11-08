@@ -28,6 +28,9 @@ public struct RevealTool: BridgeToolHandling {
 
             It changes what the person is looking at, so ask first if they are in the middle of \
             reading something.
+
+            A chat whose turn belongs to a profile the window is no longer showing is refused, and \
+            the window does not move.
             """,
         inputSchema: .object([
             "type": .string("object"),
@@ -84,8 +87,8 @@ public struct RevealTool: BridgeToolHandling {
         case .success(let parsed): order = parsed
         }
 
-        let workspaces = (try? await store.workspaces()) ?? []
-        let projects = (try? await store.repos()) ?? []
+        let workspaces = (try? await BridgeProfileScope.workspaces(for: identity, store: store)) ?? []
+        let projects = (try? await BridgeProfileScope.repos(for: identity, store: store)) ?? []
 
         let resolved: RevealPlan
         switch RevealChoice.resolve(order, workspaces: workspaces, projects: projects) {
@@ -93,9 +96,33 @@ public struct RevealTool: BridgeToolHandling {
         case .success(let found): resolved = found
         }
 
+        if let refusal = await refusalWhilePinnedElsewhere(resolved, workspaces, as: identity, store: store) {
+            return .failure(refusal)
+        }
+
         switch await reveal(resolved) {
         case .revealed(let sentence): return BridgeToolResult(text: sentence)
         case .refused(let sentence): return .failure(sentence)
         }
+    }
+
+    private func refusalWhilePinnedElsewhere(
+        _ plan: RevealPlan, _ workspaces: [Workspace], as identity: BridgeIdentity, store: Store
+    ) async -> String? {
+        guard let pinned = identity.pinnedProfile else { return nil }
+        let active = try? await store.activeProfileID()
+        guard pinned != active else { return nil }
+
+        let profile = try? await store.profile(id: pinned)
+        let place = profile.map { "in the \($0.name) profile" } ?? "in a profile that no longer exists"
+        return "\(Self.subject(of: plan, workspaces)) is \(place) and the window is showing another one, so the "
+            + "window stays where it is. Retrying will not change that until the owner switches profile."
+    }
+
+    private static func subject(of plan: RevealPlan, _ workspaces: [Workspace]) -> String {
+        guard case .workspace(let id) = plan.target,
+              let workspace = workspaces.first(where: { $0.id == id })
+        else { return "That view of Home" }
+        return "'\(workspace.name)'"
     }
 }

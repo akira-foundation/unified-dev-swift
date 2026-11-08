@@ -37,7 +37,7 @@ enum TranscriptLayoutProbe {
                     let prose = String(repeating: "A transcript row that wraps when resized. ", count: row % 9 + 1)
                     if row.isMultiple(of: 3) {
                         return AnyView(MarkdownView("1. \(prose)\n2. Another item with `inline code` and **emphasis**.\n   - [x] A nested [linked checklist](https://example.com) that wraps when the pane gets narrow.\n\n- [x] A compact checklist\n- [ ] Still to do")
-                            .font(Typo.body).proseLeading().padding(8))
+                            .proseLeading().padding(8))
                     }
                     return AnyView(Text(prose).font(Typo.body).proseLeading().padding(8))
                 }

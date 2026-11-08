@@ -23,6 +23,8 @@ enum Log {
 
     static let bridge = Logger(subsystem: subsystem, category: "bridge")
 
+    static let canvas = Logger(subsystem: subsystem, category: "canvas")
+
     static let runScripts = Logger(subsystem: subsystem, category: "runScripts")
 
     private static let subsystem = Bundle.main.bundleIdentifier ?? "io.akira.unifieddev"

@@ -7,6 +7,7 @@ public final class BridgeRegistry: Sendable {
         var tokens: [SessionID: String] = [:]
         var ownerToken: String?
         var ownerSessions: Set<SessionID> = []
+        var profilePins: [SessionID: ProfileID] = [:]
     }
 
     private let state = Mutex(State())
@@ -65,13 +66,29 @@ public final class BridgeRegistry: Sendable {
     }
 
     public func identity(forToken token: String) -> BridgeIdentity? {
-        state.withLock { $0.identities[token] }
+        state.withLock { state in
+            guard let identity = state.identities[token] else { return nil }
+            guard identity.role == .owner, let sessionID = identity.sessionID,
+                  let pin = state.profilePins[sessionID] else { return identity }
+            return BridgeIdentity(ownerSession: sessionID, pinnedProfile: pin)
+        }
+    }
+
+    public func pinProfile(_ profile: ProfileID, forSession sessionID: SessionID) {
+        state.withLock { state in
+            if state.profilePins[sessionID] == nil { state.profilePins[sessionID] = profile }
+        }
+    }
+
+    public func releaseProfilePin(forSession sessionID: SessionID) {
+        state.withLock { _ = $0.profilePins.removeValue(forKey: sessionID) }
     }
 
     public func retire(sessionID: SessionID) {
         state.withLock { state in
             if let token = state.tokens.removeValue(forKey: sessionID) { state.identities[token] = nil }
             state.ownerSessions.remove(sessionID)
+            state.profilePins[sessionID] = nil
         }
     }
 

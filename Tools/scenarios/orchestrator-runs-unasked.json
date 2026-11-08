@@ -1,0 +1,26 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "lantern",
+      "files": {
+        "README.md": "# Lantern\n\nA scratch project with an orchestrator.\n"
+      },
+      "commits": ["Light the wick"],
+      "workspaces": [
+        { "name": "Lead", "branch": "lead", "orchestrator": true },
+        { "name": "Importer", "branch": "importer" }
+      ]
+    },
+    {
+      "name": "quay",
+      "files": {
+        "README.md": "# Quay\n\nA second scratch project with its own orchestrator.\n"
+      },
+      "commits": ["Lay the quay"],
+      "workspaces": [
+        { "name": "Harbourmaster", "branch": "harbourmaster", "orchestrator": true }
+      ]
+    }
+  ]
+}

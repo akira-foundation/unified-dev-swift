@@ -84,6 +84,37 @@ struct PreviewScenarioArchivedTests {
 
 @Suite("Seeding an archived workspace", .tags(.git, .subprocess), .scratchDirectory, .timeLimit(.minutes(2)))
 struct PreviewScenarioArchivedSeedingTests {
+    @Test("archivedAgo survives the archive, recordMegabytes is measured, and retention acts on the seeded rows")
+    func seedsAgeAndSize() async throws {
+        let root = TestScratch.unique("preview-archived-age")
+        let manager = WorkspaceManager(
+            store: try makeTestStore("preview-archived-age"),
+            workspacesRoot: URL(fileURLWithPath: root + "/workspaces", isDirectory: true)
+        )
+        let seeder = PreviewScenarioSeeder(manager: manager, scratchRoot: PreviewIdentity.scratch(in: root))
+        _ = try await seeder.seed(PreviewScenario(projects: [
+            PreviewScenario.Project(name: "atlas", commits: ["Draw the first map"], workspaces: [
+                PreviewScenario.Workspace(
+                    name: "Old", branch: "old", state: .archived, archivedAgo: 240, recordMegabytes: 2
+                ),
+                PreviewScenario.Workspace(name: "Fresh", branch: "fresh", state: .archived),
+            ]),
+        ]))
+
+        let footprints = try await manager.store.archivedFootprints()
+        let old = try #require(footprints.first { $0.workspace.branch == "old" })
+        let fresh = try #require(footprints.first { $0.workspace.branch == "fresh" })
+        let age = Date().timeIntervalSince(old.archivedAt)
+
+        #expect(abs(age - 240 * 3_600) < 120)
+        #expect(old.transcriptBytes >= 2_000_000)
+        #expect(old.messageCount == 2)
+        #expect(fresh.transcriptBytes == 0)
+
+        let expired = ArchiveRetention(days: 7).expired(in: footprints, now: Date())
+        #expect(expired.map(\.workspace.branch) == ["old"])
+    }
+
     @Test("the workspace is archived, keeps its chat and loses its worktree")
     func seedsAnArchivedWorkspace() async throws {
         let root = TestScratch.unique("preview-archived")
@@ -172,5 +203,51 @@ struct PreviewScenarioArchivedSeedingTests {
 
         #expect(outcome.suggestions == 1)
         #expect(suggestions.map(\.title) == ["Read the leftovers"])
+    }
+}
+
+@Suite("A scenario that seeds how long ago a workspace was archived")
+struct PreviewScenarioArchivedAgoTests {
+    @Test("archivedAgo is read as hours before the seeding")
+    func readsTheMoment() throws {
+        let scenario = try PreviewScenario.read(Data(#"""
+            {"projects":[{"name":"a","workspaces":[
+              {"name":"v","branch":"v","state":"archived","archivedAgo":48,"recordMegabytes":3}]}]}
+            """#.utf8))
+        let workspace = scenario.projects[0].workspaces[0]
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+
+        #expect(workspace.archivedMoment(from: now) == now.addingTimeInterval(-48 * 3_600))
+        #expect(workspace.recordMegabytes == 3)
+    }
+
+    @Test("archivedAgo on a live workspace, or in the future, is refused", arguments: [
+        PreviewScenario.Workspace(name: "w", branch: "w", archivedAgo: 5),
+        PreviewScenario.Workspace(name: "w", branch: "w", state: .archived, archivedAgo: -1),
+    ])
+    func refusesAMomentThatCannotBe(workspace: PreviewScenario.Workspace) {
+        let scenario = PreviewScenario(projects: [PreviewScenario.Project(name: "atlas", workspaces: [workspace])])
+        #expect(scenario.problems.count == 1)
+    }
+
+    @Test("a zero archivedAgo and a record at the ceiling are allowed, a negative record is not")
+    func boundaries() {
+        func problems(_ workspace: PreviewScenario.Workspace) -> Int {
+            PreviewScenario(projects: [PreviewScenario.Project(name: "atlas", workspaces: [workspace])]).problems.count
+        }
+        let ceiling = PreviewScenario.Workspace.recordMegabyteCeiling
+        #expect(problems(PreviewScenario.Workspace(name: "w", branch: "w", state: .archived, archivedAgo: 0)) == 0)
+        #expect(problems(PreviewScenario.Workspace(name: "w", branch: "w", recordMegabytes: ceiling)) == 0)
+        #expect(problems(PreviewScenario.Workspace(name: "w", branch: "w", recordMegabytes: -1)) == 1)
+    }
+
+    @Test("a record past the ceiling is refused")
+    func refusesAHugeRecord() {
+        let scenario = PreviewScenario(projects: [PreviewScenario.Project(name: "atlas", workspaces: [
+            PreviewScenario.Workspace(
+                name: "w", branch: "w", recordMegabytes: PreviewScenario.Workspace.recordMegabyteCeiling + 1
+            ),
+        ])])
+        #expect(scenario.problems.count == 1)
     }
 }

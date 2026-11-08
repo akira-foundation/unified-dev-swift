@@ -17,7 +17,7 @@ struct WorkSuggestionFolderTests {
         defer { repo.cleanUp() }
         let manager = try manager("folder-repo")
 
-        let admitted = await WorkSuggestionLaunch.admit(repo.path, with: manager)
+        let admitted = await WorkSuggestionLaunch.admit(repo.path, profileID: .initial, with: manager)
         let project = try admitted.get()
         let projects = try await manager.store.repos()
 
@@ -32,7 +32,7 @@ struct WorkSuggestionFolderTests {
         try "notes\n".write(toFile: folder + "/notes.txt", atomically: true, encoding: .utf8)
         let manager = try manager("folder-plain")
 
-        let admitted = await WorkSuggestionLaunch.admit(folder, with: manager)
+        let admitted = await WorkSuggestionLaunch.admit(folder, profileID: .initial, with: manager)
         let projects = try await manager.store.repos()
 
         guard case .failure(let refusal) = admitted else { Issue.record("\(admitted)"); return }
@@ -46,7 +46,7 @@ struct WorkSuggestionFolderTests {
         let missing = TestScratch.unique("nothing-here")
         let manager = try manager("folder-missing")
 
-        let admitted = await WorkSuggestionLaunch.admit(missing, with: manager)
+        let admitted = await WorkSuggestionLaunch.admit(missing, profileID: .initial, with: manager)
 
         guard case .failure(let refusal) = admitted else { Issue.record("\(admitted)"); return }
         #expect(refusal.sentence == FolderRefusal.nothingThere(missing).sentence)
@@ -59,7 +59,7 @@ struct WorkSuggestionFolderTests {
         try repo.write("sub/notes.txt", "notes\n")
         let manager = try manager("folder-inside")
 
-        let admitted = await WorkSuggestionLaunch.admit(repo.path + "/sub", with: manager)
+        let admitted = await WorkSuggestionLaunch.admit(repo.path + "/sub", profileID: .initial, with: manager)
         let projects = try await manager.store.repos()
 
         guard case .failure(let refusal) = admitted else { Issue.record("\(admitted)"); return }

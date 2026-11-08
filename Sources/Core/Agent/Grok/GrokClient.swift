@@ -5,7 +5,7 @@ public actor GrokClient {
     public struct Configuration: Sendable {
         public var executable: String
         public var cwd: String
-        public var grokHome: String?
+        public var account: AgentAccountHome?
         public var clientName: String
         public var clientVersion: String
         public var environment: [String: String]
@@ -17,7 +17,7 @@ public actor GrokClient {
         public init(
             executable: String = GrokClient.executable,
             cwd: String,
-            grokHome: String? = nil,
+            account: AgentAccountHome? = nil,
             clientName: String = "Unified Dev",
             clientVersion: String = "0.0.0",
             environment: [String: String] = Shell.environment(),
@@ -28,7 +28,7 @@ public actor GrokClient {
         ) {
             self.executable = executable
             self.cwd = cwd
-            self.grokHome = grokHome
+            self.account = account
             self.clientName = clientName
             self.clientVersion = clientVersion
             self.environment = environment
@@ -43,11 +43,6 @@ public actor GrokClient {
     public static let arguments = ["agent", "--no-leader", "stdio"]
 
     public static func launch(_ configuration: Configuration) -> AgentLaunch {
-        var environment = configuration.environment
-        environment["GROK_DISABLE_AUTOUPDATER"] = "1"
-        if let home = configuration.grokHome, !home.isEmpty {
-            environment["GROK_HOME"] = home
-        }
         var arguments: [String] = ["agent"]
         if configuration.alwaysApprove { arguments.append("--always-approve") }
         if !configuration.model.isEmpty {
@@ -61,7 +56,8 @@ public actor GrokClient {
             executable: configuration.executable,
             arguments: arguments,
             cwd: configuration.cwd,
-            environment: environment
+            environment: AgentAccountEnvironment.apply(configuration.account, to: configuration.environment)
+                .merging(["GROK_DISABLE_AUTOUPDATER": "1"]) { _, ours in ours }
         )
     }
 
@@ -119,7 +115,7 @@ public actor GrokClient {
 
     public static let requestTimeout = Duration.seconds(120)
 
-    public func start() async throws {
+    public func start(timeout: Duration = GrokClient.requestTimeout) async throws {
         guard process == nil else { return }
 
         let process = makeProcess(Self.launch(configuration))
@@ -140,7 +136,8 @@ public actor GrokClient {
                     "version": .string(configuration.clientVersion),
                 ]),
                 "clientCapabilities": .object([:]),
-            ])
+            ]),
+            timeout: timeout
         )
         let modelState = result["_meta"]?["modelState"] ?? .null
         advertised = GrokModel.decodeList(modelState)

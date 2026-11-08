@@ -9,12 +9,14 @@ public extension AgentKind {
         effort: String,
         permissionMode: PermissionMode? = nil,
         resuming: String? = nil,
+        account: AgentAccountHome? = nil,
         orchestrates: Bool = false,
         base: URL? = nil
     ) throws -> String? {
         guard let script = interactiveCommand(
             directory: directory, prompt: prompt, sessionID: sessionID,
             model: model, effort: effort, permissionMode: permissionMode, resuming: resuming,
+            account: account,
             orchestrates: orchestrates
         ) else { return nil }
         let folder = try Self.interactiveLaunchDirectory(sessionID: sessionID, base: base)

@@ -9,12 +9,16 @@ public struct CanvasShowOrder: Sendable, Equatable {
     public var title: String?
     public var focus: Bool
     public var caller: SessionID?
+    public var refusalToCreate: String?
 
-    public init(path: String, title: String? = nil, focus: Bool = true, caller: SessionID? = nil) {
+    public var mayCreate: Bool { refusalToCreate == nil }
+
+    public init(path: String, title: String? = nil, focus: Bool = true, caller: SessionID? = nil, refusalToCreate: String? = nil) {
         self.path = path
         self.title = title
         self.focus = focus
         self.caller = caller
+        self.refusalToCreate = refusalToCreate
     }
 }
 
@@ -40,6 +44,13 @@ public struct CanvasShowTool: BridgeToolHandling {
             can read it as a page. Use it when what you have to say is a document: an HTML page \
             you wrote, a Markdown report, an SVG diagram or a PNG, JPEG, GIF or WebP image. HTML is \
             shown as it is and Markdown is rendered.
+
+            A file ending in .\(CanvasDocumentFile.fileExtension) is a canvas document and opens in the \
+            canvas editor, where the person draws frames, text, notes, shapes and pen strokes and leaves \
+            comments. A path ending in .\(CanvasDocumentFile.fileExtension) that does not exist is created as a \
+            blank document with one frame, and any folders it needs, except in a project's orchestrator \
+            workspace, which writes nothing and is refused. Read a canvas document with canvas_read, \
+            change it with canvas_edit and see a frame of it with canvas_render.
 
             Only files inside this workspace's own worktree are accepted. There is one canvas per \
             workspace: calling this again swaps the file it shows rather than opening another \
@@ -97,7 +108,8 @@ public struct CanvasShowTool: BridgeToolHandling {
             path: path,
             title: title?.isEmpty == true ? nil : title,
             focus: focus,
-            caller: identity.sessionID
+            caller: identity.sessionID,
+            refusalToCreate: await OrchestratorToolGuard.canvasEditRefusal(workspaceID: workspaceID, store: store)
         )
         switch await show(order, workspaceID) {
         case .shown(let sentence): return BridgeToolResult(text: sentence)

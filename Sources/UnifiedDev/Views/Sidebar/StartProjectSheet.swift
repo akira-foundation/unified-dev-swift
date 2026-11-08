@@ -157,7 +157,7 @@ struct StartProjectSheet: View {
     }
 
     private var offeredProjects: [Repo] {
-        StartProjectPick.offered(app.repos, showingHidden: showsHiddenProjects)
+        StartProjectPick.offered(app.profileRepos, showingHidden: showsHiddenProjects)
     }
 
     private func openFolder() {

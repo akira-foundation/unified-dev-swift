@@ -42,20 +42,22 @@ struct MenuBarPanelContentTests {
         workspaces: [Workspace] = [],
         running: [Workspace] = [],
         waiting: [Workspace] = [],
-        runningAgents: Int? = nil,
+        agents: [WorkspaceID: Int]? = nil,
+        askIsWorking: Bool = false,
         quotas: [AgentQuota] = [],
         accounts: [AgentKind: AgentAccount] = [:],
         unanswered: Set<AgentKind> = [],
         withoutLimits: Set<AgentKind> = [],
         lastReported: [AgentKind: Date] = [:],
         layout: UsageLayout = UsageLayout(),
-        hold: KeepAwake.Hold = .none
+        hold: KeepAwake.Hold = .none,
+        offers: [AgentKind: QuotaAccountOffer] = [:]
     ) -> MenuBarPanelContent.Input {
         MenuBarPanelContent.Input(
             workspaces: workspaces,
             running: Set(running.map(\.id)),
             waiting: Set(waiting.map(\.id)),
-            runningAgents: runningAgents ?? running.count,
+            agentsByWorkspace: agents ?? Dictionary(uniqueKeysWithValues: running.map { ($0.id, 1) }),
             quotas: quotas,
             accounts: accounts,
             unanswered: unanswered,
@@ -63,7 +65,9 @@ struct MenuBarPanelContentTests {
             lastReported: lastReported,
             layout: layout,
             hold: hold,
-            now: now
+            now: now,
+            offers: offers,
+            askIsWorking: askIsWorking
         )
     }
 
@@ -75,11 +79,37 @@ struct MenuBarPanelContentTests {
         #expect(!content.needsSetup)
     }
 
+    @Test("an offer of another account lands on its own provider and on no other")
+    func offerLandsOnItsProvider() {
+        let offer = QuotaAccountOffer(
+            headline: "x", choices: [], notes: []
+        )
+        let content = MenuBarPanelContent.make(input(
+            quotas: [calmCodex, quota(.claudeCode, .named("five_hour"), 0.2)],
+            offers: [.codex: offer]
+        ))
+        #expect(content.providers.first { $0.kind == .codex }?.offer == offer)
+        #expect(content.providers.first { $0.kind == .claudeCode }?.offer == nil)
+    }
+
+    @Test("an offer reaches a provider that did not answer, because a sign-out is why it may not")
+    func offerReachesASilentProvider() {
+        let offer = QuotaAccountOffer(
+            headline: "x", choices: [], notes: []
+        )
+        let content = MenuBarPanelContent.make(input(
+            quotas: [calmCodex], unanswered: [.claudeCode], offers: [.claudeCode: offer]
+        ))
+        let claude = content.providers.first { $0.kind == .claudeCode }
+        #expect(claude?.reading == .unavailable)
+        #expect(claude?.offer == offer)
+    }
+
     @Test("counts agents and the workspaces they run in")
     func running() {
         let a = workspace("a"), b = workspace("b"), c = workspace("c")
         let content = MenuBarPanelContent.make(input(
-            workspaces: [a, b, c], running: [a, b], runningAgents: 3, quotas: [calmCodex]
+            workspaces: [a, b, c], running: [a, b], agents: [a.id: 2, b.id: 1], quotas: [calmCodex]
         ))
         #expect(content.sentence == "3 agents running in 2 workspaces.")
         #expect(content.badges == [.running])
@@ -94,7 +124,7 @@ struct MenuBarPanelContentTests {
 
     @Test("an agent running outside any workspace is counted without naming workspaces")
     func askConversation() {
-        let content = MenuBarPanelContent.make(input(runningAgents: 1, quotas: [calmCodex]))
+        let content = MenuBarPanelContent.make(input(askIsWorking: true, quotas: [calmCodex]))
         #expect(content.sentence == "1 agent running.")
         #expect(content.badges == [.running])
     }
@@ -115,7 +145,7 @@ struct MenuBarPanelContentTests {
         let content = MenuBarPanelContent.make(input(
             workspaces: [a, b],
             running: [a, b],
-            runningAgents: 3,
+            agents: [a.id: 2, b.id: 1],
             quotas: [quota(.codex, codexWeek, 1, resetsIn: 140_400)],
             hold: .whileAgentsRun
         ))
@@ -354,7 +384,7 @@ struct MenuBarPanelContentTests {
         let names = ["a", "b", "c", "d", "e", "f"]
         let running = names.map { workspace($0) }
         let content = MenuBarPanelContent.make(input(
-            workspaces: running, running: running, runningAgents: 0, quotas: [calmCodex]
+            workspaces: running, running: running, agents: [:], quotas: [calmCodex]
         ))
         #expect(content.sentence == "6 agents running in 6 workspaces.")
         #expect(content.agents.count == 5)

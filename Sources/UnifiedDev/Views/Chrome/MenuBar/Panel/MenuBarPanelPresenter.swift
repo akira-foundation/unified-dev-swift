@@ -13,7 +13,10 @@ final class MenuBarPanelPresenter {
             controller.close()
             return
         }
-        Task { await app.refreshQuotas(after: QuotaPollSchedule.onDemandFloor) }
+        Task {
+            await app.refreshQuotas(after: QuotaPollSchedule.onDemandFloor)
+            await app.agentAccounts.reload(store: app.store)
+        }
         app.refreshSpend()
         let view = MenuBarPanelView(app: app, model: model, actions: actions(for: app)) { [weak self] height in
             self?.controller.contentHeightChanged(height)
@@ -49,6 +52,10 @@ final class MenuBarPanelPresenter {
             retryUsage: { [weak app] in
                 guard let app else { return }
                 Task { await app.refreshQuotas(after: 0) }
+            },
+            useAccount: { [weak app] account in
+                guard let app else { return }
+                Task { await app.restartTurn(on: account) }
             },
             quit: { NSApp.terminate(nil) }
         )

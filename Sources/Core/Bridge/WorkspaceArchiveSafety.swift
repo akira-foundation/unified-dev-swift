@@ -22,7 +22,7 @@ public enum WorkspaceArchiveSafety {
                         stop it before archiving.
                         """
                 }
-                if try await !store.pendingDeliveries(sessionID: session.id).isEmpty {
+                if try await !Delivery.messages(in: store.pendingDeliveries(sessionID: session.id)).isEmpty {
                     return "This workspace has queued messages. Handle them before archiving."
                 }
             }

@@ -15,6 +15,10 @@ struct ComposerPrompt<Footer: View>: View {
     var onRemoveReviewComment: @MainActor (ReviewCommentID) -> Void = { _ in }
     var onOpenReviewComment: @MainActor (ReviewComment) -> Void = { _ in }
 
+    var replyQuotes: [ReplyQuote] = []
+    var onRemoveReplyQuote: @MainActor (ReplyQuoteID) -> Void = { _ in }
+    var onOpenReplyQuote: @MainActor (ReplyQuote) -> Void = { _ in }
+
     var placeholder: String = ComposerEditor.chatPlaceholder
     var editorHeight: CGFloat
     var onContentHeightChange: @MainActor (CGFloat) -> Void
@@ -24,6 +28,7 @@ struct ComposerPrompt<Footer: View>: View {
     var isFloating = false
     var isBusy = false
     var isDraftLoaded = true
+    var accountHomes: ComposerAccountHomes?
     @ViewBuilder var footer: (ComposerPromptActions) -> Footer
 
     @Environment(AppModel.self) private var app
@@ -65,6 +70,18 @@ struct ComposerPrompt<Footer: View>: View {
                             comment: comment,
                             onRemove: { onRemoveReviewComment(comment.id) },
                             onOpen: { onOpenReviewComment(comment) }
+                        )
+                    }
+                }
+            }
+
+            if !replyQuotes.isEmpty {
+                ChipFlow(spacing: Metrics.spacingSmall, lineSpacing: Metrics.spacingSmall) {
+                    ForEach(replyQuotes) { quote in
+                        ReplyQuoteCard(
+                            quote: quote,
+                            onRemove: { onRemoveReplyQuote(quote.id) },
+                            onOpen: { onOpenReplyQuote(quote) }
                         )
                     }
                 }
@@ -151,13 +168,16 @@ struct ComposerPrompt<Footer: View>: View {
             applyCaptureDraft()
             applyCaptureAttachments()
         }
-        .task(id: mentionRoot) {
+        .task(id: SlashCatalogKey(root: mentionRoot, homes: accountHomes)) {
+            guard let accountHomes else { return }
             let catalog = SlashCommandCatalog.shared(for: mentionRoot)
+            catalog.claudeAccount = accountHomes.claude
+            catalog.account = accountHomes.codex
             slashCatalog = catalog
             await catalog.load(workspacePath: mentionRoot)
         }
         .task(id: openMenu.kind == .slash) {
-            guard openMenu.kind == .slash else { return }
+            guard openMenu.kind == .slash, accountHomes != nil else { return }
             await slashCatalog.refreshIfStale(workspacePath: mentionRoot)
         }
         .task(id: openMenu.mention?.query) { await refreshFileMatches() }
@@ -486,4 +506,9 @@ struct ComposerPrompt<Footer: View>: View {
 
         await add(panel.urls.map { .file($0) }, replacing: NSRange(location: caret, length: 0))
     }
+}
+
+private struct SlashCatalogKey: Equatable {
+    var root: String
+    var homes: ComposerAccountHomes?
 }

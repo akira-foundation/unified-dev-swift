@@ -12,12 +12,16 @@ struct AgentsSettingsView: View {
     @State private var isLoading = true
     @State private var isRefreshing = false
     @State private var saveFailure: String?
-    @State private var loginRequest: AgentSignInSheet.Request?
+    @State private var accountsFlow = AgentAccountsFlow()
     @State private var pathDraft = ""
     @State private var draftKind: AgentKind = .claudeCode
     @FocusState private var isEditingPath: Bool
 
     private var status: AgentStatus? { statuses[selection] }
+
+    private var accounts: AgentAccountsModel { app.agentAccounts }
+
+    private var executables: [AgentKind: String] { statuses.compactMapValues(\.executablePath) }
 
     var body: some View {
         Form {
@@ -44,6 +48,14 @@ struct AgentsSettingsView: View {
                 }
             }
 
+            if let failure = accounts.failure {
+                Section {
+                    ErrorBanner(title: "Accounts", message: failure) {
+                        accounts.dismissFailure()
+                    }
+                }
+            }
+
             if isLoading {
                 Section {
                     LoadingView("Looking for agent CLIs")
@@ -55,6 +67,14 @@ struct AgentsSettingsView: View {
                 statusSection(status)
 
                 capabilitySection
+
+                AgentAccountsSection(
+                    panel: accounts.panel(for: selection, in: app.activeProfileID, profiles: app.profiles, repos: app.repos),
+                    activity: accounts.activity,
+                    canSignIn: status.executablePath != nil,
+                    onAdd: { accountsFlow.isNamingAccount = true },
+                    onRemove: { accountsFlow.removing = $0 }
+                )
 
                 if status.connection == .notInstalled {
                     notInstalledSection
@@ -78,11 +98,10 @@ struct AgentsSettingsView: View {
         }
         .settingsForm()
         .task { await bootstrap() }
-        .sheet(item: $loginRequest, onDismiss: { Task { await refresh() } }) { request in
-            AgentSignInSheet(request: request) {
-                Task { await refresh() }
-            }
-        }
+        .agentAccountsFlow(
+            accountsFlow, app: app, provider: selection, executables: executables,
+            onSignInClosed: { Task { await refresh() } }
+        )
         .onDisappear { commitPathDraft() }
         .onChange(of: selection) { _, kind in
             commitPathDraft()
@@ -255,7 +274,7 @@ struct AgentsSettingsView: View {
 
     private func runLogin() {
         guard let executable = status?.executablePath else { return }
-        loginRequest = AgentSignInSheet.Request(
+        accountsFlow.loginRequest = AgentSignInSheet.Request(
             kind: selection,
             executable: executable,
             isSwitchingAccount: status?.connection == .connected
@@ -289,6 +308,7 @@ struct AgentsSettingsView: View {
         self.catalog = catalog
         await read(from: catalog)
         isLoading = false
+        await accounts.askIfDue(after: 0, executables: executables, store: app.store)
     }
 
     private func refresh() async {
@@ -296,7 +316,9 @@ struct AgentsSettingsView: View {
         isRefreshing = true
         await catalog.invalidate()
         await read(from: catalog)
+        ComposerModelCatalog.shared.load()
         isRefreshing = false
+        await accounts.askIfDue(after: 0, executables: executables, store: app.store)
     }
 
     private func read(from catalog: AgentCatalog) async {
@@ -342,6 +364,7 @@ struct AgentsSettingsView: View {
             let catalog = AgentCatalog(overrides: updated)
             self.catalog = catalog
             await read(from: catalog)
+            await accounts.askIfDue(after: 0, executables: executables, store: app.store)
         }
     }
 }

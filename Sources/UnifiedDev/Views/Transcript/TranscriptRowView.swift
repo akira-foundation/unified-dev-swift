@@ -78,7 +78,7 @@ struct TranscriptRowView: View, Equatable {
                     WorkspaceMessageRowView(message: crew)
                 case .crewMessage(let crew):
                     CrewMessageRowView(message: crew)
-                case .ownerTurn, nil:
+                case .ownerTurn, .stuckRequest, nil:
                     EmptyView()
                 }
             }
@@ -178,6 +178,11 @@ struct TranscriptRowView: View, Equatable {
             }
             if initInfo == nil, let wake = backgroundWake {
                 BackgroundWakeRowView(wake: wake)
+            }
+
+        case .handoff:
+            if let mark = HandoffMark.decode(row.payload) {
+                HandoffDividerView(mark: mark)
             }
 
         case .result:

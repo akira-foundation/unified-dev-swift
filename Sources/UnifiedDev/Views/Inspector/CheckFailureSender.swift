@@ -15,6 +15,6 @@ final class CheckFailureSender {
         sending = run.id
         defer { sending = nil }
 
-        return await model.writeCheckFailureRequest(for: [run])
+        return await model.sendCheckFailureRequest(for: [run])
     }
 }

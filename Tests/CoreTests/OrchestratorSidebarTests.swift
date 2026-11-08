@@ -74,6 +74,83 @@ struct OrchestratorSidebarTests {
         #expect(!SidebarReorder.isOrchestratorChild(rows[2], among: rows))
     }
 
+    private func foldsColumn(
+        of row: Workspace,
+        among rows: [Workspace],
+        drawn: [Workspace]? = nil,
+        status: (Workspace) -> WorkspaceStatus = { _ in .clean }
+    ) -> Bool {
+        SidebarMarkPolicy.foldsMarkColumn(
+            of: row, among: rows, drawn: Set((drawn ?? rows).map(\.id)), status: status
+        )
+    }
+
+    @Test("the mark column folds while no sibling has a mark to draw")
+    func columnFoldsWhenTheFamilyIsSilent() {
+        let rows = [
+            workspace("lead", order: 0, orchestrator: true),
+            workspace("one", order: 1, parent: "lead"),
+            workspace("two", order: 2, parent: "lead"),
+        ]
+        #expect(foldsColumn(of: rows[1], among: rows))
+        #expect(foldsColumn(of: rows[2], among: rows) { _ in .changed })
+    }
+
+    @Test("one sibling with a mark keeps the column open for the whole family")
+    func oneMarkKeepsTheColumn() {
+        let rows = [
+            workspace("lead", order: 0, orchestrator: true),
+            workspace("one", order: 1, parent: "lead"),
+            workspace("two", order: 2, parent: "lead"),
+        ]
+        let status: (Workspace) -> WorkspaceStatus = { $0.id == rows[2].id ? .running : .clean }
+        #expect(!foldsColumn(of: rows[1], among: rows, status: status))
+        #expect(!foldsColumn(of: rows[2], among: rows, status: status))
+    }
+
+    @Test("a mark under another orchestrator or in another project leaves this family's column alone")
+    func strangersDoNotKeepTheColumn() {
+        let lead = workspace("lead", order: 0, orchestrator: true)
+        let quiet = workspace("quiet", order: 1, parent: "lead")
+        var elsewhere = workspace("elsewhere", order: 2, parent: "lead")
+        elsewhere.repoID = RepoID("r2")
+        let other = workspace("other", order: 3, parent: "other-lead")
+        let folds = foldsColumn(of: quiet, among: [lead, quiet, elsewhere, other]) {
+            $0.id == quiet.id ? .clean : .running
+        }
+        #expect(folds)
+    }
+
+    @Test("a sibling the sidebar does not draw cannot keep the column open")
+    func undrawnSiblingDoesNotKeepTheColumn() {
+        let lead = workspace("lead", order: 0, orchestrator: true)
+        let shown = workspace("shown", order: 1, parent: "lead")
+        let filtered = workspace("filtered", order: 2, parent: "lead")
+        let folds = foldsColumn(of: shown, among: [lead, shown, filtered], drawn: [shown]) {
+            $0.id == filtered.id ? .running : .clean
+        }
+        #expect(folds)
+    }
+
+    @Test("a sibling that is an orchestrator keeps the column, because its role mark is drawn in it")
+    func roleMarkKeepsTheColumn() {
+        let rows = [
+            workspace("lead", order: 0, orchestrator: true),
+            workspace("one", order: 1, parent: "lead"),
+            workspace("nested", order: 2, orchestrator: true, parent: "lead"),
+        ]
+        #expect(!foldsColumn(of: rows[1], among: rows))
+    }
+
+    @Test("a row that is no orchestrator's child never folds its column")
+    func onlyAChildFolds() {
+        let plain = workspace("plain", order: 0)
+        let parent = workspace("parent", order: 1)
+        let crew = workspace("crew", order: 2, parent: "parent")
+        #expect(!foldsColumn(of: plain, among: [plain]))
+        #expect(!foldsColumn(of: crew, among: [parent, crew]))
+    }
+
     @Test("a child started into another project is not drawn as a child there")
     func childInAnotherProject() {
         let lead = workspace("lead", order: 0, pinned: true, orchestrator: true)

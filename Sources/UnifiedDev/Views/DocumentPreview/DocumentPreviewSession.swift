@@ -20,6 +20,8 @@ final class DocumentPreviewSession {
     private static var positions: [String: CGPoint] = [:]
 
     var openFile: ((String) -> Void)?
+    var opensLinkInside: ((URL) -> Bool)?
+    var openLinkInside: ((URL) -> Void)?
 
     init(document: String, root: String) {
         self.document = document
@@ -107,9 +109,15 @@ final class DocumentPreviewSession {
     private func ask(about url: URL) {
         guard exitGate.begin() else { return }
         Task { @MainActor in
-            let opened = DocumentPreviewExit.confirm(url)
+            let inside = opensLinkInside?(url) == true
+            let opened = DocumentPreviewExit.confirm(url, opensInBuiltInBrowser: inside)
             exitGate.answered(opened: opened)
-            if opened { NSWorkspace.shared.open(url) }
+            guard opened else { return }
+            if inside {
+                openLinkInside?(url)
+            } else {
+                NSWorkspace.shared.open(url)
+            }
         }
     }
 

@@ -345,10 +345,15 @@ final class TerminalSessionStore {
             if isPresent, let externalSession,
                let workspace = try? await store.workspace(id: tab.workspaceID),
                CenterTabStore.shared.terminal(for: sessionID, in: tab.workspaceID)?.id == tab.id,
+               let resolution = try? await AgentAccountResolver.resolve(
+                   workspaceID: workspace.id, repoID: workspace.repoID, store: store
+               ),
+               case .runs(let account) = resolution.launch(for: session.agentKind),
                let resume = try? session.agentKind.prepareInteractiveCommand(
                    directory: workspace.path, prompt: "", sessionID: sessionID,
                    model: session.model, effort: session.effort,
                    permissionMode: session.permissionMode, resuming: externalSession,
+                   account: account,
                    orchestrates: workspace.isOrchestrator
                ) {
                 await recall.rememberResume(resume, inPane: tab.id, store: store)

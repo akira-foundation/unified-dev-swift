@@ -227,12 +227,12 @@ struct WorkspaceRestoreTests {
     func preferredPathIsFlatUnderTheProject() {
         let root = URL(fileURLWithPath: "/w")
         #expect(
-            WorktreePath.preferred(branch: "dark-mode", project: "unifieddev", under: root)
-                == "/w/unifieddev/dark-mode"
+            WorktreePath.preferred(branch: "dark-mode", project: "unifieddev", profileFolder: "unified", under: root)
+                == "/w/unified/unifieddev/dark-mode"
         )
         #expect(
-            WorktreePath.preferred(branch: "freek/dark/mode", project: "unifieddev", under: root)
-                == "/w/unifieddev/freek-dark-mode"
+            WorktreePath.preferred(branch: "freek/dark/mode", project: "unifieddev", profileFolder: "unified", under: root)
+                == "/w/unified/unifieddev/freek-dark-mode"
         )
     }
 

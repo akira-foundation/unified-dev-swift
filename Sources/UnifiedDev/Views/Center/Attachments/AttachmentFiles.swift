@@ -38,6 +38,10 @@ enum AttachmentFiles {
         }
     }
 
+    static func save(_ sources: [AttachmentSource], workspace: String) -> [String?] {
+        sources.map { try? attach($0, workspace: workspace).path }
+    }
+
     static func attach(_ source: AttachmentSource, workspace: String) throws -> PromptAttachment {
         switch source {
         case .file(let url), .promisedFile(let url, _):

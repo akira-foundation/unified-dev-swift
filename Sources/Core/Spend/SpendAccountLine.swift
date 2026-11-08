@@ -12,24 +12,27 @@ public struct SpendAccountLine: Sendable, Equatable, Identifiable {
     public var id: String { accountID?.rawValue ?? "\(SpendAccounts.unknown).\(provider.rawValue)" }
 
     private enum Bucket: Hashable {
-        case account(AgentAccountHome)
+        case account(AgentAccountID)
         case unknown(AgentKind)
     }
 
     static func lines(for days: [SpendDay], input: SpendBoard.Input) -> [SpendAccountLine] {
-        let directories = SpendAccounts.Directories(input.accounts)
-        var attributed: [String: AgentAccountHome?] = [:]
+        let entries = input.accounts.map {
+            AgentAccountNames.Entry(home: $0, identity: input.identities[$0.id])
+        }
+        let attribution = SpendAccountAttribution(accounts: input.accounts)
+        var attributed: [String: AgentAccountID?] = [:]
         var grouped: [Bucket: [SpendDay]] = [:]
         for row in days {
-            let account = attributed[row.file] ?? directories.account(ofFile: row.file)
-            attributed[row.file] = .some(account)
-            let bucket = account.map(Bucket.account) ?? .unknown(row.provider)
+            let accountID = attributed[row.file] ?? attribution.accountID(ofFile: row.file)
+            attributed[row.file] = .some(accountID)
+            let bucket = accountID.map(Bucket.account) ?? .unknown(row.provider)
             grouped[bucket, default: []].append(row)
         }
 
         return grouped
             .map { bucket, rows in
-                line(for: bucket, rows: rows, input: input)
+                line(for: bucket, rows: rows, entries: entries)
             }
             .sorted { left, right in
                 if left.spend.cost.total != right.spend.cost.total {
@@ -39,15 +42,20 @@ public struct SpendAccountLine: Sendable, Equatable, Identifiable {
             }
     }
 
-    private static func line(for bucket: Bucket, rows: [SpendDay], input: SpendBoard.Input) -> SpendAccountLine {
+    private static func line(
+        for bucket: Bucket,
+        rows: [SpendDay],
+        entries: [AgentAccountNames.Entry]
+    ) -> SpendAccountLine {
         let spend = Spend.sum(rows.map(\.spend))
         let sessions = SpendProjectLine.sessions(in: rows)
         switch bucket {
-        case .account(let home):
+        case .account(let accountID):
+            let entry = entries.first { $0.home.id == accountID }
             return SpendAccountLine(
-                accountID: home.id,
-                name: name(of: home, identity: input.identities[home.id]),
-                provider: home.provider,
+                accountID: accountID,
+                name: entry.map { AgentAccountNames.title(of: $0, among: entries) } ?? SpendAccounts.unknown,
+                provider: entry?.home.provider ?? rows[0].provider,
                 spend: spend,
                 sessions: sessions
             )
@@ -56,10 +64,5 @@ public struct SpendAccountLine: Sendable, Equatable, Identifiable {
                 accountID: nil, name: SpendAccounts.unknown, provider: provider, spend: spend, sessions: sessions
             )
         }
-    }
-
-    private static func name(of home: AgentAccountHome, identity: AgentAccountIdentity?) -> String {
-        if let email = identity?.email, !email.isEmpty { return email }
-        return home.directory.lastPathComponent
     }
 }

@@ -19,27 +19,38 @@ public struct BackgroundTaskList: Sendable, Hashable {
             title = SubagentRow.title(of: subagent)
             mark = SubagentRow(subagent, now: now).mark
             canStop = stopsTasks && subagent.state == .running
-            let state = subagent.state == .running ? "Running" : mark.word
+            let state = SubagentPane.status(subagent, now: now)
             let elapsed = SubagentRow.duration(subagent.secondsElapsed(at: now))
-            let noun = kind.noun.prefix(1).uppercased() + kind.noun.dropFirst()
-            detail = ([noun, state] + (elapsed.isEmpty ? [] : [elapsed])).joined(separator: " · ")
+            detail = ([kind.title, state] + (elapsed.isEmpty ? [] : [elapsed])).joined(separator: " · ")
         }
     }
 
+    public let running: [Row]
+    public let finished: [Row]
     public let rows: [Row]
-    public let runningCount: Int
 
-    public init(_ roster: SubagentRoster, stopsTasks: Bool = false, now: Date = Date()) {
+    public init(
+        _ roster: SubagentRoster,
+        cleared: ClearedBackgroundTasks = ClearedBackgroundTasks(),
+        stopsTasks: Bool = false,
+        now: Date = Date()
+    ) {
         let live = Set(roster.subagents.map(\.id))
-        let running = roster.subagents
+        running = roster.subagents
             .filter { $0.state == .running }
             .sorted { $0.startedAt < $1.startedAt }
-        let finished = (roster.subagents.filter(\.state.isFinished)
+            .map { Row($0, stopsTasks: stopsTasks, now: now) }
+        finished = (roster.subagents.filter(\.state.isFinished)
             + roster.history.filter { !live.contains($0.id) })
+            .filter { !cleared.hides($0) }
             .sorted { ($0.finishedAt ?? $0.startedAt) > ($1.finishedAt ?? $1.startedAt) }
-        rows = (running + finished).map { Row($0, stopsTasks: stopsTasks, now: now) }
-        runningCount = running.count
+            .map { Row($0, stopsTasks: stopsTasks, now: now) }
+        rows = running + finished
     }
+
+    public var runningCount: Int { running.count }
+
+    public var canClear: Bool { !finished.isEmpty }
 
     public var isEmpty: Bool { rows.isEmpty }
 

@@ -8,9 +8,7 @@ struct ProseRowView: View {
         VStack(alignment: .leading, spacing: TranscriptLayout.block) {
             MarkdownView(text, isStreaming: isStreaming)
                 .environment(\.markdownRunsCommands, true)
-                .font(Typo.body)
                 .proseLeading()
-                .textSelection(.enabled)
                 .frame(maxWidth: TranscriptLayout.proseMeasure, alignment: .leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }

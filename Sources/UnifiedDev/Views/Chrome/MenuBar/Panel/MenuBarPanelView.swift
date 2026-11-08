@@ -73,7 +73,8 @@ struct MenuBarPanelView: View {
                 now: now,
                 focus: $focus,
                 retry: actions.retryUsage,
-                toggleFold: { model.update { $0.toggleExpanded(provider.kind) } }
+                toggleFold: { model.update { $0.toggleExpanded(provider.kind) } },
+                useAccount: actions.useAccount
             )
         }
         MenuBarSpendModule(

@@ -82,7 +82,8 @@ struct ComposerView: View {
                 project: transcript.cwd,
                 projectQuickPrompts: model?.settings.quickPrompts ?? [],
                 onOpenQuickPrompts: { [model] in model?.refreshSettings() },
-                isDraftLoaded: transcript.isLoaded
+                isDraftLoaded: transcript.isLoaded,
+                account: transcript.accountScope
             ),
             editorHeight: editorHeight,
             onContentHeightChange: { contentHeight = $0 },
@@ -93,12 +94,16 @@ struct ComposerView: View {
                 reviewComments: reviewComments,
                 onRemoveReviewComment: remove(reviewComment:),
                 onOpenReviewComment: open(reviewComment:),
+                replyQuotes: transcript.replyQuotes,
+                onRemoveReplyQuote: transcript.removeReplyQuote(id:),
+                onOpenReplyQuote: { quote in quote.sourceSeq.map(transcript.revealMessage(seq:)) },
                 onOpenCommand: open(commandPath:),
                 context: transcript.contextUsage,
                 isRunning: transcript.isRunning,
                 queues: transcript.queuesNextMessage,
                 onStop: transcript.stop,
-                onSideConversation: canOpenSideConversation ? openSideConversation : nil
+                onSideConversation: canOpenSideConversation ? openSideConversation : nil,
+                onOpenInNewChat: hasSpoken ? openInNewChat : nil
             ),
             onOpenAttachment: open(attachment:),
             onEscape: escape
@@ -110,7 +115,7 @@ struct ComposerView: View {
         .onChange(of: transcript.draft) { _, _ in scheduleDraftSave() }
         .onChange(of: transcript.composerFocusRequests) { _, _ in
             isFocused = true
-            caret = 0
+            caret = (transcript.draft as NSString).length
         }
         .focusedValue(\.composerTranscript, isFocused ? transcript : nil)
         .onDisappear(perform: saveDraftNow)
@@ -159,7 +164,7 @@ struct ComposerView: View {
         includesReviewComments ? (model?.reviewComments ?? []) : []
     }
 
-    private var canSend: Bool { hasBody || !reviewComments.isEmpty }
+    private var canSend: Bool { hasBody || !reviewComments.isEmpty || !transcript.replyQuotes.isEmpty }
 
     private func escape() {
         if let onDismiss { onDismiss() } else { isFocused = false }
@@ -207,14 +212,14 @@ struct ComposerView: View {
         switch BackendChange.decide(
             from: session.agentKind,
             to: new.agentKind,
-            hasSpoken: BackendChange.hasSpoken(
-                rowCount: transcript.rows.count,
-                agentSessionID: session.agentSessionID,
-                isTranscriptLoaded: transcript.isLoaded
-            )
+            hasSpoken: hasSpoken,
+            isInteractiveTerminal: transcript.usesInteractiveTerminal
         ) {
         case .fork(let kind):
-            fork(onto: kind, with: new)
+            fork(onto: kind, with: new, saying: BackendChange.interactiveForkNotice(to: kind))
+            return
+        case .switchInPlace:
+            sessionEditor.switchAgent(to: new)
             return
         case .changeInPlace, .unchanged:
             break
@@ -236,18 +241,27 @@ struct ComposerView: View {
         }
     }
 
-    private func fork(onto kind: AgentKind, with controls: ComposerControls) {
-        let draft = transcript.draft
+    private var hasSpoken: Bool {
+        BackendChange.hasSpoken(
+            rowCount: transcript.rows.count,
+            agentSessionID: transcript.session.agentSessionID,
+            isTranscriptLoaded: transcript.isLoaded
+        )
+    }
+
+    private func openInNewChat(_ controls: ComposerControls) {
+        fork(onto: controls.agentKind, with: controls, saying: nil)
+    }
+
+    private func fork(onto kind: AgentKind, with controls: ComposerControls, saying notice: String?) {
+        let draft = ReplyQuote.message(transcript.draft, quoting: transcript.replyQuotes)
+        let source = transcript.session.id
         let from = transcript.session.agentKind
 
         guard let model else {
             Task { @MainActor in
-                let previous = app.ask.session?.id
-                await app.ask.startFresh(controls: controls, draft: draft)
-                guard let made = app.ask.session?.id, made != previous else { return }
-                app.notice = Notice(
-                    message: BackendChange.replacementNotice(from: from, to: kind)
-                )
+                guard let made = await app.ask.openInNewChat(controls: controls, draft: draft) else { return }
+                app.notice = Notice(message: BackendChange.forkNotice(title: made.title, from: from))
             }
             return
         }
@@ -258,14 +272,15 @@ struct ComposerView: View {
             guard let session = await model.createSession(
                 title: title,
                 controls: controls,
-                draft: draft
+                draft: draft,
+                seededFrom: source
             ) else {
                 app.notice = Notice(message: BackendChange.forkFailureNotice(to: kind), tone: .error)
                 return
             }
 
             WorkspaceTabsStore.shared.reveal(.chat(session.id), in: model)
-            app.notice = Notice(message: BackendChange.forkNotice(title: title, from: from))
+            app.notice = Notice(message: notice ?? BackendChange.forkNotice(title: title, from: from))
         }
     }
 
@@ -322,7 +337,10 @@ struct ComposerView: View {
         let imageComments = Dictionary(attachments.compactMap { attachment in
             attachment.imageComment.map { (attachment.path, $0) }
         }, uniquingKeysWith: { first, _ in first })
-        let text = BrowserImageComment.expand(draftText, comments: imageComments)
+        let quotes = transcript.replyQuotes
+        let text = ReplyQuote.message(
+            BrowserImageComment.expand(draftText, comments: imageComments), quoting: quotes
+        )
 
         PromptAttachmentStore.shared.settle(
             sent: draftText, sessionID: transcript.session.id.rawValue, workspace: worktree
@@ -331,7 +349,11 @@ struct ComposerView: View {
         let transcript = transcript
         let comments = reviewComments
         guard !comments.isEmpty else {
-            Task { await transcript.submit(text, clearingDraft: sourceDraft, dismissingAsks: true) }
+            Task {
+                await transcript.submit(
+                    text, clearingDraft: sourceDraft, clearingQuotes: quotes, dismissingAsks: true
+                )
+            }
             return
         }
 
@@ -347,7 +369,9 @@ struct ComposerView: View {
                     template: template
                 )
             }.value
-            await transcript.submit(composed, clearingDraft: sourceDraft, dismissingAsks: true)
+            await transcript.submit(
+                composed, clearingDraft: sourceDraft, clearingQuotes: quotes, dismissingAsks: true
+            )
             await model?.removeReviewComments(ids: comments.map(\.id))
         }
     }
@@ -506,7 +530,10 @@ struct ComposerView: View {
 
         let appliedKey = ComposerControls.defaultsAppliedKey(sessionID: sessionID)
         let wasPrepared = (try? await store.setting(appliedKey)) == "1"
-        guard !wasPrepared, transcript.session.agentSessionID == nil else { return }
+        let spoken = wasPrepared ? 0 : ((try? await store.messageCount(sessionID: sessionID)) ?? 1)
+        guard ComposerDefaults.applies(
+            wasPrepared: wasPrepared, agentSessionID: transcript.session.agentSessionID, messageCount: spoken
+        ) else { return }
 
         let appDefaults = await AppDefaults.loadForNewSessions(from: store)
 

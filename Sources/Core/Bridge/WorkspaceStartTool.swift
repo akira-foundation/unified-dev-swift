@@ -222,6 +222,7 @@ public struct WorkspaceStartTool: BridgeToolHandling {
         let origin = origin(of: order, project: project, parent: parent)
 
         let launch = AgentWorkspaceLaunch(start: start)
+        let profile = await BridgeProfileScope.name(of: project.profileID, store: store)
         switch await launch.launch(order, in: project, as: identity, origin: origin, store: store) {
         case .alreadyStarted(let existing):
             return .json(.object([
@@ -229,6 +230,7 @@ public struct WorkspaceStartTool: BridgeToolHandling {
                 "name": .string(existing.name),
                 "branch": .string(existing.branch),
                 "path": .string(existing.path),
+                "profile": profile,
                 "state": .string("already_started"),
                 "note": .string(
                     "You already asked for this one and it exists. Nothing new was created."
@@ -237,7 +239,7 @@ public struct WorkspaceStartTool: BridgeToolHandling {
 
         case .started(let started):
             let watching = await watch(started, for: request, from: identity, store: store)
-            return .json(startedAnswer(started, role: identity.role, watch: watching))
+            return .json(startedAnswer(started, profile: profile, role: identity.role, watch: watching))
 
         case .refused(let refusal):
             return .failure(refusal.sentence)

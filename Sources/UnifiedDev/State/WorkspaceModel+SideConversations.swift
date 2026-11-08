@@ -59,7 +59,7 @@ extension WorkspaceModel {
     private func applyPendingQuotes(_ state: SideConversationState, to child: TranscriptModel) {
         let quotes = state.pendingQuotes
         state.pendingQuotes = []
-        quotes.forEach(child.reply(with:))
+        quotes.forEach { child.reply(with: $0) }
     }
 
     func dismissSideConversation(from parent: TranscriptModel) {

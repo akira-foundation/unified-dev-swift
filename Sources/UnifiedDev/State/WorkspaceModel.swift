@@ -34,6 +34,12 @@ final class WorkspaceModel {
 
     private var transcripts: [SessionID: TranscriptModel] = [:]
 
+    @ObservationIgnored var canvasDocuments: [String: CanvasDocumentModel] = [:]
+    @ObservationIgnored var canvasCommentTurns = CanvasCommentTurns()
+    @ObservationIgnored var canvasCommentsBeingSent: Set<DeliveryID> = []
+    @ObservationIgnored var canvasShownBy: [String: SessionID] = [:]
+    var canvasCommentTargets: [DeliveryID: SessionID] = [:]
+
     private var storedDiffScope: DiffScope = .all
 
     var diffScope: DiffScope {
@@ -50,7 +56,14 @@ final class WorkspaceModel {
     }
 
     var hasBackgroundTasks: Bool {
-        tasksTranscript?.subagents.hasTasks ?? false
+        tasksTranscript?.hasBackgroundTasks ?? false
+    }
+
+    func clearFinishedTasks() {
+        tasksTranscript?.clearFinishedTasks()
+        guard !hasBackgroundTasks else { return }
+        tasksFocus.activeChatChanged()
+        chosenInspectorTab = inspectorTab
     }
 
     private var tasksFocus = BackgroundTasksFocus()
@@ -78,6 +91,7 @@ final class WorkspaceModel {
     @ObservationIgnored private var patches = PatchCache()
     @ObservationIgnored private var presentations = DiffPresentationCache()
     @ObservationIgnored private var panePositions: [TranscriptPaneState.Key: TranscriptPaneState] = [:]
+    @ObservationIgnored private var transcriptPlaceWrite: Task<Void, Never>?
     var changesError: String?
     var pullRequest: PullRequest? {
         get { WorkspacePullRequests.shared.pullRequest(for: workspace.id) }
@@ -209,7 +223,8 @@ final class WorkspaceModel {
         guard let fresh = try? await store.sessions(workspaceID: workspace.id) else { return }
         SwitchTrace.mark("sessions.query.done", workspace: workspace.id)
         if sessions != fresh { sessions = fresh }
-        if !hasReadSessions { hasReadSessions = true }
+        let isFirstRead = !hasReadSessions
+        if isFirstRead { hasReadSessions = true }
         let tabs = CenterTabStore.shared
         WorkspaceTabsStore.shared.updateOrder(
             sessions: TabSet.tabbable(fresh),
@@ -223,13 +238,16 @@ final class WorkspaceModel {
             prepareActiveTranscript()
         }
         SwitchTrace.mark("sessions.prepared", workspace: workspace.id)
+        if isFirstRead { Task { await wakeQueuedCanvasComments() } }
+        Task { await sendOpenCanvasCommentsAwaitingChat() }
     }
 
     @discardableResult
     func createSession(
         title: String? = nil,
         controls: ComposerControls? = nil,
-        draft: String = ""
+        draft: String = "",
+        seededFrom source: SessionID? = nil
     ) async -> Session? {
         guard !app.isArchiving(workspace.id), let store else { return nil }
         let openingControls: ComposerControls
@@ -253,6 +271,7 @@ final class WorkspaceModel {
         guard let stored = try? await store.upsert(session) else { return nil }
         await openingControls.store(sessionID: stored.id, in: store)
         if !draft.isEmpty { try? await store.saveDraft(sessionID: stored.id, body: draft) }
+        if let source { try? await store.seed(sessionID: stored.id, from: source) }
         await reloadSessions()
         activeSessionID = stored.id
         return stored
@@ -326,6 +345,7 @@ final class WorkspaceModel {
             app.bridge?.retire(sessionID: session.id)
             await reloadSessions()
             activeSessionID = next.id
+            await settleOpenCanvasComments()
             return next
         } catch {
             app.alert = AppAlert(title: "Could not start a fresh chat", message: error.readableMessage)
@@ -356,6 +376,25 @@ final class WorkspaceModel {
         transcripts[session.id] = nil
         app.bridge?.retire(sessionID: session.id)
         await reloadSessions()
+        await settleOpenCanvasComments()
+    }
+
+    var chatBesideCanvas: SessionID? {
+        guard let canvas = CenterTabStore.shared.canvas(for: workspace.id) else { return nil }
+        let tabs = app.paneSplitSnapshots(of: WorkspaceTabsStore.shared.entries(in: self))
+        return CanvasCommentRouting.chatBeside(.tool(canvas.id), in: tabs)
+    }
+
+    func noteCanvasComment(_ sentence: String) {
+        app.notice = Notice(message: sentence)
+    }
+
+    func canvasCommentPlace(of canvas: CanvasDocumentModel) -> CanvasCommentPlace {
+        CanvasCommentPlace(
+            addedThisRun: canvas.commentsAddedThisRun,
+            archiving: app.isArchiving(workspace.id),
+            documentHeld: canvas.keeper.holdsCanvasComments
+        )
     }
 
     @discardableResult
@@ -719,7 +758,7 @@ final class WorkspaceModel {
         if let cliSession, let prompt, !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             cliDelivery = try? await store?.enqueueDelivery(Delivery(targetSessionID: cliSession.id, body: prompt))
             if let terminal = CenterTabStore.shared.terminal(for: cliSession.id, in: workspace.id),
-               let command = prepareCLICommand(for: cliSession, prompt: prompt) {
+               let command = await prepareCLICommand(for: cliSession, prompt: prompt) {
                 try? await store?.setSetting(TerminalCommandMemory.key(paneID: terminal.id), command)
             }
         } else {
@@ -803,11 +842,13 @@ final class WorkspaceModel {
         guard !Task.isCancelled else { return }
         if let cliSession {
             await launchCLI(cliSession, prompt: cliPrompt ?? "", repo: repo)
+            await wakeQueuedCanvasComments()
             return
         }
-        guard let session = activeSession,
-              CenterTabStore.shared.terminal(for: session.id, in: workspace.id) == nil else { return }
-        await transcript(for: session).drain()
+        if let session = activeSession, CenterTabStore.shared.terminal(for: session.id, in: workspace.id) == nil {
+            await transcript(for: session).drain()
+        }
+        await wakeQueuedCanvasComments()
     }
 
     private func launchCLI(_ cliSession: Session, prompt: String, repo: Repo) async {
@@ -815,7 +856,7 @@ final class WorkspaceModel {
         guard !Task.isCancelled,
               let terminal = CenterTabStore.shared.terminal(for: cliSession.id, in: workspace.id),
               sessions.contains(where: { $0.id == cliSession.id }),
-              let command = prepareCLICommand(for: cliSession, prompt: prompt) else { return }
+              let command = await prepareCLICommand(for: cliSession, prompt: prompt) else { return }
         try? FileManager.default.removeItem(at: AgentKind.interactiveStatusURL(sessionID: cliSession.id))
         let terminals = TerminalSessionStore.shared
         terminals.useStore(store)
@@ -828,11 +869,15 @@ final class WorkspaceModel {
         pendingCLIPrompts[cliSession.id] = nil
     }
 
-    private func prepareCLICommand(for session: Session, prompt: String) -> String? {
+    private func prepareCLICommand(for session: Session, prompt: String) async -> String? {
         do {
+            let account = try await app.account(
+                for: session.agentKind, in: AccountScope(workspaceID: workspace.id, repoID: workspace.repoID)
+            )
             return try session.agentKind.prepareInteractiveCommand(
                 directory: workspace.path, prompt: prompt, sessionID: session.id,
                 model: session.model, effort: session.effort, permissionMode: session.permissionMode,
+                account: account,
                 orchestrates: workspace.isOrchestrator
             )
         } catch {
@@ -987,6 +1032,7 @@ final class WorkspaceModel {
             await self.stream(setupIn: repo, through: manager, operationLease: lease)
             guard self.setupGeneration == generation else { return }
             self.setupTask = nil
+            await self.wakeQueuedCanvasComments()
         }
     }
 
@@ -1072,6 +1118,7 @@ final class WorkspaceModel {
         case .success(let answer):
             hasReadChanges = true
             changesGeneration &+= 1
+            reconcileCanvasDocuments()
             if changesError != nil { changesError = nil }
             if changedFiles != answer.files { changedFiles = answer.files }
             if viewedRevisions != answer.revisions { viewedRevisions = answer.revisions }
@@ -1311,6 +1358,15 @@ final class WorkspaceModel {
         panePositions[TranscriptPaneState.Key(pane: pane, session: session)] = state
     }
 
+    func writeTranscriptPlace(_ place: TranscriptPlace, session: SessionID) {
+        guard let store else { return }
+        let earlier = transcriptPlaceWrite
+        transcriptPlaceWrite = Task {
+            await earlier?.value
+            try? await store.setTranscriptPlace(place, sessionID: session)
+        }
+    }
+
     func patch(for file: ChangedFile) async -> String {
         let path = workspace.path
         let base = workspace.baseBranch
@@ -1328,6 +1384,10 @@ final class WorkspaceModel {
         guard changesGeneration == key.generation else { return patch }
         patches.store(patch, for: key)
         return patch
+    }
+
+    func imageSides(for file: ChangedFile) async -> ImageDiffSides {
+        await Git.imageSides(worktree: workspace.path, base: workspace.baseBranch, file: file, scope: diffScope)
     }
 
     func heldDiff(for file: ChangedFile, ignoringWhitespace: Bool) -> DiffPresentation? {

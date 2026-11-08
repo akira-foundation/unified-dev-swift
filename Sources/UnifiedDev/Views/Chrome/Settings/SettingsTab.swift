@@ -2,6 +2,7 @@ import SwiftUI
 import Core
 enum SettingsTab: String, CaseIterable, SettingsPage {
     case general
+    case workspaces
     case appearance
     case menuBar
     case notifications
@@ -16,6 +17,7 @@ enum SettingsTab: String, CaseIterable, SettingsPage {
     var title: String {
         switch self {
         case .general: "General"
+        case .workspaces: "Workspaces"
         case .appearance: "Appearance"
         case .menuBar: "Menu Bar"
         case .notifications: "Notifications"
@@ -32,6 +34,7 @@ enum SettingsTab: String, CaseIterable, SettingsPage {
     var systemImage: String {
         switch self {
         case .general: "gear"
+        case .workspaces: "arrow.triangle.branch"
         case .appearance: "paintbrush"
         case .menuBar: "menubar.rectangle"
         case .notifications: "bell"
@@ -48,6 +51,7 @@ enum SettingsTab: String, CaseIterable, SettingsPage {
     var tint: Color {
         switch self {
         case .general: .gray
+        case .workspaces: .mint
         case .appearance: Palette.accentFill
         case .menuBar: .indigo
         case .notifications: .red
@@ -64,7 +68,7 @@ enum SettingsTab: String, CaseIterable, SettingsPage {
     var glyph: Color { self == .appearance ? Palette.onAccentFill : .white }
 
     static let sections = [
-        SettingsSidebarSection("Unified Dev", pages: [SettingsTab.general, .appearance, .menuBar, .notifications]),
+        SettingsSidebarSection("Unified Dev", pages: [SettingsTab.general, .workspaces, .appearance, .menuBar, .notifications]),
         SettingsSidebarSection("Agents", pages: [SettingsTab.agents, .sessions, .presets, .permissions, .prompts]),
         SettingsSidebarSection("Terminal & connections", pages: [SettingsTab.terminal, .commandLine]),
     ]

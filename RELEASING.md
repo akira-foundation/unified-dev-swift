@@ -210,6 +210,27 @@ The workflow refuses a stable tag that disagrees with that. One wrinkle: `cliff.
 already released, and the workflow then expects the patch above it instead. Its error message
 says which tag it wanted.
 
+A breaking commit, `feat!:` or a `BREAKING CHANGE:` footer, derives the next major, so mark a
+commit breaking only when somebody running a published release would feel the break. Undoing work
+that no release carried does not count, and neither does a database migrated by a newer release
+that an older one then refuses: that is a downgrade warning in the release notes, not a break.
+The owner decides when the next major comes.
+
+A commit already on a release branch that was marked breaking by mistake is excused by name in
+`commit_preprocessors` in `cliff.toml`, which rewrites that one message before git-cliff reads it,
+and it is then listed as what it is. Three are excused so far. `870b8712` (#434) undid #374, which
+never shipped. `f1c119b8` and `5f328fed` (#460) removed `CodexAccount.isExpired`, the `now`
+parameter of `codexDetails`, `AgentAccountEnvironment.givesADirectory` and an initialiser of
+`AgentAccountPanel.Owner`, all of them internal to `Core` with no caller outside this repository,
+so nobody running v1.1.3 feels anything: the `!` was the habit of a published library applied to a
+target that is not one. `Tools/release/tests/breaking-bump.sh` holds both halves, that each excused
+commit derives no major and that any other break after a 1.x tag still derives 2.0.0, and the
+`lint` job runs it.
+
+An excuse is for a mistake already merged, not a way to keep marking commits breaking and waving
+them through. Removing a symbol nothing outside the repository can import is not a break in the
+first place, and the commit should say so before it lands.
+
 A tag carrying a prerelease part, `v1.0.0-rc.1`, skips the version check and publishes as a
 GitHub prerelease, which installed copies never offer.
 
@@ -222,15 +243,23 @@ never applies it.
 git tag v1.0.0 && git push origin v1.0.0
 ```
 
-Then watch it, with `gh run watch`. The `changelog` job regenerates `CHANGELOG.md` from
+Then watch it, with `gh run watch`. The `target` job pins the commit the tag names, and the `tests`
+job runs `.github/workflows/test.yml` on that commit. Nothing else starts until its `lint`, `build`
+and `test` jobs have all passed there. On a tag push a red answer stops that run before it creates a
+draft, so the version number is not spent: fix the branch, then force the unpublished tag onto the
+fixed commit and force push it, which starts a new run. A run by hand tests the tag it was given in
+the same way, but its draft and changelog commit already exist. The `release` job builds that same
+pinned commit, and refuses to attach or publish if the tag has moved since.
+
+The `changelog` job regenerates `CHANGELOG.md` from
 `cliff.toml`, commits it back to the line the tag was cut on unless that line already carries a
 newer release, and creates the GitHub Release as a draft with that tag's own notes. The `release` job builds on a macOS 26 runner, signs, notarises, staples,
 attaches both the zip and the disk image, and only then publishes the draft.
 
 The order is forced. Immutable Releases is on for this repository, so a release is sealed the moment
 it is published and an upload to it answers `HTTP 422: Cannot upload assets to an immutable release`.
-A failed run leaves a draft nobody else can see, though the tag and the changelog commit are already
-public.
+A run that fails after the `tests` job leaves a draft nobody else can see, though the tag and the
+changelog commit are already public.
 
 Do not delete or move a published tag. To finish a tag whose release is still a draft, run the
 workflow by hand with `workflow_dispatch` and that tag; it attaches the files and publishes without

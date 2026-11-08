@@ -34,7 +34,7 @@ struct SidebarStatusBar: View {
             SidebarFilterMenuItems(
                 filter: $filter,
                 showsHiddenProjects: $showsHiddenProjects,
-                hiddenCount: ProjectVisibility.hiddenCount(app.repos),
+                hiddenCount: ProjectVisibility.hiddenCount(app.profileRepos),
                 grouping: groupingChoice
             )
         } label: {
@@ -58,9 +58,9 @@ struct SidebarStatusBar: View {
             pill {
                 ComposerControlLabel(systemImage: "square.and.pencil", text: "New workspace")
             }
-            .foregroundStyle(app.repos.isEmpty ? Palette.textDisabled : Palette.textSecondary)
+            .foregroundStyle(app.profileRepos.isEmpty ? Palette.textDisabled : Palette.textSecondary)
         }
-        .disabled(app.repos.isEmpty)
+        .disabled(app.profileRepos.isEmpty)
         .help("New workspace (\(MenuBarCatalogue[.newWorkspace].keyText))")
         .accessibilityLabel("New workspace")
     }

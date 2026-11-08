@@ -8,12 +8,17 @@ struct CanvasPaneView: View {
     var body: some View {
         let revision = model.changesGeneration
         switch CanvasFile.showable(path: tab.path, worktree: model.workspace.path) {
+        case .file(let absolute, _) where CanvasDocumentFile.isDocument(path: absolute):
+            CanvasEditorView(model: model.canvasDocument(path: absolute), revision: revision)
+                .id(tab.path)
         case .file(let absolute, _):
             DocumentPreviewView(
                 path: absolute,
                 worktree: model.workspace.path,
                 revision: revision,
-                openFile: open
+                openFile: open,
+                opensLinkInside: { BrowserTab.staysInside($0) },
+                openLinkInside: { BrowserTab.open($0, in: model) }
             )
             .id(tab.path)
         case .refused:

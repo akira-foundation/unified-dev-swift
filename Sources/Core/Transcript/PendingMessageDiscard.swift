@@ -12,10 +12,15 @@ public enum PendingMessageDiscard {
             case notPlainText
             case notTheOwners
         }
+
+        public var holdsCanvasComments: Bool {
+            guard case .toComposer(let text) = self else { return false }
+            return !PendingMessageEdit.draftIsAbandoned(text)
+        }
     }
 
     public static func recovery(of delivery: Delivery, composerDraft: String) -> Recovery {
-        guard delivery.crewPayload == nil else { return .discarded(.notTheOwners) }
+        guard delivery.kind != .interruptedTurnResume, delivery.crewPayload == nil, !delivery.isCanvasComment else { return .discarded(.notTheOwners) }
         guard isPlainText(delivery.body) else { return .discarded(.notPlainText) }
         guard composerDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return .discarded(.composerInUse)
@@ -42,6 +47,13 @@ public enum PendingMessageDiscard {
     }
 
     public static func question(for delivery: Delivery, composerDraft: String) -> Question {
+        if AppRequest.isHidden(delivery) {
+            return Question(
+                title: "Delete this request?",
+                message: "Unified Dev stops trying to send it. This does not stop any work the agent may already have started.",
+                confirmLabel: "Delete", cancelLabel: "Keep"
+            )
+        }
         guard delivery.deliveredSeq != nil else {
             return question(for: recovery(of: delivery, composerDraft: composerDraft))
         }

@@ -40,7 +40,8 @@ struct ToolPaneView: View {
                             },
                             splitColumn: splitColumn,
                             terminalLabel: tab.title,
-                            onAddToChat: terminalHandoff
+                            onAddToChat: terminalHandoff,
+                            onOpenLink: { BrowserTab.follow($0, in: model, asksForExternal: $1) }
                         )
                         .id(tab.id)
                     } else {

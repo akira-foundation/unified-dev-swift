@@ -11,7 +11,11 @@ struct TranscriptLinkActions: Sendable, Equatable {
 
     var identity: Identity = .inert
 
-    var open: @MainActor @Sendable (URL, TranscriptLinkTarget) -> Void = { _, _ in }
+    var open: @MainActor @Sendable (URL, TranscriptLinkTarget) -> Void = { url, target in
+        guard target == .externalBrowser, LinkPolicy.opens(url) else { return }
+        NSWorkspace.shared.open(url)
+    }
+    var clickTarget: @MainActor @Sendable (URL) -> TranscriptLinkTarget = { _ in .externalBrowser }
     var items: @MainActor @Sendable (URL) -> [TranscriptLinkItem] = {
         TranscriptLinkMenu.items(for: $0, placement: .detached)
     }
@@ -25,6 +29,11 @@ struct TranscriptLinkActions: Sendable, Equatable {
     var mayRunCommand: @MainActor @Sendable (String) -> Bool = { _ in true }
     var stopCommand: @MainActor @Sendable (String) -> Void = { _ in }
     var commandRun: @MainActor @Sendable (String) -> CodeBlockRun? = { _ in nil }
+
+    @MainActor
+    func follow(_ url: URL) {
+        open(url, clickTarget(url))
+    }
 
     static func == (lhs: Self, rhs: Self) -> Bool { lhs.identity == rhs.identity }
 }
@@ -44,6 +53,13 @@ struct TranscriptTextView: NSViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(actions: actions) }
 
     func makeNSView(context: Context) -> LinkTextView {
+        let view = Self.makeLinkView(delegate: context.coordinator)
+        view.actions = actions
+        apply(to: view)
+        return view
+    }
+
+    static func makeLinkView(delegate: NSTextViewDelegate) -> LinkTextView {
         let storage = NSTextStorage()
         let layout = NSLayoutManager()
         let container = NSTextContainer(size: CGSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
@@ -53,8 +69,7 @@ struct TranscriptTextView: NSViewRepresentable {
         layout.addTextContainer(container)
 
         let view = LinkTextView(frame: .zero, textContainer: container)
-        view.delegate = context.coordinator
-        view.actions = actions
+        view.delegate = delegate
         view.isEditable = false
         view.isSelectable = true
         view.drawsBackground = false
@@ -70,7 +85,6 @@ struct TranscriptTextView: NSViewRepresentable {
         view.usesFindBar = false
         view.isVerticallyResizable = false
         view.isHorizontallyResizable = false
-        apply(to: view)
         return view
     }
 
@@ -145,7 +159,7 @@ struct TranscriptTextView: NSViewRepresentable {
 
         func textView(_ view: NSTextView, clickedOnLink link: Any, at index: Int) -> Bool {
             guard let url = Self.url(from: link) else { return false }
-            actions.open(url, .externalBrowser)
+            actions.follow(url)
             return true
         }
 
@@ -158,9 +172,32 @@ struct TranscriptTextView: NSViewRepresentable {
 }
 
 final class LinkTextView: NSTextView, HoverQuickLookSource {
+    var markdown: MarkdownTextOverlay?
+
+    override func layout() {
+        super.layout()
+        markdown?.placeChrome(in: self)
+    }
+
+    override func accessibilityChildren() -> [Any]? {
+        guard let markdown else { return super.accessibilityChildren() }
+        return (super.accessibilityChildren() ?? []) + markdown.chromeViews
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        markdown?.drawBackdrops(in: self, dirty: dirtyRect)
+        super.draw(dirtyRect)
+    }
+
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         HoverQuickLookController.shared.update(self)
+        if markdown != nil { needsLayout = true }
+    }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        if markdown != nil { needsLayout = true }
     }
 
     func quickLookURL(at point: NSPoint) -> URL? {
@@ -300,6 +337,7 @@ final class LinkTextView: NSTextView, HoverQuickLookSource {
     }
 
     var selectedTranscriptText: String {
+        if let text = markdown?.selectedText(in: self) { return text }
         guard let storage = textStorage else { return "" }
         return selectedRanges
             .map { TranscriptLink.selectedText(in: storage, range: $0.rangeValue) }
@@ -313,6 +351,10 @@ final class LinkTextView: NSTextView, HoverQuickLookSource {
     private func link(at point: CGPoint) -> URL? {
         guard let range = linkRange(at: point), let storage = textStorage else { return nil }
         return TranscriptTextView.Coordinator.url(from: storage.attribute(.link, at: range.location, effectiveRange: nil) as Any)
+    }
+
+    override var writablePasteboardTypes: [NSPasteboard.PasteboardType] {
+        markdown == nil ? super.writablePasteboardTypes : [.string]
     }
 
     override func writeSelection(
