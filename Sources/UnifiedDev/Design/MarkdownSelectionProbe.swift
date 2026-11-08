@@ -111,6 +111,7 @@ enum MarkdownSelectionProbe {
         await emptyCells(check: check)
         await runStatus(check: check)
         await clicks(check: check)
+        await pointers(check: check)
         cost()
         finish(failures, window: window)
     }
