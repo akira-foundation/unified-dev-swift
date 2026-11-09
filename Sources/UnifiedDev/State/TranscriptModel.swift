@@ -265,9 +265,9 @@ final class TranscriptModel {
         }
     }
 
-    func providerContainsTurn(_ turnID: String) async throws -> Bool {
+    func providerTurnPresence(_ turnID: String) async throws -> ConversationTurnPresence {
         guard let runner = await ensureRunner(purpose: .answering), runner.supportsConversationRewind else { throw ConversationRewindError.unsupported }
-        return try await runner.containsTurn(turnID)
+        return try await runner.turnPresence(turnID)
     }
 
     func rewindProvider(beforeTurnID: String) async throws {

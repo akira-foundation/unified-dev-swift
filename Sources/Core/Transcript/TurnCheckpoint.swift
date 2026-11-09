@@ -25,11 +25,16 @@ public struct CheckpointRewind: Codable, Sendable, Equatable {
     public let checkpoint: TurnCheckpoint
     public let recovery: GitSnapshot?
     public let restoringFiles: Bool
+    public let providerThreadID: String?
     public var stage: Stage
     public var failure: String?
 
-    public init(checkpoint: TurnCheckpoint, recovery: GitSnapshot?, restoringFiles: Bool, token: UUID = UUID()) {
+    public init(
+        checkpoint: TurnCheckpoint, recovery: GitSnapshot?, restoringFiles: Bool,
+        providerThreadID: String? = nil, token: UUID = UUID()
+    ) {
         self.token = token
+        self.providerThreadID = providerThreadID
         self.checkpoint = checkpoint
         self.recovery = recovery
         self.restoringFiles = restoringFiles

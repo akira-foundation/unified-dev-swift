@@ -437,16 +437,30 @@ public actor CodexRunner: SessionRunner {
         isRewinding = true
         defer { isRewinding = false }
         let connection = try await connected()
-        let thread = try await openThread(on: connection)
+        let thread = try await reopenStoredThread(on: connection)
         try await connection.rewindThread(threadID: thread, beforeTurnID: beforeTurnID)
         items.removeAll()
     }
 
-    public func containsTurn(_ turnID: String) async throws -> Bool {
+    public func turnPresence(_ turnID: String) async throws -> ConversationTurnPresence {
         guard sendsInFlight == 0, handle.turnID == nil, pending.isEmpty else { throw ConversationRewindError.busy }
+        guard let thread = threadID ?? storedThreadID else { return .threadMissing }
         let connection = try await connected()
-        let thread = try await openThread(on: connection)
-        return try await connection.threadContainsTurn(threadID: thread, turnID: turnID)
+        return try await connection.turnPresence(threadID: thread, turnID: turnID)
+    }
+
+    private var storedThreadID: String? {
+        session.agentSessionID.flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    private func reopenStoredThread(on client: CodexClient) async throws -> String {
+        if let threadID { return threadID }
+        guard let stored = storedThreadID else { throw ConversationRewindError.missingTurn }
+        orchestrates = await grants.isOrchestrator()
+        let handle = try await client.resumeThread(stored, cwd: workspacePath, sandbox: Self.sandboxMode(for: permissionMode))
+        guard handle.id == stored else { throw ConversationRewindError.invalidHistory }
+        threadID = stored
+        return stored
     }
 
     public func subagentTranscript(for id: SubagentID) async -> SubagentTranscript? {

@@ -56,6 +56,12 @@ turn list. Rewind status queries treat a failed or malformed read as unavailable
 evidence that a turn disappeared. These history methods affect conversation context only.
 Unified Dev owns the independent file/index snapshots and recovery journal.
 
+A rewind records the thread that held the turn, and only that thread losing the turn counts as
+proof the agent went back. `thread/read` and `thread/turns/list` answer for a thread that is not
+loaded, so the question opens nothing and writes nothing. `thread/revert` needs a loaded thread,
+and it resumes the stored id without falling back to a new thread. `thread/resume` of an unknown
+id fails with `no rollout found`, and the same id stays stable across a revert.
+
 ```
 codex app-server generate-json-schema --out <dir>
 ```
