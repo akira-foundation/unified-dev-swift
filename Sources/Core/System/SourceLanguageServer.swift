@@ -103,6 +103,7 @@ public actor SourceLanguageServer {
     }
 
     private func initialise(root: String, language: Language) async throws {
+        await LoginShellPath.ready()
         self.root = root
         let command = laravel ? ("laravel-lsp", [String]()) : Self.command(for: language)
         guard let executable = Shell.which(command.0) else { throw SourceLanguageServerError.unavailable(command.0) }

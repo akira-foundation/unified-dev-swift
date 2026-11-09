@@ -89,8 +89,11 @@ public enum Shell {
 
     private static let found = Mutex<[String: Resolution]>([:])
 
+    @TaskLocal static var executableLookup: (@Sendable (String) -> String?)?
+
     public static func which(_ name: String) -> String? {
-        resolve(name, in: environment()["PATH"] ?? "")
+        if let executableLookup { return executableLookup(name) }
+        return resolve(name, in: environment()["PATH"] ?? "")
     }
 
     static func resolve(_ name: String, in search: String) -> String? {

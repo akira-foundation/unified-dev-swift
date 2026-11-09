@@ -207,13 +207,16 @@ public enum GitHub {
     }
 
     public static func access() async -> GitHubAccess {
+        await LoginShellPath.ready()
         guard Shell.which("gh") != nil else { return .notInstalled }
-        guard let result = try? await Shell.run(
-            "gh", ["auth", "status"], timeout: .seconds(20)
-        ) else {
-            return .signedOut
-        }
+        guard let result = try? await authStatus() else { return .signedOut }
         return result.ok ? .ready : .signedOut
+    }
+
+    private static func authStatus() async throws -> ShellResult {
+        let arguments = ["auth", "status"]
+        if let commandOverride { return try await commandOverride(arguments, nil) }
+        return try await Shell.run("gh", arguments, timeout: .seconds(20))
     }
 
     public static func pullRequest(
