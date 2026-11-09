@@ -22,10 +22,13 @@ public enum TurnEnding: Sendable, Hashable {
         }
     }
 
-    public func note(permissionMode: PermissionMode, agentKind: AgentKind) -> String? {
+    public func note(permissionMode: PermissionMode, agentKind: AgentKind, orchestrates: Bool = false) -> String? {
         switch self {
         case .finished, .failed:
             nil
+        case .denied(let count) where orchestrates:
+            "\(count == 1 ? "1 tool call was" : "\(count) tool calls were") denied. This is the "
+                + "project's orchestrator, so another permission mode would not change that."
         case .denied(let count):
             "\(count == 1 ? "1 tool call was" : "\(count) tool calls were") denied in "
                 + "\(permissionMode.label(on: agentKind)). Pick another permission mode under "

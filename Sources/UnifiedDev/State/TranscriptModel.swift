@@ -51,6 +51,8 @@ final class TranscriptModel {
         return app.existingModel(for: workspace.id)?.workspace ?? workspace
     }
 
+    var orchestrates: Bool { workspaceNow?.isOrchestrator == true }
+
     private(set) var rows: [TranscriptRow] = []
     private(set) var presentationRevision = 0
     @ObservationIgnored private var foldCache = TranscriptFoldCache()

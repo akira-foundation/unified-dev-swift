@@ -8,6 +8,7 @@ struct ComposerSettingsPicker: View {
     var efforts: [ComposerOption]
     var outputStyles: [ComposerOption]
     var permissionModes: [ComposerOption]
+    var orchestrates: Bool = false
     var isCompact: Bool
     var account: ComposerAccountSection?
     var onPreset: @MainActor (ModelPreset) -> Void
@@ -28,7 +29,7 @@ struct ComposerSettingsPicker: View {
     var body: some View {
         let summary = ComposerPresetSummary(
             controls: controls, presets: library.list, modelLabel: modelLabel,
-            effortLabel: effortLabel, models: catalogModels
+            effortLabel: effortLabel, models: catalogModels, orchestrates: orchestrates
         )
 
         Group {
@@ -60,6 +61,7 @@ struct ComposerSettingsPicker: View {
                 efforts: efforts,
                 outputStyles: outputStyles,
                 permissionModes: permissionModes,
+                orchestrates: orchestrates,
                 account: account,
                 matchedPreset: summary.matched,
                 suggestedPresetName: summary.suggestedName,

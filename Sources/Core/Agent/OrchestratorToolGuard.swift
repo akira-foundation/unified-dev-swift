@@ -20,6 +20,12 @@ public enum OrchestratorToolGuard {
 
     public static let claudeAskingMode = "default"
 
+    public static let claudeAskingLabel = "Default"
+
+    public static let claudeAskingSummary =
+        "Claude asks before anything Unified Dev cannot check for itself. This chat is the project's "
+        + "orchestrator, so file edits and git changes are refused in every mode."
+
     public static let claudePermissions: [String: [String]] = ["ask": ["Bash", "mcp__*"]]
 
     public static let claudeDisallowedTools: [String] =
