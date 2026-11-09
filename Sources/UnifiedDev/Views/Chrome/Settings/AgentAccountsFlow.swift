@@ -12,6 +12,7 @@ final class AgentAccountsFlow {
     let profile: ProfileID?
 
     @ObservationIgnored private var creation: AgentAccountsModel.Creation?
+    @ObservationIgnored private var signingInAgain: AgentAccountID?
     @ObservationIgnored private var lastExit: TerminalExit?
 
     var isCreating: Bool { creation != nil }
@@ -41,7 +42,22 @@ final class AgentAccountsFlow {
         }
     }
 
+    func signInAgain(_ row: AgentAccountPanel.Row, executable: String?) {
+        guard let executable, let home = row.signInAgainHome else { return }
+        signingInAgain = row.id
+        lastExit = nil
+        loginRequest = AgentSignInSheet.Request(signingInAgain: home, label: row.title, executable: executable)
+    }
+
     func loginDismissed(executables: [AgentKind: String], app: AppModel) -> Bool {
+        if let account = signingInAgain {
+            signingInAgain = nil
+            lastExit = nil
+            Task {
+                await app.agentAccounts.confirmSignIn(of: account, executables: executables, store: app.store)
+            }
+            return false
+        }
         guard let finished = creation else { return false }
         let exit = lastExit
         creation = nil

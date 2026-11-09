@@ -8,7 +8,7 @@ struct AgentSignInSheet: View {
         let executable: String
         let isSwitchingAccount: Bool
         let account: AgentAccountHome?
-        let accountLabel: String?
+        let accountNotice: String?
         let directory = AgentScratchDirectory.current()
 
         init(kind: AgentKind, executable: String, isSwitchingAccount: Bool) {
@@ -16,7 +16,7 @@ struct AgentSignInSheet: View {
             self.executable = executable
             self.isSwitchingAccount = isSwitchingAccount
             account = nil
-            accountLabel = nil
+            accountNotice = nil
         }
 
         init(account: AgentAccountHome, label: String, executable: String) {
@@ -24,7 +24,15 @@ struct AgentSignInSheet: View {
             self.executable = executable
             isSwitchingAccount = false
             self.account = account
-            accountLabel = label
+            accountNotice = "This signs in a new account called \(label). The account \(account.provider.label) uses on its own stays as it is."
+        }
+
+        init(signingInAgain account: AgentAccountHome, label: String, executable: String) {
+            kind = account.provider
+            self.executable = executable
+            isSwitchingAccount = false
+            self.account = account
+            accountNotice = AgentAccountSignInAgain.notice(account: label, provider: account.provider)
         }
     }
 
@@ -52,8 +60,8 @@ struct AgentSignInSheet: View {
                     .settingsFootnote()
             }
 
-            if let label = request.accountLabel {
-                Text("This signs in a new account called \(label). The account \(request.kind.label) uses on its own stays as it is.")
+            if let notice = request.accountNotice {
+                Text(notice)
                     .settingsFootnote()
             }
 

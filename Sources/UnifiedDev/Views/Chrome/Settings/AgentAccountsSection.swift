@@ -7,10 +7,16 @@ struct AgentAccountsSection: View {
     let canSignIn: Bool
     let onAdd: () -> Void
     let onRemove: (AgentAccountPanel.Row) -> Void
+    let onSignInAgain: (AgentAccountPanel.Row) -> Void
 
     var body: some View {
         ForEach(panel.rows) { row in
-            AgentAccountRowSection(row: row, onRemove: onRemove)
+            AgentAccountRowSection(
+                row: row,
+                canSignIn: canSignIn && activity != .confirmingSignIn,
+                onRemove: onRemove,
+                onSignInAgain: onSignInAgain
+            )
         }
 
         Section {
@@ -61,7 +67,9 @@ struct AgentAccountsSection: View {
 
 private struct AgentAccountRowSection: View {
     let row: AgentAccountPanel.Row
+    let canSignIn: Bool
     let onRemove: (AgentAccountPanel.Row) -> Void
+    let onSignInAgain: (AgentAccountPanel.Row) -> Void
 
     var body: some View {
         Section {
@@ -80,6 +88,11 @@ private struct AgentAccountRowSection: View {
                     .font(Typo.caption)
                     .foregroundStyle(row.warns ? Palette.warning : Palette.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if row.offersSignInAgain {
+                Button("\(AgentAccountSignInAgain.actionTitle)…") { onSignInAgain(row) }
+                    .disabled(!canSignIn)
             }
 
             if let removal = row.removal {

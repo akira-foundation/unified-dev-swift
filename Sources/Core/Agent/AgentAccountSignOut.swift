@@ -44,8 +44,11 @@ public enum AgentAccountSignOut {
         }
     }
 
-    public static func recovery(provider: AgentKind) -> String {
-        "Unified Dev has no sign-in button for an account that already exists. Sign in to it from a "
-            + "terminal with its folder as the \(provider.label) config directory."
+    public static func recovery(provider: AgentKind, standing: AgentAccountStanding? = nil) -> String {
+        guard let standing, !standing.home.isDefault, !AgentAccountSignInAgain.isOffered(for: standing) else {
+            return "Sign in to it again in Settings, under Agents, \(provider.label)."
+        }
+        return "Unified Dev cannot sign this account in again, because its folder is gone or does not keep its "
+            + "login apart. Remove it in Settings, under Agents, \(provider.label)."
     }
 }
