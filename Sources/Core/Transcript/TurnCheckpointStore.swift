@@ -65,7 +65,7 @@ public actor TurnCheckpointStore {
 
     public func prepareRewind(
         checkpoint: TurnCheckpoint, cwd: String, restoringFiles: Bool,
-        operationLease: WorkspaceOperationLease? = nil
+        providerThreadID: String? = nil, operationLease: WorkspaceOperationLease? = nil
     ) async throws -> CheckpointRewind {
         guard let lease = operationLease ?? WorkspaceOperationLease.acquire(in: cwd, operation: .rewind),
               lease.isValid(in: cwd, operation: .rewind) else {
@@ -82,7 +82,9 @@ public actor TurnCheckpointStore {
         }
         if restoringFiles { try await Git.validateSnapshotRestore(checkpoint.before, in: cwd) }
         let recovery = restoringFiles ? try await Git.captureSnapshot(in: cwd, sessionID: checkpoint.sessionID) : nil
-        let journal = CheckpointRewind(checkpoint: checkpoint, recovery: recovery, restoringFiles: restoringFiles)
+        let journal = CheckpointRewind(
+            checkpoint: checkpoint, recovery: recovery, restoringFiles: restoringFiles, providerThreadID: providerThreadID
+        )
         do { try await store.saveCheckpointRewind(journal) } catch {
             if let recovery { try? await Git.deleteSnapshot(recovery, in: cwd) }
             throw error
