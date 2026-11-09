@@ -42,7 +42,7 @@ struct TurnHistoryNotice: View {
                     Task { await transcript.history.recover(transcript: transcript, app: app) }
                 }
             } message: {
-                Text("Unified Dev checks the agent's history, then completes the rewind or restores the saved files and staging. Later file edits may be replaced. Stop terminal commands first.")
+                Text("Unified Dev checks the agent's history, completes the rewind if it can confirm the agent went back, and otherwise restores the saved files and staging. Later file edits may be replaced. Stop terminal commands first.")
             }
         } else {
             failureNotice

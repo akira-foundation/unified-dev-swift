@@ -388,6 +388,20 @@ public actor CodexClient {
         throw ConversationRewindError.invalidHistory
     }
 
+    public func turnPresence(threadID: String, turnID: String) async throws -> ConversationTurnPresence {
+        do {
+            let contains = try await threadContainsTurn(threadID: threadID, turnID: turnID)
+            return contains ? .retained(threadID: threadID) : .absent(threadID: threadID)
+        } catch let rejection as CodexRPCError where Self.saysThreadIsGone(rejection) {
+            return .threadMissing
+        }
+    }
+
+    static func saysThreadIsGone(_ rejection: CodexRPCError) -> Bool {
+        rejection.code == -32600 && ["thread not loaded", "no rollout found", "missing source rollout"]
+            .contains { rejection.message.contains($0) }
+    }
+
     public func listModels(includeHidden: Bool = false) async throws -> [CodexModel] {
         let result = try await send("model/list", params: .object([
             "includeHidden": .bool(includeHidden),
