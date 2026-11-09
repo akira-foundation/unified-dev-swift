@@ -187,6 +187,12 @@ carry a sentence long enough to wrap in any column, and a second holding the sam
 options that cannot wrap, which is the control the first is compared against. The names are
 deliberately unreadable; a scenario that made them comfortable would not make anything wrap.
 
+`Tools/scenarios/toolbar-band.json` seeds `breakwater` with one workspace of one chat, one of three
+chats and one with sixty changed files, the cases to compare the top of the window in. Launched with
+`--toolbar-band-probe <file>`, the preview writes to that file what every view at the top of the window
+measures, once per workspace, in a window and in full screen. Entering full screen is left to whoever
+is at the Mac, and a window that never goes full screen reports only its windowed half.
+
 `--scenario <file>` at launch reads it. `PreviewScenarioLaunch` reads and validates it before any
 window opens, then `AppModel.bootstrap` seeds it through `PreviewScenarioSeeder` in the core, once
 the store is open and before the sidebar loads. Every repository is made with the app's own `Git`,

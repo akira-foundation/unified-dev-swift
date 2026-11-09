@@ -3,31 +3,35 @@ import Testing
 @testable import Core
 
 struct FullScreenToolbarGroundTests {
-    @Test func shortensAGroundTallerThanTheToolbarUnderTheNotch() {
-        #expect(correct(current: 85) == 52)
+    @Test func appliesInFullScreenUnderTheNotch() {
+        #expect(FullScreenToolbarGround.applies(isFullScreen: true, screenTopInset: 32))
     }
 
-    @Test func leavesAGroundAlreadyAtTheToolbarHeight() {
-        #expect(correct(current: 52) == nil)
+    @Test func doesNotApplyToAWindowedTitleBar() {
+        #expect(!FullScreenToolbarGround.applies(isFullScreen: false, screenTopInset: 32))
     }
 
-    @Test func leavesAScreenWithoutANotchAlone() {
-        #expect(correct(current: 85, screenTopInset: 0) == nil)
+    @Test func doesNotApplyToAScreenWithoutANotch() {
+        #expect(!FullScreenToolbarGround.applies(isFullScreen: true, screenTopInset: 0))
+    }
+
+    @Test func shortensAGroundTallerThanTheToolbar() {
+        #expect(FullScreenToolbarGround.correctedHeight(current: 85, toolbarBand: 52) == 52)
+    }
+
+    @Test func shortensAGroundJustBeyondTheTolerance() {
+        #expect(FullScreenToolbarGround.correctedHeight(current: 52.75, toolbarBand: 52) == 52)
+    }
+
+    @Test func leavesAGroundWithinTheTolerance() {
+        #expect(FullScreenToolbarGround.correctedHeight(current: 52.5, toolbarBand: 52) == nil)
+    }
+
+    @Test func neverGrowsAGroundShorterThanTheToolbar() {
+        #expect(FullScreenToolbarGround.correctedHeight(current: 40, toolbarBand: 52) == nil)
     }
 
     @Test func leavesTheGroundAloneWithoutAToolbar() {
-        #expect(correct(current: 85, toolbarBand: 0) == nil)
-    }
-
-    private func correct(
-        current: CGFloat,
-        toolbarBand: CGFloat = 52,
-        screenTopInset: CGFloat = 32
-    ) -> CGFloat? {
-        FullScreenToolbarGround.correctedHeight(
-            current: current,
-            toolbarBand: toolbarBand,
-            screenTopInset: screenTopInset
-        )
+        #expect(FullScreenToolbarGround.correctedHeight(current: 85, toolbarBand: 0) == nil)
     }
 }

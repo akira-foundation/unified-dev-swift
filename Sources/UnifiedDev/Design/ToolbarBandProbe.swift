@@ -3,17 +3,16 @@ import Core
 
 @MainActor
 enum ToolbarBandProbe {
-    private static let watcher = ProbeHarness(subject: "toolbar-band-watch")
-    static var isRequested: Bool { watcher.isRequested }
+    private static let harness = ProbeHarness(subject: "toolbar-band")
+    static var isRequested: Bool {
+        harness.isRequested && PreviewIdentity.isPreview(bundleIdentifier: Bundle.main.bundleIdentifier)
+    }
 
     static func schedule() { Task { @MainActor in await watch() } }
 
     private static func watch() async {
-        guard PreviewIdentity.isPreview(bundleIdentifier: Bundle.main.bundleIdentifier) else {
-            watcher.fail("requires a worktree preview, not " + (Bundle.main.bundleIdentifier ?? "nothing"))
-        }
-        let (window, _) = await watcher.window()
-        guard let app = ProbeHarness.appModel else { watcher.fail("no app model") }
+        let (window, _) = await harness.window()
+        guard let app = ProbeHarness.appModel else { harness.fail("no app model") }
         var report: [String: JSONValue] = [:]
         while true {
             let fullScreen = window.styleMask.contains(.fullScreen)
@@ -25,7 +24,7 @@ enum ToolbarBandProbe {
                 report[key] = read(window, app: app)
                 let mode = fullScreen ? "fullScreen" : "windowed"
                 if report["tree " + mode] == nil { report["tree " + mode] = tree(window) }
-                watcher.write(.object(report))
+                harness.write(.object(report))
             }
             try? await Task.sleep(for: .seconds(1))
         }

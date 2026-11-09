@@ -16,39 +16,47 @@ private struct ToolbarGroundWatcher: NSViewRepresentable {
     final class Watcher: NSView {
         private var observers: [any NSObjectProtocol] = []
         private var watched = NSHashTable<NSView>.weakObjects()
+        private var isTransitioning = false
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             stopObserving()
             guard let window else { return }
+            for name in [NSWindow.willEnterFullScreenNotification, NSWindow.willExitFullScreenNotification] {
+                observe(name, of: window, before: { [weak self] in self?.isTransitioning = true })
+            }
             for name in [NSWindow.didEnterFullScreenNotification, NSWindow.didExitFullScreenNotification] {
+                observe(name, of: window, before: { [weak self] in self?.isTransitioning = false })
+            }
+            for name in [NSWindow.didUpdateNotification, NSWindow.didChangeScreenNotification] {
                 observe(name, of: window)
             }
             correct()
         }
 
         func correct() {
-            guard let window, window.styleMask.contains(.fullScreen),
-                  let split = window.contentView?.mainSplitView() else { return }
+            guard !isTransitioning, let window, FullScreenToolbarGround.applies(
+                isFullScreen: window.styleMask.contains(.fullScreen),
+                screenTopInset: window.screen?.safeAreaInsets.top ?? 0
+            ), let split = window.contentView?.mainSplitView() else { return }
             if !watched.contains(split) {
                 watched.add(split)
                 observe(NSSplitView.didResizeSubviewsNotification, of: split)
             }
             let band = window.frame.height - window.contentLayoutRect.height
-            let inset = window.screen?.safeAreaInsets.top ?? 0
             for ground in split.subviews where Self.isKind("NSTitlebarBackgroundView", ground) {
                 watchFrame(of: ground)
-                shorten(ground, band: band, inset: inset)
+                shorten(ground, band: band)
                 for pocket in ground.subviews where Self.isKind("NSScrollPocket", pocket) {
                     watchFrame(of: pocket)
-                    shorten(pocket, band: band, inset: inset)
+                    shorten(pocket, band: band)
                 }
             }
         }
 
-        private func shorten(_ view: NSView, band: CGFloat, inset: CGFloat) {
+        private func shorten(_ view: NSView, band: CGFloat) {
             guard let height = FullScreenToolbarGround.correctedHeight(
-                current: view.frame.height, toolbarBand: band, screenTopInset: inset
+                current: view.frame.height, toolbarBand: band
             ) else { return }
             var frame = view.frame
             if view.superview?.isFlipped == false { frame.origin.y += frame.height - height }
@@ -63,11 +71,18 @@ private struct ToolbarGroundWatcher: NSViewRepresentable {
             observe(NSView.frameDidChangeNotification, of: view)
         }
 
-        private func observe(_ name: Notification.Name, of object: AnyObject) {
+        private func observe(
+            _ name: Notification.Name,
+            of object: AnyObject,
+            before action: @escaping @MainActor () -> Void = {}
+        ) {
             observers.append(NotificationCenter.default.addObserver(
                 forName: name, object: object, queue: .main
             ) { [weak self] _ in
-                MainActor.assumeIsolated { self?.correct() }
+                MainActor.assumeIsolated {
+                    action()
+                    self?.correct()
+                }
             })
         }
 
