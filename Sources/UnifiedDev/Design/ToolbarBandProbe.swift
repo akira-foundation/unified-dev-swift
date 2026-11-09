@@ -16,11 +16,10 @@ enum ToolbarBandProbe {
         var report: [String: JSONValue] = [:]
         while true {
             let fullScreen = window.styleMask.contains(.fullScreen)
-            let name = app.menuWorkspace?.name ?? "none"
-            let key = "\(fullScreen ? "fullScreen" : "windowed") | \(name) | tabs \(WindowToolbar.showsTabs(in: app))"
+            let key = stateKey(window, app: app)
             if report[key] == nil {
                 try? await Task.sleep(for: .seconds(2))
-                guard window.styleMask.contains(.fullScreen) == fullScreen else { continue }
+                guard stateKey(window, app: app) == key else { continue }
                 report[key] = read(window, app: app)
                 let mode = fullScreen ? "fullScreen" : "windowed"
                 if report["tree " + mode] == nil { report["tree " + mode] = tree(window) }
@@ -28,6 +27,11 @@ enum ToolbarBandProbe {
             }
             try? await Task.sleep(for: .seconds(1))
         }
+    }
+
+    private static func stateKey(_ window: NSWindow, app: AppModel) -> String {
+        let mode = window.styleMask.contains(.fullScreen) ? "fullScreen" : "windowed"
+        return "\(mode) | \(app.menuWorkspace?.name ?? "none") | tabs \(WindowToolbar.showsTabs(in: app))"
     }
 
     private static func tree(_ window: NSWindow) -> JSONValue {

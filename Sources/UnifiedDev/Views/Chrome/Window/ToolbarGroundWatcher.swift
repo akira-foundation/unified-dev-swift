@@ -14,19 +14,25 @@ private struct ToolbarGroundWatcher: NSViewRepresentable {
     func updateNSView(_ view: Watcher, context: Context) { view.correct() }
 
     final class Watcher: NSView {
+        private struct ViewObserver {
+            weak var view: NSView?
+            let token: any NSObjectProtocol
+        }
+
         private var observers: [any NSObjectProtocol] = []
+        private var viewObservers: [ViewObserver] = []
         private var watched = NSHashTable<NSView>.weakObjects()
-        private var isTransitioning = false
+        private var transitionStart: Date?
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             stopObserving()
             guard let window else { return }
             for name in [NSWindow.willEnterFullScreenNotification, NSWindow.willExitFullScreenNotification] {
-                observe(name, of: window, before: { [weak self] in self?.isTransitioning = true })
+                observe(name, of: window, before: { [weak self] in self?.transitionStart = Date() })
             }
             for name in [NSWindow.didEnterFullScreenNotification, NSWindow.didExitFullScreenNotification] {
-                observe(name, of: window, before: { [weak self] in self?.isTransitioning = false })
+                observe(name, of: window, before: { [weak self] in self?.transitionStart = nil })
             }
             for name in [NSWindow.didUpdateNotification, NSWindow.didChangeScreenNotification] {
                 observe(name, of: window)
@@ -35,14 +41,12 @@ private struct ToolbarGroundWatcher: NSViewRepresentable {
         }
 
         func correct() {
-            guard !isTransitioning, let window, FullScreenToolbarGround.applies(
+            guard FullScreenToolbarGround.isTransitionOver(startedAt: transitionStart, now: Date()),
+                  let window, FullScreenToolbarGround.applies(
                 isFullScreen: window.styleMask.contains(.fullScreen),
                 screenTopInset: window.screen?.safeAreaInsets.top ?? 0
             ), let split = window.contentView?.mainSplitView() else { return }
-            if !watched.contains(split) {
-                watched.add(split)
-                observe(NSSplitView.didResizeSubviewsNotification, of: split)
-            }
+            watch(split, for: NSSplitView.didResizeSubviewsNotification)
             let band = window.frame.height - window.contentLayoutRect.height
             for ground in split.subviews where Self.isKind("NSTitlebarBackgroundView", ground) {
                 watchFrame(of: ground)
@@ -66,9 +70,20 @@ private struct ToolbarGroundWatcher: NSViewRepresentable {
 
         private func watchFrame(of view: NSView) {
             guard !watched.contains(view) else { return }
-            watched.add(view)
             view.postsFrameChangedNotifications = true
-            observe(NSView.frameDidChangeNotification, of: view)
+            watch(view, for: NSView.frameDidChangeNotification)
+        }
+
+        private func watch(_ view: NSView, for name: Notification.Name) {
+            guard !watched.contains(view) else { return }
+            watched.add(view)
+            forgetDeadViews()
+            viewObservers.append(ViewObserver(view: view, token: notify(name, of: view)))
+        }
+
+        private func forgetDeadViews() {
+            viewObservers.filter { $0.view == nil }.forEach { NotificationCenter.default.removeObserver($0.token) }
+            viewObservers.removeAll { $0.view == nil }
         }
 
         private func observe(
@@ -76,19 +91,26 @@ private struct ToolbarGroundWatcher: NSViewRepresentable {
             of object: AnyObject,
             before action: @escaping @MainActor () -> Void = {}
         ) {
-            observers.append(NotificationCenter.default.addObserver(
-                forName: name, object: object, queue: .main
-            ) { [weak self] _ in
+            observers.append(notify(name, of: object, before: action))
+        }
+
+        private func notify(
+            _ name: Notification.Name,
+            of object: AnyObject,
+            before action: @escaping @MainActor () -> Void = {}
+        ) -> any NSObjectProtocol {
+            NotificationCenter.default.addObserver(forName: name, object: object, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated {
                     action()
                     self?.correct()
                 }
-            })
+            }
         }
 
         private func stopObserving() {
-            observers.forEach(NotificationCenter.default.removeObserver)
+            (observers + viewObservers.map(\.token)).forEach { NotificationCenter.default.removeObserver($0) }
             observers = []
+            viewObservers = []
             watched.removeAllObjects()
         }
 

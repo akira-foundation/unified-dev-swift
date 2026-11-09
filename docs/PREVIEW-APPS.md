@@ -189,9 +189,10 @@ deliberately unreadable; a scenario that made them comfortable would not make an
 
 `Tools/scenarios/toolbar-band.json` seeds `breakwater` with one workspace of one chat, one of three
 chats and one with sixty changed files, the cases to compare the top of the window in. Launched with
-`--toolbar-band-probe <file>`, the preview writes to that file what every view at the top of the window
-measures, once per workspace, in a window and in full screen. Entering full screen is left to whoever
-is at the Mac, and a window that never goes full screen reports only its windowed half.
+`--toolbar-band-probe <file>`, the preview writes to that file what the toolbar's background views
+measure for each combination of workspace, window mode and tab bar it sees, and the whole tree of views
+at the top of the window once per mode. It selects nothing: moving between the workspaces and entering
+full screen is left to whoever is at the Mac, and a state nobody reaches is not in the report.
 
 `--scenario <file>` at launch reads it. `PreviewScenarioLaunch` reads and validates it before any
 window opens, then `AppModel.bootstrap` seeds it through `PreviewScenarioSeeder` in the core, once
