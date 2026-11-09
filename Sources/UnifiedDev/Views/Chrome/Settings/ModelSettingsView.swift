@@ -27,6 +27,7 @@ struct ModelSettingsView: View {
                 Text("Models")
             } footer: {
                 VStack(alignment: .leading, spacing: Metrics.spacingSmall) {
+                    ModelListFailureNote()
                     Text("Each row selects a model and reasoning effort. A Claude name with no version on it always runs the newest of that family, and the transcript says which one that was. Project model settings take priority. Existing sessions keep their settings.")
                         .settingsFootnote()
                     if let preset = ModelPresetLibrary.shared.list.defaultPreset {

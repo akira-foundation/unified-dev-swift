@@ -26,6 +26,7 @@ struct ComposerSettingsPanel: View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: Metrics.spacing) {
                 settingRow("Model") { modelPicker }
+                ModelListFailureNote()
                 if let onOpenInNewChat, !newChatProviders.isEmpty {
                     settingRow("New chat") { newChatMenu(onOpenInNewChat) }
                 }

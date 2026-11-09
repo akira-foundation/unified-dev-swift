@@ -84,7 +84,7 @@ final class WelcomeAgentDefault {
         else { return }
         catalog.load()
         let deadline = ContinuousClock.now + .seconds(30)
-        while (catalog.models[kind] ?? []).isEmpty, catalog.lastFailure == nil,
+        while (catalog.models[kind] ?? []).isEmpty, !catalog.hasGivenUp(on: kind),
               ContinuousClock.now < deadline, generation == mine {
             try? await Task.sleep(for: .milliseconds(200))
         }
