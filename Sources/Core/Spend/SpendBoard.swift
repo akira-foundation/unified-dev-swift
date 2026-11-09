@@ -3,6 +3,7 @@ import Foundation
 public struct SpendBoard: Sendable, Equatable {
     public struct Input: Sendable {
         public var days: [SpendDay]
+        public var standing: SpendDaysState.Standing
         public var workspaces: [Workspace]
         public var repos: [Repo]
         public var accounts: [AgentAccountHome]
@@ -15,6 +16,7 @@ public struct SpendBoard: Sendable, Equatable {
 
         public init(
             days: [SpendDay],
+            standing: SpendDaysState.Standing = .current,
             workspaces: [Workspace] = [],
             repos: [Repo] = [],
             accounts: [AgentAccountHome] = [],
@@ -26,6 +28,7 @@ public struct SpendBoard: Sendable, Equatable {
             calendar: Calendar = .current
         ) {
             self.days = days
+            self.standing = standing
             self.workspaces = workspaces
             self.repos = repos
             self.accounts = accounts
@@ -88,8 +91,11 @@ public struct SpendBoard: Sendable, Equatable {
     public var providers: [ProviderLine]
     public var projects: [SpendProjectLine]
     public var pricedOn: Date
+    public var standing = SpendDaysState.Standing.current
 
     public static let emptyLine = "No agent turns in this window."
+
+    public var emptyLine: String { SpendLines.daysStatus(standing) ?? Self.emptyLine }
 
     public var rankedColumns: [ColumnLine] {
         columns.enumerated()
@@ -108,12 +114,13 @@ public struct SpendBoard: Sendable, Equatable {
         return SpendBoard(
             window: input.window,
             total: total,
-            columns: columns(total),
-            bars: bars(kept, input: input),
+            columns: input.standing.knowsTheFigures ? columns(total) : [],
+            bars: input.standing.knowsTheFigures ? bars(kept, input: input) : [],
             slices: slices(kept, input: input),
-            providers: providers(kept, input: input),
+            providers: input.standing.knowsTheFigures ? providers(kept, input: input) : [],
             projects: SpendProjectLine.lines(for: kept, input: input),
-            pricedOn: ModelPrices.measuredOn
+            pricedOn: ModelPrices.measuredOn,
+            standing: input.standing
         )
     }
 

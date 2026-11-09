@@ -94,7 +94,7 @@ final class AppModel {
     @ObservationIgnored var transcriptSearchTask: Task<Void, Never>?
     @ObservationIgnored var transcriptBackfillTask: Task<Void, Never>?
 
-    var spendDays: [SpendDay] = []
+    var spendDaysState = SpendDaysState()
     var spendCensus = SpendCensus()
     var spendAccounts = SpendAccountsState.notRead
     @ObservationIgnored var spendAccountsTask: Task<Void, Never>?
