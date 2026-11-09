@@ -422,6 +422,18 @@ done <<EOF
 $(git grep --untracked -n -I -E 'await (Git|Shell)\.' -- 'Sources/UnifiedDev/Views/*' || true)
 EOF
 
+echo "==> a worktree is removed through the guard that protects an orchestrator"
+while IFS= read -r hit; do
+  [ -n "$hit" ] || continue
+  file="${hit%%:*}"
+  if [ "$file" != 'Sources/Core/Workspace/WorkspaceManager+WorktreeRemoval.swift' ]; then
+    echo "$hit" | show
+    report "$file calls Git.removeWorktree directly. Use WorkspaceManager.removeWorktree(of:at:force:), which refuses the worktree of a project's orchestrator."
+  fi
+done <<EOF
+$(git grep --untracked -n -I -F 'Git.removeWorktree' -- 'Sources/*' || true)
+EOF
+
 echo "==> a test's defaults live in its scratch directory"
 # A throwaway UserDefaults suite named by hand leaves a plist in
 # ~/Library/Preferences on every run, emptied or not. TestDefaults.make(_:) names
