@@ -127,7 +127,7 @@ struct SpendStoreTests {
             carry: TranscriptCarry(model: "gpt-6-sol", directory: "/Users/ada/work")
         )
         try await store.record([turn(key: "a")], reaching: reached)
-        #expect(try await store.transcriptCursors()["/t/a.jsonl"] == reached)
+        #expect(try await store.transcriptCursors(forPaths: ["/t/a.jsonl"])["/t/a.jsonl"] == reached)
     }
 
     @Test("a cursor written again moves rather than multiplying")
@@ -135,7 +135,7 @@ struct SpendStoreTests {
         let store = try makeTestStore("spend")
         try await store.record([], reaching: cursor(offset: 100))
         try await store.record([], reaching: cursor(offset: 900))
-        let read = try await store.transcriptCursors()
+        let read = try await store.transcriptCursors(forPaths: ["/t/a.jsonl"])
         #expect(read.count == 1)
         #expect(read["/t/a.jsonl"]?.offset == 900)
     }
