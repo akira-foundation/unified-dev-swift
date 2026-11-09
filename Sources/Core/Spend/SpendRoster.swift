@@ -57,8 +57,14 @@ extension SpendBoard {
         in profile: ProfileID? = nil,
         defaults: [AgentAccountHome] = SpendAccounts.defaultHomes()
     ) async -> SpendAccountsState {
+        switch input.standing {
+        case .notRead: return .notRead
+        case .failed: return .failed
+        case .kept, .current: break
+        }
         do {
-            return .read(try await accounts(input, reading: store, in: profile, defaults: defaults))
+            let lines = try await accounts(input, reading: store, in: profile, defaults: defaults)
+            return input.standing == .kept && lines.isEmpty ? .failed : .read(lines)
         } catch {
             return .failed
         }
