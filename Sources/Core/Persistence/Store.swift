@@ -3349,9 +3349,26 @@ public actor Store {
         return PlanApproval.implementationMode(configured ?? AppDefaults.fallbackPermissionMode)
     }
 
-    public func transcriptCursors() throws -> [String: TranscriptCursor] {
-        let rows = try db.query("SELECT * FROM usage_files").map(SpendColumns.cursor(from:))
+    public func transcriptCursors(forPaths paths: [String]) throws -> [String: TranscriptCursor] {
+        guard !paths.isEmpty else { return [:] }
+        let placeholders = paths.map { _ in "?" }.joined(separator: ", ")
+        let rows = try db.query(
+            "SELECT * FROM usage_files WHERE path IN (\(placeholders))", paths.map(SQLValue.text)
+        ).map(SpendColumns.cursor(from:))
         return Dictionary(rows.map { ($0.path, $0) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    public func transcriptCursorPaths(after path: String, limit: Int) throws -> [String] {
+        try db.query(
+            "SELECT path FROM usage_files WHERE path > ? ORDER BY path LIMIT ?",
+            [.text(path), .int(Int64(limit))]
+        ).compactMap { $0.string("path") }
+    }
+
+    public func forgetTranscriptCursors(paths: [String]) throws {
+        guard !paths.isEmpty else { return }
+        let placeholders = paths.map { _ in "?" }.joined(separator: ", ")
+        try db.run("DELETE FROM usage_files WHERE path IN (\(placeholders))", paths.map(SQLValue.text))
     }
 
     public func forgetSpend(ofFile path: String) throws {
