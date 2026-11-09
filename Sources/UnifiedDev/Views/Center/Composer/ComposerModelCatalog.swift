@@ -16,7 +16,7 @@ final class ComposerModelCatalog {
 
     private(set) var models: [AgentKind: [AgentModel]] = [:]
     private(set) var isLoading = false
-    private(set) var lastFailure: String?
+    private(set) var failures: [AgentKind: ModelListFailure] = [:]
 
     private var sources: [AgentKind: AgentModelSource]
     private var accounts: [AgentKind: AgentAccountHome] = [:]
@@ -47,11 +47,10 @@ final class ComposerModelCatalog {
         guard accountsAreKnown, loadTask == nil else { return }
         let needed = AgentModelSource.kindsAwaitingModels(sources: sources, loaded: models)
         guard !needed.isEmpty else { return }
-        lastFailure = nil
         isLoading = true
         let generation = loadGeneration
         loadTask = Task { [sources] in
-            var failure: String?
+            var collected: [AgentKind: ModelListFailure] = [:]
             for kind in needed {
                 guard generation == self.loadGeneration else { return }
                 guard let source = sources[kind] else { continue }
@@ -60,11 +59,11 @@ final class ComposerModelCatalog {
                     guard generation == self.loadGeneration else { return }
                     self.models[kind] = fetched
                 } catch {
-                    if failure == nil { failure = error.readableMessage }
+                    collected[kind] = await source.failure(of: kind, because: error)
                 }
             }
             guard generation == self.loadGeneration else { return }
-            self.lastFailure = failure
+            self.failures = collected
             self.isLoading = false
             self.loadTask = nil
         }
@@ -75,7 +74,7 @@ final class ComposerModelCatalog {
         loadGeneration = UUID()
         let generation = loadGeneration
         models = [:]
-        lastFailure = nil
+        failures = [:]
         isLoading = true
         loadTask = Task { [sources] in
             for source in sources.values { await source.invalidate() }
@@ -84,6 +83,10 @@ final class ComposerModelCatalog {
             self.isLoading = false
             load()
         }
+    }
+
+    func hasGivenUp(on kind: AgentKind) -> Bool {
+        ModelListFailure.hasGivenUp(on: kind, among: failures, isLoading: isLoading)
     }
 
     func sections(includingCurrent current: String, on kind: AgentKind) -> [ComposerModelSection] {
