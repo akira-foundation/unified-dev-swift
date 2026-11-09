@@ -64,6 +64,7 @@ struct UnifiedDevApp: App {
         if ArchiveFailureProbe.isRequested { ArchiveFailureProbe.schedule() }
         if ArchivedColumnsProbe.isRequested { ArchivedColumnsProbe.schedule() }
         if UnboundedHeightProbe.isRequested { UnboundedHeightProbe.schedule() }
+        if ToolbarBandProbe.isRequested { ToolbarBandProbe.schedule() }
         if StreamingRenderingProbe.isRequested { StreamingRenderingProbe.schedule() }
         if MergeContrastProbe.isRequested { MergeContrastProbe.schedule() }
         if ReplyQuoteProbe.isRequested { ReplyQuoteProbe.schedule() }
