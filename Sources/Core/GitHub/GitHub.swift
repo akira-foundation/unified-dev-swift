@@ -67,10 +67,16 @@ private struct PullRequestPayload: Decodable {
     let statusCheckRollup: [CheckPayload]?
     let closedAt: String?
     let headCommit: String?
+    let author: Author?
+    let isCrossRepository: Bool?
+
+    struct Author: Decodable {
+        let login: String?
+    }
 
     enum CodingKeys: String, CodingKey {
         case number, title, url, state, isDraft, mergeable, mergeStateStatus, reviewDecision
-        case headRefName, baseRefName, statusCheckRollup, closedAt
+        case headRefName, baseRefName, statusCheckRollup, closedAt, author, isCrossRepository
         case headCommit = "headRefOid"
     }
 }
@@ -188,7 +194,7 @@ public enum GitHub {
     private static let fieldList = [
         "number", "title", "url", "state", "isDraft", "mergeable",
         "mergeStateStatus", "reviewDecision", "headRefName", "baseRefName", "statusCheckRollup",
-        "closedAt", "headRefOid",
+        "closedAt", "headRefOid", "author", "isCrossRepository",
     ]
     static let fields = fieldList.joined(separator: ",")
     static let fieldsWithoutChecks = fieldList.filter { $0 != "statusCheckRollup" }
@@ -571,7 +577,9 @@ public enum GitHub {
                 branch: payload.headRefName ?? "",
                 baseBranch: payload.baseRefName ?? "",
                 closedAt: parseDate(payload.closedAt),
-                headCommit: payload.headCommit
+                headCommit: payload.headCommit,
+                author: payload.author?.login,
+                isFromFork: payload.isCrossRepository
             ),
             runs: runs
         )
