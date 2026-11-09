@@ -1,6 +1,5 @@
 import AppKit
 import Observation
-import Security
 import Core
 
 @MainActor
@@ -31,9 +30,12 @@ final class SoftwareUpdater {
     @ObservationIgnored private var pendingReplacement: UpdateInstaller.Replacement?
     @ObservationIgnored private var restartWait: Task<Void, Never>?
 
-    @ObservationIgnored private var activationObserver: NSObjectProtocol?
-
     @ObservationIgnored private var seeded: PreviewScenario.Update?
+
+    @ObservationIgnored private lazy var offers = UpdateOfferPresenter(
+        runningCount: { [weak self] in self?.app?.runningAgentCount ?? 0 },
+        isIdle: { [weak self] in self?.phase == .idle }
+    )
 
     private static let session: URLSession = {
         let configuration = URLSessionConfiguration.ephemeral
@@ -70,7 +72,9 @@ final class SoftwareUpdater {
             try? await Task.sleep(for: .seconds(delay))
             while !Task.isCancelled {
                 await self?.checkInBackgroundIfDue()
-                try? await Task.sleep(for: .seconds(SoftwareUpdate.recheckInterval))
+                self?.offers.presentHeldIfItIsTime(ownerJustReturned: false)
+                let wait = SoftwareUpdate.recheckDelay(holdingOffer: self?.offers.isHolding ?? false)
+                try? await Task.sleep(for: .seconds(wait))
             }
         }
     }
@@ -96,15 +100,15 @@ final class SoftwareUpdater {
         let defaults = UserDefaults.standard
         let automatic = defaults.object(forKey: SoftwareUpdate.checksAutomaticallyKey) as? Bool
             ?? SoftwareUpdate.checksAutomaticallyByDefault
-        guard automatic else { return }
-        guard SoftwareUpdate.isDue(
-            lastCheckedAt: defaults.object(forKey: SoftwareUpdate.lastCheckedKey) as? Date,
-            now: Date()
-        ) else { return }
-        guard SoftwareUpdate.mayCheckInBackground(runningCount: app?.runningAgentCount ?? 0) else {
-            Log.updates.info("Background check deferred while agents run")
+        guard automatic else {
+            offers.forget()
             return
         }
+        guard SoftwareUpdate.isBackgroundCheckDue(
+            lastCheckedAt: defaults.object(forKey: SoftwareUpdate.lastCheckedKey) as? Date,
+            heldOfferCheckedAt: offers.heldCheckedAt,
+            now: Date()
+        ) else { return }
         await check(userInitiated: false)
     }
 
@@ -126,12 +130,14 @@ final class SoftwareUpdater {
             release = fetched
         case .failure(let trouble):
             Log.updates.error("Check failed: \(trouble.localizedDescription, privacy: .public)")
+            offers.noteFailedCheck()
             if userInitiated { showAlert(SoftwareUpdate.checkFailureTitle, trouble.localizedDescription) }
             return
         }
 
         guard let release else {
             UserDefaults.standard.set(Date(), forKey: SoftwareUpdate.lastCheckedKey)
+            offers.forget()
             if userInitiated { present(.upToDate, current: current) }
             return
         }
@@ -146,10 +152,19 @@ final class SoftwareUpdater {
         }
 
         guard case .install = offer else {
+            offers.forget()
             if userInitiated { present(offer, current: current) }
             return
         }
-        presentWhenActive { $0.present(offer, current: current) }
+        guard userInitiated else {
+            offers.hold { [weak self] in
+                UserDefaults.standard.set(Date(), forKey: SoftwareUpdate.lastCheckedKey)
+                self?.present(offer, current: current)
+            }
+            return
+        }
+        offers.forget()
+        offers.presentWhenActive { [weak self] in self?.present(offer, current: current) }
     }
 
     private func present(_ offer: SoftwareUpdate.Offer, current: ReleaseVersion) {
@@ -181,24 +196,6 @@ final class SoftwareUpdater {
         guard PreviewIdentity.isPreview(bundleIdentifier: Bundle.main.bundleIdentifier),
               let data = UserDefaults.standard.data(forKey: PreviewScenario.seededUpdateKey) else { return nil }
         return try? JSONDecoder().decode(PreviewScenario.Update.self, from: data)
-    }
-
-    private func presentWhenActive(_ present: @escaping @MainActor (SoftwareUpdater) -> Void) {
-        guard !NSApp.isActive else {
-            present(self)
-            return
-        }
-        if let activationObserver { NotificationCenter.default.removeObserver(activationObserver) }
-        activationObserver = NotificationCenter.default.addObserver(
-            forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
-        ) { [weak self] _ in
-            MainActor.assumeIsolated {
-                guard let self else { return }
-                if let observer = self.activationObserver { NotificationCenter.default.removeObserver(observer) }
-                self.activationObserver = nil
-                present(self)
-            }
-        }
     }
 
     private func fetchLatestRelease() async -> Result<GitHubRelease?, Error> {
@@ -299,19 +296,5 @@ final class SoftwareUpdater {
         pendingReplacement = nil
         appDelegate?.isInstallingUpdate = false
         phase = .idle
-    }
-
-    private static func runningDesignatedRequirement() -> String? {
-        var code: SecCode?
-        guard SecCodeCopySelf([], &code) == errSecSuccess, let code else { return nil }
-        var staticCode: SecStaticCode?
-        guard SecCodeCopyStaticCode(code, [], &staticCode) == errSecSuccess, let staticCode else { return nil }
-        var requirement: SecRequirement?
-        guard SecCodeCopyDesignatedRequirement(staticCode, [], &requirement) == errSecSuccess, let requirement else {
-            return nil
-        }
-        var text: CFString?
-        guard SecRequirementCopyString(requirement, [], &text) == errSecSuccess, let text else { return nil }
-        return text as String
     }
 }

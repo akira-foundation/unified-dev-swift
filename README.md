@@ -33,7 +33,7 @@ Take the disk image from the [releases page](https://github.com/akira-foundation
 open it and drag Unified Dev into Applications. It is signed with a Developer ID and notarised by
 Apple, so it opens without going into System Settings.
 
-It checks GitHub Releases for a newer version once a day, never while an agent is running, and
+It checks GitHub Releases for a newer version once a day, whether or not agents are running, and
 tells you rather than acting: nothing is downloaded or installed until you press Install, because
 installing restarts the app and this app holds agents in the middle of a turn. The alert shows
 what changes, and a version you skip is not offered again on its own. The check can be turned off in

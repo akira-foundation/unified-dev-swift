@@ -181,10 +181,13 @@ struct SoftwareUpdateTests {
         #expect(SoftwareUpdate.offer(for: release, currentVersion: try current("1.4.0"), skippedVersion: nil) == .missingAsset(release))
     }
 
-    @Test("A background check waits for every agent to finish")
-    func backgroundCheckWaitsForAgents() {
-        #expect(SoftwareUpdate.mayCheckInBackground(runningCount: 0))
-        #expect(!SoftwareUpdate.mayCheckInBackground(runningCount: 1))
+    @Test("A release found in the background counts as checked only once it has been offered")
+    func heldOfferIsNotRecorded() throws {
+        let offer = SoftwareUpdate.offer(for: try release(), currentVersion: try current("1.4.0"), skippedVersion: nil)
+
+        #expect(!SoftwareUpdate.recordsCheck(of: offer, userInitiated: false))
+        #expect(SoftwareUpdate.recordsCheck(of: offer, userInitiated: true))
+        #expect(SoftwareUpdate.recordsCheck(of: .skipped(try release()), userInitiated: false))
     }
 
     @Test("The interruption warning names what will be stopped")
