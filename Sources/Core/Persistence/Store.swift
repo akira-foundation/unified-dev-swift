@@ -1663,17 +1663,19 @@ public actor Store {
         try db.query("SELECT * FROM sessions WHERE id = ?", [.text(id)]).first.map(Self.session(from:))
     }
 
-    public func sessionActivity() throws -> [SessionActivity] {
+    public func sessionActivity(includingArchivedWorkspaces: Bool = false) throws -> [SessionActivity] {
         let states = AgentTurns.Kind.allCases.map(\.sessionState)
         let placeholders = states.map { _ in "?" }.joined(separator: ", ")
+        let workspaceStates = includingArchivedWorkspaces ? WorkspaceState.allCases : [.active]
+        let workspacePlaceholders = workspaceStates.map { _ in "?" }.joined(separator: ", ")
         return try db.query(
             """
             SELECT s.id AS id, s.workspace_id AS workspace_id, s.state AS state
             FROM sessions s
             JOIN workspaces w ON w.id = s.workspace_id
-            WHERE s.archived_at IS NULL AND w.state = ? AND s.state IN (\(placeholders))
+            WHERE s.archived_at IS NULL AND w.state IN (\(workspacePlaceholders)) AND s.state IN (\(placeholders))
             """,
-            [.text(WorkspaceState.active.rawValue)] + states.map { SQLValue.text($0.rawValue) }
+            workspaceStates.map { SQLValue.text($0.rawValue) } + states.map { SQLValue.text($0.rawValue) }
         ).map { row in
             SessionActivity(
                 sessionID: SessionID(row.string("id") ?? newID()),
