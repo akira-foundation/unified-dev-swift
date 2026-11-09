@@ -8,6 +8,7 @@ public enum AgentAccountError: Error, Equatable, LocalizedError {
     case folderInUse(String)
     case folderUseUnknown(String)
     case forgottenWithFolderKept(String)
+    case keychainEntriesLeft([String])
 
     public var errorDescription: String? {
         switch self {
@@ -25,6 +26,8 @@ public enum AgentAccountError: Error, Equatable, LocalizedError {
             "Unified Dev could not tell whether anything is still using this account's folder, so it left it alone: \(path)"
         case .forgottenWithFolderKept(let path):
             "The account was forgotten, but its folder may still be in use, so Unified Dev left it alone. It is listed as an unfinished sign-in: \(path)"
+        case .keychainEntriesLeft(let services):
+            "Its sign-in is still in your keychain, because Unified Dev could not delete it. Delete \(services.joined(separator: " and ")) in Keychain Access."
         }
     }
 }
@@ -37,17 +40,21 @@ public enum AgentAccountRemoval {
     }
 
     public static func warning(
-        forAccountNamed title: String, folderExists: Bool, chosenBy projects: [String] = []
+        forAccountNamed title: String, provider: AgentKind, folderExists: Bool, chosenBy projects: [String] = []
     ) -> Warning {
-        let consequence = folderExists
-            ? "This deletes the account's folder on this Mac, including its saved sign-in and the conversation transcripts kept there."
-            : "The account's folder is already gone, so this only forgets the account."
+        let consequence = switch (folderExists, provider == .claudeCode) {
+        case (true, true):
+            "This deletes the account's folder on this Mac, including the conversation transcripts kept there, and the sign-in this account saved in your keychain, and no other."
+        case (true, false):
+            "This deletes the account's folder on this Mac, including its saved sign-in and the conversation transcripts kept there."
+        case (false, true):
+            "The account's folder is already gone, so this forgets the account and removes the sign-in it saved in your keychain."
+        case (false, false):
+            "The account's folder is already gone, so this only forgets the account."
+        }
         return Warning(
             title: "Remove \(title)?",
-            message: consequence
-                + fallsBack(projects)
-                + " Unified Dev cannot remove the entry this account left in your keychain,"
-                + " so remove it in Keychain Access if you want it gone.",
+            message: consequence + fallsBack(projects),
             actionTitle: "Remove account"
         )
     }
@@ -59,12 +66,11 @@ public enum AgentAccountRemoval {
         return " \(ProfileAccountNotice.list(names)) \(verb) back to the default account of the profile."
     }
 
-    public static func warningForUnfinishedSignIn(named title: String) -> Warning {
+    public static func warningForUnfinishedSignIn(named title: String, provider: AgentKind) -> Warning {
         Warning(
             title: "Remove \(title)?",
             message: "This deletes the folder of a sign-in that did not finish, including anything saved in it."
-                + " Unified Dev cannot remove the entry it may have left in your keychain,"
-                + " so remove it in Keychain Access if you want it gone.",
+                + (provider == .claudeCode ? " It also removes any sign-in it saved in your keychain." : ""),
             actionTitle: "Remove folder"
         )
     }
@@ -83,6 +89,7 @@ public enum AgentAccountRemoval {
         _ home: AgentAccountHome,
         support: URL,
         store: Store,
+        keychain: AgentAccountKeychain,
         processes: @Sendable () -> [ProcessVector]? = ProcessVectors.ofOtherProcesses
     ) async throws {
         guard !home.isDefault, !AgentAccountHome.isDefaultID(home.id) else {
@@ -99,28 +106,59 @@ public enum AgentAccountRemoval {
         } catch AgentAccountError.folderInUse(let path), AgentAccountError.folderUseUnknown(let path) {
             throw AgentAccountError.forgottenWithFolderKept(path)
         }
+        try await deleteKeychainEntries(of: home, support: support, keychain: keychain)
     }
 
     public static func remove(
         _ row: AgentAccountPanel.Row,
         support: URL,
         store: Store,
+        keychain: AgentAccountKeychain,
         processes: @Sendable () -> [ProcessVector]? = ProcessVectors.ofOtherProcesses
     ) async throws {
         guard row.isUnfinished else {
-            try await remove(row.home, support: support, store: store, processes: processes)
+            try await remove(row.home, support: support, store: store, keychain: keychain, processes: processes)
             return
         }
-        try removeUnfinished(row.home, support: support, processes: processes)
+        try await removeUnfinished(row.home, support: support, keychain: keychain, processes: processes)
     }
 
     public static func removeUnfinished(
         _ home: AgentAccountHome,
         support: URL,
-        processes: () -> [ProcessVector]? = ProcessVectors.ofOtherProcesses
-    ) throws {
+        keychain: AgentAccountKeychain,
+        processes: @Sendable () -> [ProcessVector]? = ProcessVectors.ofOtherProcesses
+    ) async throws {
         guard !home.isDefault else { throw AgentAccountError.isDefault(home.id) }
         try deleteFolder(of: home, support: support, processes: processes)
+        try await deleteKeychainEntries(of: home, support: support, keychain: keychain)
+    }
+
+    static func keychainEntries(
+        of home: AgentAccountHome, support: URL, environment: [String: String], username: String
+    ) -> [AgentAccountKeychain.Entry] {
+        guard home.provider == .claudeCode,
+              !home.isDefault,
+              !AgentAccountHome.isDefaultID(home.id),
+              directory(of: home, support: support) != nil
+        else { return [] }
+        return ClaudeKeychainEntries.of(
+            configDirectory: home.directory.path, environment: environment, username: username
+        )
+    }
+
+    private static func deleteKeychainEntries(
+        of home: AgentAccountHome, support: URL, keychain: AgentAccountKeychain
+    ) async throws {
+        let entries = keychainEntries(
+            of: home, support: support, environment: Shell.environment(), username: NSUserName()
+        )
+        var left: [String] = []
+        for entry in entries {
+            let gone = await keychain.delete(entry)
+            if !gone { left.append(entry.service) }
+        }
+        guard left.isEmpty else { throw AgentAccountError.keychainEntriesLeft(left) }
     }
 
     private static func deleteFolder(
