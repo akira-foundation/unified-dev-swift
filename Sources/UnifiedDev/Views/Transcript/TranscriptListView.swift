@@ -205,6 +205,7 @@ struct TranscriptListView: View {
         let rows = transcript.rows
         let permissionMode = transcript.session.permissionMode
         let agentKind = transcript.session.agentKind
+        let orchestrates = transcript.orchestrates
         let recoveredRuns = transcript.recoveredRuns
         let stoppedTurnSeq = transcript.stoppedTurnSeq
         let backgroundWork = transcript.isRunning ? nil : transcript.backgroundWork
@@ -354,6 +355,7 @@ struct TranscriptListView: View {
                                 worktree: home.worktree,
                                 permissionMode: permissionMode,
                                 agentKind: agentKind,
+                                orchestrates: orchestrates,
                                 wasStopped: wasStopped,
                                 recovered: recovered,
                                 stillRunning: stillRunning,

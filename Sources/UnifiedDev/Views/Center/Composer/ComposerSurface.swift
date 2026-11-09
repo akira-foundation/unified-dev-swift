@@ -11,6 +11,7 @@ struct ComposerPlace {
     var onOpenQuickPrompts: (@MainActor () -> Void)?
     var isDraftLoaded = true
     var account: AccountScope = .none
+    var orchestrates = false
 }
 
 struct ComposerSend {
@@ -97,6 +98,7 @@ struct ComposerSurface: View {
                 onSend: send.perform,
                 onStop: conversation.onStop,
                 onSideConversation: conversation.onSideConversation,
+                orchestrates: place.orchestrates,
                 usesCLIChat: send.usesCLIChat,
                 supportsCLIChat: send.supportsCLIChat,
                 account: reading?.section,

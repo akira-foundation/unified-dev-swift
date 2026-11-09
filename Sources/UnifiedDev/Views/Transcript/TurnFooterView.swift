@@ -8,6 +8,7 @@ struct TurnFooterView: View {
     var worktree: String
     var permissionMode: PermissionMode = .acceptEdits
     var agentKind: AgentKind = .claudeCode
+    var orchestrates = false
     var wasStopped = false
     var recovered: RetryRun?
     var stillRunning: String?
@@ -87,7 +88,7 @@ struct TurnFooterView: View {
             .padding(.horizontal, TranscriptLayout.inset)
             .padding(.vertical, Metrics.spacingSmall)
 
-            if let notice = outcome.note(permissionMode: permissionMode, agentKind: agentKind) {
+            if let notice = outcome.note(permissionMode: permissionMode, agentKind: agentKind, orchestrates: orchestrates) {
                 Text(notice)
                     .font(Typo.caption)
                     .foregroundStyle(Palette.textSecondary)

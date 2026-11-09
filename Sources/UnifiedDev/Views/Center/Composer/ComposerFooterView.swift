@@ -20,6 +20,7 @@ struct ComposerFooterView: View {
     var onStop: @MainActor () -> Void = {}
     var onSideConversation: (@MainActor () -> Void)?
     var showsAgentControls: Bool = true
+    var orchestrates: Bool = false
     var usesCLIChat: Binding<Bool>?
     var supportsCLIChat: Bool = true
     var account: ComposerAccountSection?
@@ -140,7 +141,7 @@ struct ComposerFooterView: View {
             outputStyles: controls.offersOutputStyle
                 ? outputStyles.options(includingCurrent: controls.outputStyle)
                 : [],
-            permissionModes: controls.permissionModeChoices.map {
+            permissionModes: controls.permissionModeChoices(orchestrates: orchestrates).map {
                 ComposerOption(id: $0.mode.rawValue, label: $0.label, detail: $0.summary)
             },
             context: context?.reading
@@ -157,6 +158,7 @@ struct ComposerFooterView: View {
                     efforts: choices.efforts,
                     outputStyles: choices.outputStyles,
                     permissionModes: choices.permissionModes,
+                    orchestrates: orchestrates,
                     isCompact: isCompact,
                     account: account,
                     onPreset: { preset in edit { $0 = $0.applying(preset, models: catalog.models) } },
