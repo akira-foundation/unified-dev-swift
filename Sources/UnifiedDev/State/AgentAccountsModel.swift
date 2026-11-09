@@ -109,8 +109,8 @@ final class AgentAccountsModel {
         })
         creatingDirectory = nil
         guard let standing = concluded else {
-            creation.reservation.discard()
             failure = "The sign-in for \(plan.label) did not complete, so no account was added."
+            await creation.reservation.discardOnceReleased()
             await reload(store: store)
             return
         }
@@ -146,6 +146,9 @@ final class AgentAccountsModel {
             failure = row.isUnfinished
                 ? "Could not remove \(row.title): its folder is not where Unified Dev expected it, so it was left alone: \(path)"
                 : "\(row.title) was forgotten, but its folder is not where Unified Dev expected it, so it was left alone: \(path)"
+        } catch AgentAccountError.forgottenWithFolderKept(let path) {
+            if !row.isUnfinished { answers[row.id] = nil }
+            failure = "\(row.title) was forgotten, but its folder may still be in use, so it was left alone and is listed as an unfinished sign-in: \(path)"
         } catch {
             failure = "Could not remove \(row.title): \(error.readableMessage)"
         }

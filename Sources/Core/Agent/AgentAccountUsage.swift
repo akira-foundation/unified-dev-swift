@@ -11,7 +11,7 @@ public enum AgentAccountUsage {
         )
         let book = try await store.agentAccountChoices()
         var names: Set<String> = []
-        for activity in try await store.sessionActivity() {
+        for activity in try await store.sessionActivity(includingArchivedWorkspaces: true) {
             guard let session = try await store.session(id: activity.sessionID),
                   session.agentKind == home.provider,
                   let workspace = try await store.workspace(id: activity.workspaceID)
@@ -23,7 +23,7 @@ public enum AgentAccountUsage {
                 profile: stored.profile[session.agentKind],
                 standings: book.reachable(standings, forRepo: workspace.repoID)
             )
-            guard choice.home?.id == home.id else { continue }
+            guard choice.home?.id == home.id || session.accountID == home.id else { continue }
             names.insert(workspace.name)
         }
         return names.sorted()

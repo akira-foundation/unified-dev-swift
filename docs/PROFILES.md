@@ -82,7 +82,10 @@ accounts it owns are listed nowhere and wait for it to have its own again. Delet
 by then has no projects, gives its accounts back to Unified.
 
 Removing an account is refused while an agent runs under it, counting the agents that reach it as
-their profile's default as well as those whose project chose it. The confirmation names the projects
+their profile's default, those whose project chose it and chats recorded on it, in archived workspaces
+as well. For a folder inside the accounts root it is also refused while any process
+of this user names the folder in its arguments or environment, and when Unified Dev cannot
+read a process to tell; a folder outside that root is never deleted, so its row can always go. The confirmation names the projects
 that chose it; they go back to their profile's default, and in a profile with accounts of its own and
 no default for that CLI they do not start until another is chosen.
 
