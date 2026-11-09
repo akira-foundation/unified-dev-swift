@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import Core
 
@@ -144,5 +145,56 @@ struct ComposerFolderDropTests {
         let attachedOnly = ComposerFolderDrop.plan([.attachment], roots: [worktree])
         #expect(attachedOnly.tookTheDrop(attached: true))
         #expect(!attachedOnly.tookTheDrop(attached: false))
+    }
+
+    @Test("A drop writes the first folders up to the ceiling and says how many it left out")
+    func ceilingOnFolders() {
+        let count = ComposerFolderDrop.maximumFolders + 3
+        let items = (0..<count).map { ComposerDropItem.folder("/tmp/d\($0)") }
+
+        let plan = ComposerFolderDrop.plan(items, roots: [worktree])
+
+        let written = plan.insertion.split(separator: " ").map(String.init)
+        #expect(written.first == "/tmp/d0")
+        #expect(written.count == ComposerFolderDrop.maximumFolders)
+        #expect(plan.omittedItems == 3)
+        #expect(plan.omissionNotice?.contains("3 items were left out") == true)
+    }
+
+    @Test("A drop at the ceiling leaves nothing out, and one item left out reads in the singular")
+    func exactlyAtTheCeiling() {
+        let items = (0..<ComposerFolderDrop.maximumFolders).map { ComposerDropItem.folder("/tmp/d\($0)") }
+        let plan = ComposerFolderDrop.plan(items, roots: [worktree])
+        #expect(plan.omittedItems == 0)
+        #expect(plan.omissionNotice == nil)
+
+        let over = ComposerFolderDrop.plan(items + [.folder("/tmp/last")], roots: [worktree])
+        #expect(over.omissionNotice?.contains("1 item was left out") == true)
+    }
+
+    @Test("An item past the question ceiling is neither written nor attached, only counted")
+    func unaskedItems() {
+        let plan = ComposerFolderDrop.plan([.attachment, .unasked, .unasked], roots: [worktree])
+        #expect(plan.attachmentIndices == [0])
+        #expect(!plan.writesText)
+        #expect(plan.omittedItems == 2)
+    }
+
+    @Test("The text keeps its place while unchanged, and once edited lands after the selection without replacing it")
+    func insertionFollowsTheText() {
+        let dropped = NSRange(location: 3, length: 0)
+        let selection = NSRange(location: 4, length: 5)
+        #expect(ComposerFolderDrop.insertionRange(
+            dropped: dropped, textAtDrop: "abc", textNow: "abc", selection: selection
+        ) == dropped)
+        #expect(ComposerFolderDrop.insertionRange(
+            dropped: dropped, textAtDrop: "abc", textNow: "abcdefghi", selection: selection
+        ) == NSRange(location: 9, length: 0))
+    }
+
+    @Test("A drop belongs to the draft it was dropped on")
+    func sameDraftOnly() {
+        #expect(ComposerFolderDrop.isSameDraft(ownerAtDrop: "a", ownerNow: "a"))
+        #expect(!ComposerFolderDrop.isSameDraft(ownerAtDrop: "a", ownerNow: "b"))
     }
 }

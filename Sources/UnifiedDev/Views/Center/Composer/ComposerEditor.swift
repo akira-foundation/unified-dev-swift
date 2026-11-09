@@ -15,6 +15,7 @@ struct ComposerEditor: View {
     var onHoverAttachment: @MainActor (String?) -> Void = { _ in }
     var attachmentRoot: String = ""
     var folderRoot: String?
+    var dropOwner: @MainActor () -> String = { "" }
     var handle: ComposerEditorHandle?
     var placeholder: String = ComposerEditor.chatPlaceholder
     var accessibilityLabel: String = "Message"
@@ -50,6 +51,7 @@ struct ComposerEditor: View {
                 onHoverAttachment: onHoverAttachment,
                 attachmentRoot: attachmentRoot,
                 folderRoot: folderRoot,
+                dropOwner: dropOwner,
                 handle: handle
             )
             .frame(height: max(height, ComposerTextEditor.lineHeight))
