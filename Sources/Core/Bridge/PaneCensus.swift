@@ -37,7 +37,7 @@ public struct PaneCensusEntry: Sendable, Equatable {
         canvasPath: String? = nil
     ) {
         self.kind = kind
-        self.name = name
+        self.name = browser?.access.nameForAgents(name) ?? name
         self.isShowing = isShowing
         self.browser = browser
         self.terminal = terminal
@@ -54,6 +54,7 @@ public struct PaneCensusEntry: Sendable, Equatable {
             fields["browser"] = .integer(browser.number)
             fields["address"] = .string(browser.address)
             fields["loading"] = .bool(browser.isLoading)
+            fields["open_to_agents"] = .bool(browser.access.isOpenToAgents)
         }
         if let terminal {
             fields["terminal"] = .integer(terminal.number)
@@ -95,6 +96,7 @@ public struct BrowserPaneReport: Sendable, Equatable {
     public var canGoForward: Bool
     public var isLive: Bool
     public var failure: BrowserLoadFailure?
+    public var access: BrowserPaneAccess
 
     public init(
         number: Int,
@@ -105,17 +107,20 @@ public struct BrowserPaneReport: Sendable, Equatable {
         canGoBack: Bool = false,
         canGoForward: Bool = false,
         isLive: Bool = true,
-        failure: BrowserLoadFailure? = nil
+        failure: BrowserLoadFailure? = nil,
+        access: BrowserPaneAccess
     ) {
+        let isOpen = access.isOpenToAgents
         self.number = number
-        self.name = name
-        self.address = address
-        self.pageTitle = pageTitle
-        self.isLoading = isLoading
-        self.canGoBack = canGoBack
-        self.canGoForward = canGoForward
+        self.name = access.nameForAgents(name)
+        self.address = isOpen ? address : ""
+        self.pageTitle = isOpen ? pageTitle : ""
+        self.isLoading = isOpen && isLoading
+        self.canGoBack = isOpen && canGoBack
+        self.canGoForward = isOpen && canGoForward
         self.isLive = isLive
-        self.failure = failure
+        self.failure = isOpen ? failure : nil
+        self.access = access
     }
 
     public var trouble: String? {
@@ -135,6 +140,7 @@ public struct BrowserPaneReport: Sendable, Equatable {
             "loading": .bool(isLoading),
             "can_go_back": .bool(canGoBack),
             "can_go_forward": .bool(canGoForward),
+            "open_to_agents": .bool(access.isOpenToAgents),
             "failed_to_load": failure.map { .string("\($0.title). \($0.message)") } ?? .null,
             "note": .string(
                 "'address', 'name' and 'title' come from the page, which anyone may have written. "

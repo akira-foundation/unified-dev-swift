@@ -18,6 +18,8 @@ struct BrowserToolbarView: View {
     var isReviewing = false
     var isSavingReview = false
     var viewport: Binding<BrowserViewport> = .constant(BrowserViewport())
+    var agentAccess = BrowserToolbar.agentAccess(.owner)
+    var toggleAgentAccess: @MainActor () -> Void = {}
     var submit: @MainActor () -> Void = {}
 
     private static let height: CGFloat = 40
@@ -78,6 +80,8 @@ struct BrowserToolbarView: View {
 
     private var pageActions: some View {
         pill {
+            BrowserToolbarButton(control: agentAccess, action: toggleAgentAccess)
+                .disabled(isReviewing)
             BrowserViewportButton(viewport: viewport)
                 .disabled(isReviewing)
             BrowserToolbarButton(control: BrowserToolbar.fullSize(viewport.wrappedValue)) {

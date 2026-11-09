@@ -21,7 +21,9 @@ enum PaneDuplicate {
             )
 
         case .freshBrowser:
-            NewPane.open(.browser, in: model, url: tab?.url ?? "", place: place)
+            NewPane.open(
+                .browser, in: model, url: tab?.url ?? "", browserAccess: tab?.browserAccess ?? .owner, place: place
+            )
 
         case .nothing:
             return

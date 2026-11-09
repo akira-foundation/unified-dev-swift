@@ -315,7 +315,7 @@ extension AppModel {
         let activeSession = model.activeSessionID
         let placement = order.placement(hasTabInFront: front != nil)
         if case .refused(let sentence) = placement { return .refused(sentence) }
-        NewPane.open(order.kind, in: model, url: order.url ?? "", title: order.title) { content in
+        NewPane.open(order.kind, in: model, url: order.url ?? "", title: order.title, browserAccess: .agents) { content in
             switch placement {
             case .front: tabs.select(content, in: model)
             case .behind:
@@ -331,11 +331,19 @@ extension AppModel {
         _ kind: PaneKind?, in tab: PaneContent, of workspaceID: WorkspaceID, verb: String
     ) -> Result<String, PaneRefusal> {
         let tabs = WorkspaceTabsStore.shared
-        guard let kind else { return .success(tabs.focusedPane(of: tab)) }
-        let found = tabs.layout(of: tab).panes.first {
+        let isOwners = { (pane: String) in
+            self.isOwnersBrowser(tabs.content(of: pane, in: tab), in: workspaceID)
+        }
+        let ownersRefusal = PaneRefusal(BrowserPaneAccess.paneRefusal(verb: verb))
+        guard let kind else {
+            let focused = tabs.focusedPane(of: tab)
+            return isOwners(focused) ? .failure(ownersRefusal) : .success(focused)
+        }
+        let matching = tabs.layout(of: tab).panes.filter {
             paneKind(of: tabs.content(of: $0, in: tab), in: workspaceID) == kind
         }
-        guard let found else {
+        if !matching.isEmpty, matching.allSatisfy(isOwners) { return .failure(ownersRefusal) }
+        guard let found = matching.first(where: { !isOwners($0) }) else {
             return .failure(
                 PaneRefusal(
                     "There is no \(kind.title.lowercased()) open in the tab in front. Nothing was "
@@ -430,6 +438,13 @@ extension AppModel {
         }
 
         return .opened("Renamed that pane to '\(title)'.")
+    }
+
+    private func isOwnersBrowser(_ content: PaneContent, in workspaceID: WorkspaceID) -> Bool {
+        guard case .tool(let id) = content,
+              let tab = CenterTabStore.shared.tabs(for: workspaceID).first(where: { $0.id == id })
+        else { return false }
+        return tab.kind == .browser && !tab.browserAccess.isOpenToAgents
     }
 
     private func paneKind(of content: PaneContent, in workspaceID: WorkspaceID) -> PaneKind? {

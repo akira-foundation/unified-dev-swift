@@ -98,13 +98,13 @@ public struct PaneOrder: Sendable, Equatable {
 
     public static let nothingToSitBehind =
         "There is nothing open in that workspace for a browser to sit behind, and a browser alone "
-            + "in the centre column would fetch its page at once, from the person's own browser, "
+            + "in the centre column would fetch its page at once, "
             + "without asking them. Open a chat or a terminal first, or ask the person to open the "
             + "browser."
 
     public static let browserSplitsBlank =
         "pane_split opens a browser pane blank and takes no 'url' for one. A pane beside this chat "
-            + "is drawn at once, so it would fetch the page from the person's own browser without "
+            + "is drawn at once, so it would fetch the page without "
             + "asking them. Leave out 'url' and point the pane with browser_go, which asks them, or "
             + "use pane_open, which leaves the browser behind the tab in front until they click it."
 
@@ -119,7 +119,7 @@ public struct PaneOrder: Sendable, Equatable {
         if kind == .browser {
             return "Opened \(what) behind the tab in front, and it has not fetched anything yet. "
                 + "A browser never comes to the front through pane_open, because drawing it loads "
-                + "the page from the person's own browser. It loads when they click the tab: ask "
+                + "the page. It loads when they click the tab: ask "
                 + "them to, and until then the browser tools that need a page refuse it."
         }
         return placement == .front

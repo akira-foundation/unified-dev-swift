@@ -78,15 +78,19 @@ public enum BrowserPaneChoice {
         }
 
         guard let number else {
-            guard browsers.count == 1 else {
+            let open = browsers.filter(\.access.isOpenToAgents)
+            guard let first = open.first else {
+                return .failure(PaneRefusal(BrowserPaneAccess.refusal(number: browsers[0].number, tool: tool)))
+            }
+            guard open.count == 1 else {
                 return .failure(
                     PaneRefusal(
-                        "There are \(browsers.count) browsers open, so \(tool) needs a 'browser' "
-                            + "number to say which: \(list(browsers))."
+                        "There are \(open.count) browsers open to you, so \(tool) needs a 'browser' "
+                            + "number to say which: \(list(open))."
                     )
                 )
             }
-            return .success(browsers[0])
+            return .success(first)
         }
 
         guard let found = browsers.first(where: { $0.number == number }) else {
@@ -98,12 +102,18 @@ public enum BrowserPaneChoice {
                 )
             )
         }
+        guard found.access.isOpenToAgents else {
+            return .failure(PaneRefusal(BrowserPaneAccess.refusal(number: found.number, tool: tool)))
+        }
         return .success(found)
     }
 
     private static func list(_ browsers: [BrowserPaneReport]) -> String {
-        browsers.map { "\($0.number) on \($0.address.isEmpty ? "no page yet" : $0.address)" }
-            .joined(separator: ", ")
+        browsers.map { browser in
+            guard browser.access.isOpenToAgents else { return "\(browser.number), the owner's" }
+            return "\(browser.number) on \(browser.address.isEmpty ? "no page yet" : browser.address)"
+        }
+        .joined(separator: ", ")
     }
 }
 

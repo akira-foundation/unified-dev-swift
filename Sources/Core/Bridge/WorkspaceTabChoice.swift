@@ -114,8 +114,8 @@ public enum WorkspaceTabSelection: Sendable, Equatable {
         guard tab.showsBrowser else { return nil }
         return .refused(
             "'\(tab.title)' has a browser in it, and bringing it to the front would load that page "
-                + "from the person's own browser without asking them. Nothing moved. Ask the person "
-                + "to click the tab, or reach the page with a browser tool such as browser_go or "
+                + "without asking them. Nothing moved. Ask the person to click the tab, or, if the "
+                + "browser is open to you, reach the page with a browser tool such as browser_go or "
                 + "browser_text, which asks them first."
         )
     }

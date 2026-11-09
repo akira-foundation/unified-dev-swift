@@ -4,6 +4,10 @@ import Testing
 
 @Suite("Link opening")
 struct LinkOpeningTests {
+    private func owned(_ addresses: [String]) -> [LinkOpening.OpenPane] {
+        addresses.map { LinkOpening.OpenPane(address: $0, access: .owner) }
+    }
+
     private func target(
         _ address: String,
         placement: TranscriptLinkPlacement = .pane,
@@ -92,29 +96,40 @@ struct LinkOpeningTests {
     @Test("A tab already showing the address is the one to reveal, the last of several")
     func reusesTheMatchingTab() {
         let open = ["https://example.com/a", "https://example.com/b", "https://example.com/a"]
-        #expect(LinkOpening.tab(showing: "https://example.com/a", among: open) == 2)
+        #expect(LinkOpening.tab(showing: "https://example.com/a", among: owned(open)) == 2)
     }
 
     @Test("A different address never takes over an open tab")
     func aDifferentPageKeepsItsTab() {
         let open = ["https://example.com/a", "http://localhost:3000/?key=1"]
-        #expect(LinkOpening.tab(showing: "https://example.com/b", among: open) == nil)
-        #expect(LinkOpening.tab(showing: "http://localhost:3000/?key=2", among: open) == nil)
+        #expect(LinkOpening.tab(showing: "https://example.com/b", among: owned(open)) == nil)
+        #expect(LinkOpening.tab(showing: "http://localhost:3000/?key=2", among: owned(open)) == nil)
     }
 
     @Test("A bare host and its root are the same page")
     func aTrailingSlashIsTheSamePage() {
-        #expect(LinkOpening.tab(showing: "http://localhost:3000", among: ["http://localhost:3000/"]) == 0)
+        #expect(LinkOpening.tab(showing: "http://localhost:3000", among: owned(["http://localhost:3000/"])) == 0)
     }
 
     @Test("A root and its bare host are the same page, whichever the tab holds")
     func theSlashCountsOnTheAskingSideToo() {
-        #expect(LinkOpening.tab(showing: "http://localhost:3000/", among: ["http://localhost:3000"]) == 0)
+        #expect(LinkOpening.tab(showing: "http://localhost:3000/", among: owned(["http://localhost:3000"])) == 0)
     }
 
     @Test("A tab with no address yet is not a match")
     func aBlankTabIsNoMatch() {
-        #expect(LinkOpening.tab(showing: "https://example.com", among: [""]) == nil)
-        #expect(LinkOpening.tab(showing: "", among: [""]) == nil)
+        #expect(LinkOpening.tab(showing: "https://example.com", among: owned([""])) == nil)
+        #expect(LinkOpening.tab(showing: "", among: owned([""])) == nil)
+    }
+
+    @Test("A link the owner follows never lands in a pane agents can use")
+    func aSharedPaneIsNotReused() {
+        let address = "https://example.com/a"
+        let panes = [
+            LinkOpening.OpenPane(address: address, access: .owner),
+            LinkOpening.OpenPane(address: address, access: .agents),
+        ]
+        #expect(LinkOpening.tab(showing: address, among: panes) == 0)
+        #expect(LinkOpening.tab(showing: address, among: [panes[1]]) == nil)
     }
 }

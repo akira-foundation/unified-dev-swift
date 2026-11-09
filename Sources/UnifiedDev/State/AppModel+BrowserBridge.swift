@@ -93,6 +93,16 @@ extension AppModel {
         }
     }
 
+    func titleForAgents(of content: PaneContent, in model: WorkspaceModel) -> String {
+        let centre = CenterTabStore.shared
+        let title = centre.title(of: content, in: model)
+        guard case .tool(let id) = content,
+              let tab = centre.tabs(for: model.workspace.id).first(where: { $0.id == id }),
+              tab.kind == .browser
+        else { return title }
+        return tab.browserAccess.nameForAgents(title)
+    }
+
     func report(_ tab: CenterTab, number: Int, name: String) -> BrowserPaneReport {
         guard let session = CenterTabStore.shared.liveBrowser(for: tab) else {
             return BrowserPaneReport(
@@ -100,7 +110,8 @@ extension AppModel {
                 name: name,
                 address: tab.url,
                 pageTitle: tab.pageTitle,
-                isLive: false
+                isLive: false,
+                access: tab.browserAccess
             )
         }
         return BrowserPaneReport(
@@ -112,7 +123,8 @@ extension AppModel {
             canGoBack: session.canGoBack,
             canGoForward: session.canGoForward,
             isLive: true,
-            failure: session.failure
+            failure: session.failure,
+            access: tab.browserAccess
         )
     }
 
@@ -143,6 +155,9 @@ extension AppModel {
             )
         }
         let tab = tabs[chosen.number - 1]
+        guard tab.browserAccess.isOpenToAgents else {
+            return .refused(BrowserPaneAccess.refusal(number: chosen.number, tool: command.toolName))
+        }
         let live = CenterTabStore.shared.liveBrowser(for: tab)
         if live == nil, let approved = command.approvedAddress {
             CenterTabStore.shared.setURL(approved, for: tab)
