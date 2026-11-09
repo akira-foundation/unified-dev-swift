@@ -42,6 +42,13 @@ public enum ProjectInstructions {
     }
 
     public static func resolve(
+        _ subject: Subject, in worktree: String, stated: String?, authority: InstructionAuthority
+    ) -> Extra {
+        guard authority == .project else { return .nothing }
+        return resolve(subject, in: worktree, stated: stated)
+    }
+
+    static func resolve(
         _ subject: Subject, in worktree: String, stated: String? = nil
     ) -> Extra {
         let project = projectPath(for: subject)
@@ -79,16 +86,18 @@ public enum ProjectInstructions {
         return InstructionFile.isFile(relative, in: worktree) ? relative : nil
     }
 
-    public static func turn(_ rendered: String, for subject: Subject, adding extra: Extra) -> String {
+    public static func turn(
+        _ rendered: String, for subject: Subject, adding extra: Extra, authority: InstructionAuthority
+    ) -> String {
         var parts = [rendered.trimmingCharacters(in: .whitespacesAndNewlines)]
-        if let canonical = canonical(for: subject) { parts.append(canonical) }
+        if let canonical = canonical(for: subject, authority: authority) { parts.append(canonical) }
         if let closing = sentence(for: subject, adding: extra) { parts.append(closing) }
         return parts.filter { !$0.isEmpty }.joined(separator: "\n\n")
     }
 
-    public static func canonical(for subject: Subject) -> String? {
+    public static func canonical(for subject: Subject, authority: InstructionAuthority) -> String? {
         switch subject {
-        case .merge: MergeInstructions.canonical
+        case .merge: authority == .project ? MergeInstructions.canonical : MergeInstructions.appOnly
         case .fixConflicts: nil
         }
     }

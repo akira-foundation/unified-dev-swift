@@ -15,6 +15,7 @@ final class WorkspacePullRequests {
     @ObservationIgnored var onCurrentRead: (@MainActor (WorkspaceID, PullRequest) async -> Void)?
 
     func failure(for workspaceID: WorkspaceID) -> GitHubReadFailure? { states[workspaceID]?.visibleFailure }
+    func unresolvedFailure(for workspaceID: WorkspaceID) -> GitHubReadFailure? { states[workspaceID]?.failure }
 
     func dismissFailure(for workspaceID: WorkspaceID) {
         states[workspaceID]?.dismissFailure()

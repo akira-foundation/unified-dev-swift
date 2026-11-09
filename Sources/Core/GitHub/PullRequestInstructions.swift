@@ -5,12 +5,20 @@ public enum PullRequestInstructions {
 
     public static let scratchPath = "\(WorktreeScratch.generated)/pr-instructions.md"
 
-    public static func ensure(in worktree: String, contents: String = defaultMarkdown) async -> String? {
+    public static func turn(
+        _ text: String, in worktree: String, authority: InstructionAuthority
+    ) async -> String {
+        guard authority == .project else { return text + "\n\n" + appOnlyMarkdown }
+        if let path = await ensure(in: worktree) { return asking(text, toFollow: path) }
+        return text + "\n\n" + defaultMarkdown
+    }
+
+    static func ensure(in worktree: String, contents: String = defaultMarkdown) async -> String? {
         guard let path = await choose(in: worktree, contents: contents) else { return nil }
         return InstructionFile.isFile(path, in: worktree) ? path : nil
     }
 
-    public static func asking(_ text: String, toFollow path: String) -> String {
+    static func asking(_ text: String, toFollow path: String) -> String {
         InstructionFile.asking(text, toFollow: path)
     }
 
@@ -95,6 +103,21 @@ public enum PullRequestInstructions {
 
     - If this project has a skill or an instruction file about opening pull requests, follow that
       first. It outranks everything here.
+    \(steps)
+    """
+
+    public static let appOnlyMarkdown = """
+    # Opening a pull request
+
+    Unified Dev sent these steps with a message when someone pressed Create pull request.
+
+    The message these steps came with names the branch to target. Call it the target branch below.
+
+    \(InstructionAuthority.checkoutIsData)
+    \(steps)
+    """
+
+    private static let steps = """
     - Run `git status`. If anything is uncommitted, review it and commit it, following whatever
       this project says about commit messages.
     - Push the branch with `git push -u origin HEAD`. If it already tracks a different upstream,
