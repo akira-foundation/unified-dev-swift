@@ -14,6 +14,51 @@ struct ArchiveConfirmationTests {
         )
     }
 
+    private let stoppedServer = Subagent(
+        id: SubagentID("serve"), description: "Serve on 127.0.0.1:8018", taskType: "local_bash", state: .running
+    )
+
+    @Test("asking again after a failed archive says which commands it already stopped")
+    func askingAgainNamesTheStoppedCommands() {
+        let request = ArchiveRequest(
+            workspace: makeWorkspace(), report: WorkspaceSafetyReport(hasUncommittedChanges: true),
+            stoppedCommands: [stoppedServer]
+        )
+
+        #expect(request.message.hasSuffix("It stopped a background command: Serve on 127.0.0.1:8018."))
+    }
+
+    @Test("a refusal handed to an agent names the commands the failed archive stopped")
+    func refusalNamesTheStoppedCommands() {
+        let request = ArchiveRequest(
+            workspace: makeWorkspace(), report: WorkspaceSafetyReport(),
+            problem: "Unified Dev could not check this workspace.", stoppedCommands: [stoppedServer]
+        )
+
+        #expect(request.refusal == "Unified Dev could not check this workspace. "
+            + "It stopped a background command: Serve on 127.0.0.1:8018.")
+    }
+
+    @Test("a refusal with nothing stopped and nothing at risk only asks for confirmation")
+    func refusalWithNothingToSay() {
+        let request = ArchiveRequest(workspace: makeWorkspace(), report: WorkspaceSafetyReport())
+
+        #expect(request.refusal == "Confirm this archive in Unified Dev.")
+    }
+
+    @Test("a question asked again keeps the commands the failed archive stopped", arguments: [true, false])
+    func reconfirmationKeepsTheStoppedCommands(reportIsReadable: Bool) throws {
+        let shown = ArchiveRequest(
+            workspace: makeWorkspace(), report: WorkspaceSafetyReport(), stoppedCommands: [stoppedServer]
+        )
+
+        let again = try #require(shown.reconfirmation(
+            isAgentMidTurn: true, report: reportIsReadable ? WorkspaceSafetyReport() : nil
+        ))
+
+        #expect(again.stoppedCommands == [stoppedServer])
+    }
+
     private let ownersIgnoredPaths = [
         ".env",
         "resources/js/actions/",
