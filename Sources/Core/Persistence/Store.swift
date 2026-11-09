@@ -684,6 +684,8 @@ public actor Store {
             AgentAccountChoiceColumns.forgetWorkspaceChoices,
             ProfileAccountColumns.migrate,
             { try PreAccountChatOwners.record($0, predatingAccounts: current <= beforeAccounts.count) },
+            sql(InboxNotificationColumns.createTable),
+            { try UndatedArchives.stamp($0) },
         ]
 
         guard current >= 0, current <= migrations.count else {
