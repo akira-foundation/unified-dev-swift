@@ -37,7 +37,7 @@ struct NewWorkspaceComposer: View {
     var body: some View {
         ComposerSurface(
             text: Binding(
-                get: { draft.prompt },
+                get: { app.drafts.draft(for: repo.id)?.prompt ?? draft.prompt },
                 set: { text in app.editDraft(repo.id) { $0.prompt = text } }
             ),
             caret: $caret,

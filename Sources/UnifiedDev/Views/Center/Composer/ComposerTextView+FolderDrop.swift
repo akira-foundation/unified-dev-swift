@@ -3,12 +3,36 @@ import Core
 
 extension ComposerTextView {
     func receiveDrop(_ sources: [AttachmentSource], at range: NSRange) -> Bool {
-        let roots = DroppedFolders.roots(under: dropRoot?() ?? "")
-        guard !roots.isEmpty else { return onAttach?(sources, range) == true }
+        let root = dropRoot?() ?? ""
+        let paths = DroppedFolders.paths(sources)
+        guard !root.isEmpty, ComposerDropQuestions.needsAsking(paths) else {
+            return onAttach?(sources, range) == true
+        }
+        let textAtDrop = string
+        let ownerAtDrop = dropOwner?() ?? ""
+        Task { [weak self] in
+            let answers = await ComposerDropQuestions.answer(paths: paths, under: root)
+            guard let self else { return }
+            guard ComposerFolderDrop.isSameDraft(ownerAtDrop: ownerAtDrop, ownerNow: dropOwner?() ?? "") else {
+                return onAttachmentFailure(ComposerFolderDrop.changedOwnerNotice)
+            }
+            take(sources, answers: answers, dropped: range, textAtDrop: textAtDrop)
+        }
+        return true
+    }
 
+    private func take(
+        _ sources: [AttachmentSource],
+        answers: ComposerDropAnswers,
+        dropped: NSRange,
+        textAtDrop: String
+    ) {
+        let range = ComposerFolderDrop.insertionRange(
+            dropped: dropped, textAtDrop: textAtDrop, textNow: string, selection: selectedRange()
+        )
         let plan = ComposerFolderDrop.plan(
-            DroppedFolders.items(sources),
-            roots: roots,
+            answers.items,
+            roots: answers.roots,
             before: character(before: range),
             after: character(after: range)
         )
@@ -20,8 +44,9 @@ extension ComposerTextView {
             breakUndoCoalescing()
             attachmentRange = selectedRange()
         }
-        guard !attachments.isEmpty else { return plan.writesText }
-        return plan.tookTheDrop(attached: onAttach?(attachments, attachmentRange) == true)
+        if let notice = plan.omissionNotice { onAttachmentFailure(notice) }
+        guard !attachments.isEmpty else { return }
+        _ = onAttach?(attachments, attachmentRange)
     }
 
     private func character(before range: NSRange) -> String {
