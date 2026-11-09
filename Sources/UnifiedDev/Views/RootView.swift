@@ -74,6 +74,7 @@ struct RootView: View {
             .draws(columns)
             .navigationTitle(WindowTitleMark.decorate(app.menuWorkspace?.name ?? WindowTitleMark.defaultTitle))
             .toolbar(removing: WindowToolbar.showsTabs(in: app) ? .title : nil)
+            .keepsToolbarGroundAtToolbarHeight()
 
             .focusedSceneValue(\.isMainWindowFocused, true)
 

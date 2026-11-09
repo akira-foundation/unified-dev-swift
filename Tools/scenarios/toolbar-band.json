@@ -1,0 +1,168 @@
+{
+  "welcome": false,
+  "projects": [
+    {
+      "name": "breakwater",
+      "files": {
+        "README.md": "# Breakwater\n",
+        "src/wall.txt": "stone\n"
+      },
+      "commits": [
+        "Lay the wall"
+      ],
+      "workspaces": [
+        {
+          "name": "One chat",
+          "branch": "one-chat",
+          "changes": {
+            "src/wall.txt": "granite\n"
+          },
+          "chats": [
+            {
+              "title": "Plan",
+              "messages": [
+                {
+                  "from": "user",
+                  "text": "Is the wall high enough?"
+                },
+                {
+                  "from": "agent",
+                  "text": "It is, for the tides on record."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Several chats",
+          "branch": "several-chats",
+          "changes": {
+            "src/wall.txt": "granite\n"
+          },
+          "chats": [
+            {
+              "title": "Plan",
+              "messages": [
+                {
+                  "from": "user",
+                  "text": "Is the wall high enough?"
+                },
+                {
+                  "from": "agent",
+                  "text": "It is, for the tides on record."
+                }
+              ]
+            },
+            {
+              "title": "Survey",
+              "messages": [
+                {
+                  "from": "user",
+                  "text": "Who surveyed it?"
+                },
+                {
+                  "from": "agent",
+                  "text": "The harbour office, in spring."
+                }
+              ]
+            },
+            {
+              "title": "Costs",
+              "messages": [
+                {
+                  "from": "user",
+                  "text": "What did the stone cost?"
+                },
+                {
+                  "from": "agent",
+                  "text": "Less than the crane did."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Large diff",
+          "branch": "large-diff",
+          "changes": {
+            "src/generated/part000.txt": "line 0 of part 0\nline 1 of part 0\nline 2 of part 0\nline 3 of part 0\n",
+            "src/generated/part001.txt": "line 0 of part 1\nline 1 of part 1\nline 2 of part 1\nline 3 of part 1\n",
+            "src/generated/part002.txt": "line 0 of part 2\nline 1 of part 2\nline 2 of part 2\nline 3 of part 2\n",
+            "src/generated/part003.txt": "line 0 of part 3\nline 1 of part 3\nline 2 of part 3\nline 3 of part 3\n",
+            "src/generated/part004.txt": "line 0 of part 4\nline 1 of part 4\nline 2 of part 4\nline 3 of part 4\n",
+            "src/generated/part005.txt": "line 0 of part 5\nline 1 of part 5\nline 2 of part 5\nline 3 of part 5\n",
+            "src/generated/part006.txt": "line 0 of part 6\nline 1 of part 6\nline 2 of part 6\nline 3 of part 6\n",
+            "src/generated/part007.txt": "line 0 of part 7\nline 1 of part 7\nline 2 of part 7\nline 3 of part 7\n",
+            "src/generated/part008.txt": "line 0 of part 8\nline 1 of part 8\nline 2 of part 8\nline 3 of part 8\n",
+            "src/generated/part009.txt": "line 0 of part 9\nline 1 of part 9\nline 2 of part 9\nline 3 of part 9\n",
+            "src/generated/part010.txt": "line 0 of part 10\nline 1 of part 10\nline 2 of part 10\nline 3 of part 10\n",
+            "src/generated/part011.txt": "line 0 of part 11\nline 1 of part 11\nline 2 of part 11\nline 3 of part 11\n",
+            "src/generated/part012.txt": "line 0 of part 12\nline 1 of part 12\nline 2 of part 12\nline 3 of part 12\n",
+            "src/generated/part013.txt": "line 0 of part 13\nline 1 of part 13\nline 2 of part 13\nline 3 of part 13\n",
+            "src/generated/part014.txt": "line 0 of part 14\nline 1 of part 14\nline 2 of part 14\nline 3 of part 14\n",
+            "src/generated/part015.txt": "line 0 of part 15\nline 1 of part 15\nline 2 of part 15\nline 3 of part 15\n",
+            "src/generated/part016.txt": "line 0 of part 16\nline 1 of part 16\nline 2 of part 16\nline 3 of part 16\n",
+            "src/generated/part017.txt": "line 0 of part 17\nline 1 of part 17\nline 2 of part 17\nline 3 of part 17\n",
+            "src/generated/part018.txt": "line 0 of part 18\nline 1 of part 18\nline 2 of part 18\nline 3 of part 18\n",
+            "src/generated/part019.txt": "line 0 of part 19\nline 1 of part 19\nline 2 of part 19\nline 3 of part 19\n",
+            "src/generated/part020.txt": "line 0 of part 20\nline 1 of part 20\nline 2 of part 20\nline 3 of part 20\n",
+            "src/generated/part021.txt": "line 0 of part 21\nline 1 of part 21\nline 2 of part 21\nline 3 of part 21\n",
+            "src/generated/part022.txt": "line 0 of part 22\nline 1 of part 22\nline 2 of part 22\nline 3 of part 22\n",
+            "src/generated/part023.txt": "line 0 of part 23\nline 1 of part 23\nline 2 of part 23\nline 3 of part 23\n",
+            "src/generated/part024.txt": "line 0 of part 24\nline 1 of part 24\nline 2 of part 24\nline 3 of part 24\n",
+            "src/generated/part025.txt": "line 0 of part 25\nline 1 of part 25\nline 2 of part 25\nline 3 of part 25\n",
+            "src/generated/part026.txt": "line 0 of part 26\nline 1 of part 26\nline 2 of part 26\nline 3 of part 26\n",
+            "src/generated/part027.txt": "line 0 of part 27\nline 1 of part 27\nline 2 of part 27\nline 3 of part 27\n",
+            "src/generated/part028.txt": "line 0 of part 28\nline 1 of part 28\nline 2 of part 28\nline 3 of part 28\n",
+            "src/generated/part029.txt": "line 0 of part 29\nline 1 of part 29\nline 2 of part 29\nline 3 of part 29\n",
+            "src/generated/part030.txt": "line 0 of part 30\nline 1 of part 30\nline 2 of part 30\nline 3 of part 30\n",
+            "src/generated/part031.txt": "line 0 of part 31\nline 1 of part 31\nline 2 of part 31\nline 3 of part 31\n",
+            "src/generated/part032.txt": "line 0 of part 32\nline 1 of part 32\nline 2 of part 32\nline 3 of part 32\n",
+            "src/generated/part033.txt": "line 0 of part 33\nline 1 of part 33\nline 2 of part 33\nline 3 of part 33\n",
+            "src/generated/part034.txt": "line 0 of part 34\nline 1 of part 34\nline 2 of part 34\nline 3 of part 34\n",
+            "src/generated/part035.txt": "line 0 of part 35\nline 1 of part 35\nline 2 of part 35\nline 3 of part 35\n",
+            "src/generated/part036.txt": "line 0 of part 36\nline 1 of part 36\nline 2 of part 36\nline 3 of part 36\n",
+            "src/generated/part037.txt": "line 0 of part 37\nline 1 of part 37\nline 2 of part 37\nline 3 of part 37\n",
+            "src/generated/part038.txt": "line 0 of part 38\nline 1 of part 38\nline 2 of part 38\nline 3 of part 38\n",
+            "src/generated/part039.txt": "line 0 of part 39\nline 1 of part 39\nline 2 of part 39\nline 3 of part 39\n",
+            "src/generated/part040.txt": "line 0 of part 40\nline 1 of part 40\nline 2 of part 40\nline 3 of part 40\n",
+            "src/generated/part041.txt": "line 0 of part 41\nline 1 of part 41\nline 2 of part 41\nline 3 of part 41\n",
+            "src/generated/part042.txt": "line 0 of part 42\nline 1 of part 42\nline 2 of part 42\nline 3 of part 42\n",
+            "src/generated/part043.txt": "line 0 of part 43\nline 1 of part 43\nline 2 of part 43\nline 3 of part 43\n",
+            "src/generated/part044.txt": "line 0 of part 44\nline 1 of part 44\nline 2 of part 44\nline 3 of part 44\n",
+            "src/generated/part045.txt": "line 0 of part 45\nline 1 of part 45\nline 2 of part 45\nline 3 of part 45\n",
+            "src/generated/part046.txt": "line 0 of part 46\nline 1 of part 46\nline 2 of part 46\nline 3 of part 46\n",
+            "src/generated/part047.txt": "line 0 of part 47\nline 1 of part 47\nline 2 of part 47\nline 3 of part 47\n",
+            "src/generated/part048.txt": "line 0 of part 48\nline 1 of part 48\nline 2 of part 48\nline 3 of part 48\n",
+            "src/generated/part049.txt": "line 0 of part 49\nline 1 of part 49\nline 2 of part 49\nline 3 of part 49\n",
+            "src/generated/part050.txt": "line 0 of part 50\nline 1 of part 50\nline 2 of part 50\nline 3 of part 50\n",
+            "src/generated/part051.txt": "line 0 of part 51\nline 1 of part 51\nline 2 of part 51\nline 3 of part 51\n",
+            "src/generated/part052.txt": "line 0 of part 52\nline 1 of part 52\nline 2 of part 52\nline 3 of part 52\n",
+            "src/generated/part053.txt": "line 0 of part 53\nline 1 of part 53\nline 2 of part 53\nline 3 of part 53\n",
+            "src/generated/part054.txt": "line 0 of part 54\nline 1 of part 54\nline 2 of part 54\nline 3 of part 54\n",
+            "src/generated/part055.txt": "line 0 of part 55\nline 1 of part 55\nline 2 of part 55\nline 3 of part 55\n",
+            "src/generated/part056.txt": "line 0 of part 56\nline 1 of part 56\nline 2 of part 56\nline 3 of part 56\n",
+            "src/generated/part057.txt": "line 0 of part 57\nline 1 of part 57\nline 2 of part 57\nline 3 of part 57\n",
+            "src/generated/part058.txt": "line 0 of part 58\nline 1 of part 58\nline 2 of part 58\nline 3 of part 58\n",
+            "src/generated/part059.txt": "line 0 of part 59\nline 1 of part 59\nline 2 of part 59\nline 3 of part 59\n"
+          },
+          "chats": [
+            {
+              "title": "Plan",
+              "messages": [
+                {
+                  "from": "user",
+                  "text": "Regenerate everything."
+                },
+                {
+                  "from": "agent",
+                  "text": "Done, sixty files."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -230,7 +230,7 @@ enum ArchivedColumnsProbe {
                 sidebar: sidebar, inspector: false, archiveView: true
             )
 
-            if let root = window.contentView, let split = splitView(under: root),
+            if let split = window.contentView?.mainSplitView(),
                let controller = split.delegate as? NSSplitViewController,
                controller.splitViewItems.count >= 3 {
                 controller.splitViewItems[0].isCollapsed = true
