@@ -3,11 +3,26 @@ import Core
 
 extension ComposerPrompt {
     func receiveDrop(_ sources: [AttachmentSource]) -> Bool {
+        let paths = DroppedFolders.paths(sources)
+        guard ComposerDropQuestions.needsAsking(paths) else {
+            return take(sources, answers: ComposerDropQuestions.nothingAsked(count: sources.count))
+        }
+        let root = mentionRoot
+        let ownerAtDrop = currentDropOwner
+        Task {
+            let answers = await ComposerDropQuestions.answer(paths: paths, under: root)
+            guard ComposerFolderDrop.isSameDraft(ownerAtDrop: ownerAtDrop, ownerNow: currentDropOwner) else {
+                return attachmentFailed(ComposerFolderDrop.changedOwnerNotice)
+            }
+            _ = take(sources, answers: answers)
+        }
+        return true
+    }
+
+    private func take(_ sources: [AttachmentSource], answers: ComposerDropAnswers) -> Bool {
         var draft = command
         let plan = ComposerFolderDrop.plan(
-            DroppedFolders.items(sources),
-            roots: DroppedFolders.roots(under: mentionRoot),
-            before: String(draft.body.suffix(1))
+            answers.items, roots: answers.roots, before: String(draft.body.suffix(1))
         )
         var end = (draft.body as NSString).length
         if plan.writesText {
@@ -17,6 +32,7 @@ extension ComposerPrompt {
             caret = end
             isFocused = true
         }
+        if let notice = plan.omissionNotice { attachmentFailed(notice) }
 
         let attachments = plan.attachmentIndices.map { sources[$0] }
         guard !attachments.isEmpty else { return plan.writesText }

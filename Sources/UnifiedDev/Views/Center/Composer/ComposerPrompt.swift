@@ -47,6 +47,7 @@ struct ComposerPrompt<Footer: View>: View {
     @State private var menuIndex = 0
     @State private var isMenuDismissed = false
     @State private var heldKey: String?
+    @State private var dropOwner = ""
 
     private var attachments: [PromptAttachment] {
         PromptAttachmentStore.shared.attachments(for: attachmentKey)
@@ -162,6 +163,7 @@ struct ComposerPrompt<Footer: View>: View {
             )
             .alignmentGuide(.top, computeValue: guide)
         }
+        .onChange(of: attachmentKey, initial: true) { dropOwner = attachmentKey }
         .task(id: attachmentKey) {
             PromptAttachmentStore.shared.load(sessionID: attachmentKey)
             adoptAttachmentsNobodyRemoved()
@@ -208,6 +210,7 @@ struct ComposerPrompt<Footer: View>: View {
             onHoverAttachment: { hoveredPath = $0 },
             attachmentRoot: attachmentRoot,
             folderRoot: mentionRoot,
+            dropOwner: { currentDropOwner },
             handle: editor,
             placeholder: placeholder
         )
@@ -281,6 +284,8 @@ struct ComposerPrompt<Footer: View>: View {
     ) -> PromptAttachment {
         attachments.first { $0.path == path } ?? .sent(path: path)
     }
+
+    var currentDropOwner: String { dropOwner }
 
     var command: SlashCommandDraft {
         SlashCommandDraft.parse(text)
@@ -466,8 +471,8 @@ struct ComposerPrompt<Footer: View>: View {
         )
     }
 
-    private func attachmentFailed(_ message: String) {
-        app.alert = AppAlert(title: "That file was not attached", message: message)
+    func attachmentFailed(_ message: String) {
+        app.alert = AppAlert(title: "Not everything was attached", message: message)
     }
 
     private func write(_ paths: [String], replacing range: NSRange) {
