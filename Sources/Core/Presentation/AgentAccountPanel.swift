@@ -17,11 +17,13 @@ public struct AgentAccountPanel: Sendable, Equatable {
         public let title: String
         public let fields: [Field]
         public let note: String?
+        public let offersSignInAgain: Bool
         public let warns: Bool
         public let removal: AgentAccountRemoval.Warning?
         public let isUnfinished: Bool
 
         public var isDefault: Bool { home.isDefault }
+        public var signInAgainHome: AgentAccountHome? { offersSignInAgain ? home : nil }
     }
 
     public struct Owner: Sendable, Equatable {
@@ -165,6 +167,7 @@ public struct AgentAccountPanel: Sendable, Equatable {
             title: title,
             fields: [Field(label: "Session", value: "Sign-in did not finish")],
             note: "Unified Dev never added this account, because its sign-in did not finish. The folder is still on this Mac.",
+            offersSignInAgain: false,
             warns: true,
             removal: AgentAccountRemoval.warningForUnfinishedSignIn(named: title),
             isUnfinished: true
@@ -195,6 +198,7 @@ public struct AgentAccountPanel: Sendable, Equatable {
                 Field(label: "Session", value: session(of: standing)),
             ],
             note: note.text,
+            offersSignInAgain: AgentAccountSignInAgain.isOffered(for: standing),
             warns: note.warns,
             removal: home.isDefault
                 ? nil

@@ -173,6 +173,21 @@ struct QuotaAccountOfferTests {
         #expect(made?.notes == [AgentAccountSignOut.recovery(provider: .claudeCode)])
     }
 
+    @Test func aSignOutOfAnAccountThatCannotSignInAgainDoesNotPromiseIt() {
+        let gone = AgentAccountHome(
+            provider: .claudeCode, id: AgentAccountID("client"),
+            directory: URL(filePath: "/tmp/gone/client", directoryHint: .isDirectory), isDefault: false
+        )
+        let lost = AgentAccountStanding(
+            home: gone, identity: AgentAccountIdentity(), cliReport: .claimsNoSession, isolationDoubt: nil, directoryExists: false
+        )
+
+        let made = offer(current: gone, standings: [lost], signedOut: .notSignedIn)
+
+        #expect(made?.notes == [AgentAccountSignOut.recovery(provider: .claudeCode, standing: lost)])
+        #expect(made?.notes.first?.contains("cannot sign this account in again") == true)
+    }
+
     @Test func aSignOutTakesPrecedenceOverASpentAllowance() {
         let made = offer(notices: [spent()], signedOut: .afterSwitch)
         #expect(made?.headline.contains("may have cost it") == true)
