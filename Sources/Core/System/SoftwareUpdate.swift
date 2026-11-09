@@ -90,12 +90,10 @@ public enum SoftwareUpdate {
     }
 
     public static func recordsCheck(of offer: Offer, userInitiated: Bool) -> Bool {
-        guard case .missingAsset = offer else { return true }
-        return userInitiated
-    }
-
-    public static func mayCheckInBackground(runningCount: Int) -> Bool {
-        runningCount == 0
+        switch offer {
+        case .missingAsset, .install: userInitiated
+        case .upToDate, .skipped: true
+        }
     }
 
     public static let sectionTitle = "Updates"
@@ -103,7 +101,7 @@ public enum SoftwareUpdate {
     public static let settingTitle = "Check for updates automatically"
 
     public static let settingDetail =
-        "Once a day from GitHub Releases, and never while an agent is running. Nothing is installed until you say so."
+        "Once a day from GitHub Releases. Nothing is installed until you say so."
 
     public static let localBuildExplanation =
         "This copy was built from source, so it updates when you build it again."
