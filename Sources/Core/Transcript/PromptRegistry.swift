@@ -140,7 +140,7 @@ public enum PromptRegistry {
         title: "Create pull request",
         summary: """
         Sent when you press Create pull request, with the project's `.unifieddev/pr-instructions.md` \
-        attached.
+        attached when the branch is confirmed as the owner's.
         """,
         variables: [
             PromptVariable(name: CreatePullRequest.workspace, summary: "The workspace's name."),
@@ -232,7 +232,7 @@ public enum PromptRegistry {
         title: "Merge a pull request",
         summary: """
         Sent when you confirm Merge, with Unified Dev's own merge steps under it and the project's own \
-        instructions attached when it has any. The agent runs `gh pr merge` in front of you, not \
+        instructions attached when it has any and the branch is confirmed as the owner's. The agent runs `gh pr merge` in front of you, not \
         Unified Dev. When GitHub refuses for a conflict or a failed check, it fixes that, pushes \
         to the pull request's branch and merges again, three times at most.
         """,
@@ -264,7 +264,7 @@ public enum PromptRegistry {
         id: .fixConflicts,
         title: "Fix merge conflicts",
         summary: """
-        Sent when you press Fix merge conflicts, with Unified Dev's own steps attached as a file. It \
+        Sent when you press Fix merge conflicts, with Unified Dev's own steps attached. It \
         resolves against the base branch here and pushes the result; it never merges the pull \
         request.
         """,

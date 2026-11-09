@@ -74,6 +74,11 @@ public enum SentTurn {
                 title: pullRequestTitle, body: PullRequestInstructions.defaultMarkdown
             ),
             InjectedInstruction(title: conflictTitle, body: ConflictInstructions.defaultMarkdown),
+            InjectedInstruction(title: mergeTitle, body: MergeInstructions.appOnly),
+            InjectedInstruction(
+                title: pullRequestTitle, body: PullRequestInstructions.appOnlyMarkdown
+            ),
+            InjectedInstruction(title: conflictTitle, body: ConflictInstructions.appOnlyMarkdown),
         ]
         found += PullRequestInstructions.retiredDefaults.map {
             InjectedInstruction(title: pullRequestTitle, body: $0)
