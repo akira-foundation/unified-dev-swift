@@ -335,8 +335,9 @@ public actor CodexRunner: SessionRunner {
 
         orchestrates = await grants.isOrchestrator()
         let sandbox = Self.sandboxMode(for: permissionMode)
-        let instructions = session.workspaceID == nil ? AskConversation.instructions
-            : orchestrates ? OrchestratorRole.instructions : nil
+        let instructions = CodexThreadInstructions.text(
+            inWorkspace: session.workspaceID != nil, orchestrates: orchestrates, hasBridge: bridge != nil
+        )
         let stored = session.agentSessionID ?? ""
         let handle: CodexThreadHandle
         if stored.isEmpty {
