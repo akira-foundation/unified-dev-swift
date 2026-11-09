@@ -123,7 +123,7 @@ extension AppModel {
             if allowsConfirmation {
                 updateArchiveConfirmation(.replace(request), present: presentConfirmation)
             }
-            return .refused(archiveRefusal(request))
+            return .refused(request.refusal)
         }
 
         hazards.isAgentMidTurn = isAgentMidTurn(workspace)
@@ -141,7 +141,7 @@ extension AppModel {
             if allowsConfirmation {
                 updateArchiveConfirmation(.replace(request), present: presentConfirmation)
             }
-            return .refused(archiveRefusal(request))
+            return .refused(request.refusal)
         }
 
         if allowsConfirmation {
@@ -243,7 +243,12 @@ extension AppModel {
             Log.archive.notice(
                 "\(request.workspace.name, privacy: .public) was not archived: an agent started a turn while the question was open"
             )
-            notice = Notice(message: "\(request.workspace.name) was not archived. \(sentence)", tone: .warning)
+            notice = Notice(
+                message: ArchiveNotice.afterFailing(
+                    "\(request.workspace.name) was not archived. \(sentence)", stopping: request.stoppedCommands
+                ),
+                tone: .warning
+            )
             return
         case .ask(let again):
             Log.archive.notice(
@@ -262,6 +267,7 @@ extension AppModel {
             report: request.reportForArchiving(fresh: fresh),
             measuredTip: request.tipForArchiving(fresh: fresh),
             hazards: request.hazards,
+            alreadyStopped: request.stoppedCommands,
             presentConfirmation: presentConfirmation
         )
     }
@@ -292,6 +298,7 @@ extension AppModel {
         report: WorkspaceSafetyReport?,
         measuredTip: String?,
         hazards: ArchiveHazards,
+        alreadyStopped: [Subagent] = [],
         allowsConfirmation: Bool = true,
         presentConfirmation: ((ArchiveConfirmationFlow.Update) -> Void)?
     ) async -> WorkspaceArchiveOutcome {
@@ -308,18 +315,21 @@ extension AppModel {
             var unacknowledged = hazards
             unacknowledged.canvasLosses = canvasLosses
             let request = ArchiveRequest(
-                workspace: workspace, report: report ?? WorkspaceSafetyReport(), deleteBranch: deleteBranch, hazards: unacknowledged
+                workspace: workspace, report: report ?? WorkspaceSafetyReport(), deleteBranch: deleteBranch,
+                hazards: unacknowledged, stoppedCommands: alreadyStopped
             )
             if allowsConfirmation {
                 updateArchiveConfirmation(.offer(request), present: presentConfirmation)
             }
-            return .refused(archiveRefusal(request))
+            return .refused(request.refusal)
         }
 
         guard hideFromSidebar(workspace.id) else {
             return .refused("This workspace is already being archived. Check workspace_list shortly.")
         }
-        let stoppedCommands = workspaceModels[workspace.id]?.runningCommands ?? []
+        let stoppedCommands = ArchiveNotice.everyCommandStopped(
+            earlier: alreadyStopped, now: workspaceModels[workspace.id]?.runningCommands ?? []
+        )
         workspaceModels[workspace.id]?.stopEverything()
 
         let departure = ArchiveNavigation.destination(leaving: selection, archiving: workspace.id)
@@ -363,56 +373,55 @@ extension AppModel {
                 )
                 alert = AppAlert(
                     title: "The archive script failed",
-                    message: "\u{201C}\(workspace.name)\u{201D} is still here: its worktree and "
-                        + "its branch are untouched. Any agent it was running has been stopped.\n\n"
-                        + "The script exited with status \(status).\n\n"
-                        + String(output.trimmingCharacters(in: .whitespacesAndNewlines).suffix(1_000))
+                    message: ArchiveNotice.scriptFailure(
+                        workspaceName: workspace.name, status: status, output: output, stopping: stoppedCommands
+                    )
                 )
             case .unsafeToArchive(let fresh):
                 Log.archive.notice(
                     "\(workspace.name, privacy: .public) changed between the check and the archive, so it is being asked about again"
                 )
                 let request = ArchiveRequest(
-                    workspace: workspace, report: fresh, deleteBranch: deleteBranch, hazards: hazards
+                    workspace: workspace, report: fresh, deleteBranch: deleteBranch, hazards: hazards,
+                    stoppedCommands: stoppedCommands
                 )
                 if allowsConfirmation {
                     updateArchiveConfirmation(
                         .offer(request), present: departure == nil ? presentConfirmation : nil
                     )
                 }
-                return .refused(archiveRefusal(request))
+                return .refused(request.refusal)
             default:
                 Log.archive.error(
                     "could not archive \(workspace.name, privacy: .public): \(error.readableMessage, privacy: .public)"
                 )
-                return .refused(await reportArchiveFailure(error, workspace: workspace))
+                return .refused(await reportArchiveFailure(error, workspace: workspace, stopping: stoppedCommands))
             }
-            return .refused("The archive script failed. Its worktree and branch were kept. Check Unified Dev's alert for the script output.")
+            return .refused(ArchiveNotice.afterFailing(
+                "The archive script failed. Its worktree and branch were kept. Check Unified Dev's alert for the script output.",
+                stopping: stoppedCommands
+            ))
         } catch {
             await undoOptimisticArchive(workspace)
             Log.archive.error(
                 "could not archive \(workspace.name, privacy: .public): \(error.readableMessage, privacy: .public)"
             )
-            return .refused(await reportArchiveFailure(error, workspace: workspace))
+            return .refused(await reportArchiveFailure(error, workspace: workspace, stopping: stoppedCommands))
         }
     }
 
-    private func archiveRefusal(_ request: ArchiveRequest) -> String {
-        if let problem = request.problem { return problem }
-        let reasons = request.losses + request.notes
-        guard !reasons.isEmpty else { return "Confirm this archive in Unified Dev." }
-        return "Archiving would discard \(reasons.joined(separator: "; ")). Resolve this or review it in Unified Dev."
-    }
-
-    private func reportArchiveFailure(_ error: any Error, workspace: Workspace) async -> String {
+    private func reportArchiveFailure(
+        _ error: any Error, workspace: Workspace, stopping commands: [Subagent]
+    ) async -> String {
         let trouble = await WorkspaceTrouble.archiving(
             error,
             workspace: workspace.name,
             path: workspace.path,
             baseBranch: workspace.baseBranch
         )
-        alert = AppAlert(title: "Could not archive the workspace", message: trouble.sentence)
-        return trouble.sentence
+        let sentence = ArchiveNotice.afterFailing(trouble.sentence, stopping: commands)
+        alert = AppAlert(title: "Could not archive the workspace", message: sentence)
+        return sentence
     }
 
     private func undoOptimisticArchive(_ workspace: Workspace) async {

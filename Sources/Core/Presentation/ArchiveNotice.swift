@@ -22,4 +22,23 @@ public enum ArchiveNotice {
             dismissal: .untilDismissed
         )
     }
+
+    public static func afterFailing(_ sentence: String, stopping commands: [Subagent]) -> String {
+        [sentence, BackgroundWork.stopped(commands)].compactMap { $0 }.joined(separator: " ")
+    }
+
+    public static func scriptFailure(
+        workspaceName: String, status: Int32, output: String, stopping commands: [Subagent]
+    ) -> String {
+        let kept = "\u{201C}\(workspaceName)\u{201D} is still here: its worktree and its branch are "
+            + "untouched. Any agent it was running has been stopped."
+        return afterFailing(kept, stopping: commands)
+            + "\n\nThe script exited with status \(status).\n\n"
+            + String(output.trimmingCharacters(in: .whitespacesAndNewlines).suffix(1_000))
+    }
+
+    public static func everyCommandStopped(earlier: [Subagent], now: [Subagent]) -> [Subagent] {
+        let known = Set(earlier.map(\.id))
+        return earlier + now.filter { !known.contains($0.id) }
+    }
 }
