@@ -191,7 +191,7 @@ struct ProfileAccountWordsTests {
 
     @Test("removing an account nobody chose says anything that used it goes back to the default")
     func removalWithoutChoosers() {
-        let warning = AgentAccountRemoval.warning(forAccountNamed: "Client", folderExists: true)
+        let warning = AgentAccountRemoval.warning(forAccountNamed: "Client", provider: .claudeCode, folderExists: true)
         #expect(warning.message.contains(" Anything that used this account goes back to the default account."))
     }
 

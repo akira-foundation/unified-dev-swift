@@ -39,7 +39,7 @@ struct AgentAccountFolderInUseTests {
         defer { stop(pane) }
 
         await #expect(throws: AgentAccountError.folderInUse(home.directory.path)) {
-            try await AgentAccountRemoval.remove(home, support: support, store: store)
+            try await AgentAccountRemoval.remove(home, support: support, store: store, keychain: .untouched)
         }
 
         #expect(FileManager.default.fileExists(atPath: home.directory.path))
@@ -62,7 +62,7 @@ struct AgentAccountFolderInUseTests {
         try await store.upsert(session)
 
         await #expect(throws: AgentAccountError.inUse(workspaces: ["billing"])) {
-            try await AgentAccountRemoval.remove(home, support: support, store: store)
+            try await AgentAccountRemoval.remove(home, support: support, store: store, keychain: .untouched)
         }
 
         #expect(FileManager.default.fileExists(atPath: home.directory.path))
@@ -75,8 +75,8 @@ struct AgentAccountFolderInUseTests {
         let login = try cli(underFolder: made.directory)
         defer { stop(login) }
 
-        #expect(throws: AgentAccountError.folderInUse(made.directory.path)) {
-            try AgentAccountRemoval.removeUnfinished(made.home, support: support)
+        await #expect(throws: AgentAccountError.folderInUse(made.directory.path)) {
+            try await AgentAccountRemoval.removeUnfinished(made.home, support: support, keychain: .untouched)
         }
 
         #expect(FileManager.default.fileExists(atPath: made.directory.path))
@@ -100,7 +100,7 @@ struct AgentAccountFolderInUseTests {
         let home = try await account(in: store, support: support)
         try FileManager.default.removeItem(at: home.directory)
 
-        try await AgentAccountRemoval.remove(home, support: support, store: store, processes: { nil })
+        try await AgentAccountRemoval.remove(home, support: support, store: store, keychain: .untouched, processes: { nil })
 
         #expect(try await store.agentAccounts().isEmpty)
     }
@@ -117,7 +117,7 @@ struct AgentAccountFolderInUseTests {
         let holder = ProcessVector(pid: 7, strings: ["X=\(elsewhere.path)"])
 
         await #expect(throws: AgentAccountError.folderLeftAlone(elsewhere.path)) {
-            try await AgentAccountRemoval.remove(home, support: support, store: store, processes: { [holder] })
+            try await AgentAccountRemoval.remove(home, support: support, store: store, keychain: .untouched, processes: { [holder] })
         }
 
         #expect(FileManager.default.fileExists(atPath: elsewhere.path))
@@ -138,7 +138,7 @@ struct AgentAccountFolderInUseTests {
         try await store.upsert(session)
 
         await #expect(throws: AgentAccountError.inUse(workspaces: ["billing"])) {
-            try await AgentAccountRemoval.remove(home, support: support, store: store, processes: { [] })
+            try await AgentAccountRemoval.remove(home, support: support, store: store, keychain: .untouched, processes: { [] })
         }
 
         #expect(FileManager.default.fileExists(atPath: home.directory.path))
@@ -150,7 +150,7 @@ struct AgentAccountFolderInUseTests {
         let home = try await account(in: store, support: support)
 
         await #expect(throws: AgentAccountError.folderUseUnknown(home.directory.path)) {
-            try await AgentAccountRemoval.remove(home, support: support, store: store, processes: { nil })
+            try await AgentAccountRemoval.remove(home, support: support, store: store, keychain: .untouched, processes: { nil })
         }
 
         #expect(FileManager.default.fileExists(atPath: home.directory.path))
@@ -165,7 +165,7 @@ struct AgentAccountFolderInUseTests {
         let reads = Reads()
 
         await #expect(throws: AgentAccountError.forgottenWithFolderKept(home.directory.path)) {
-            try await AgentAccountRemoval.remove(home, support: support, store: store, processes: {
+            try await AgentAccountRemoval.remove(home, support: support, store: store, keychain: .untouched, processes: {
                 reads.next() == 0 ? [] : [held]
             })
         }
@@ -181,7 +181,7 @@ struct AgentAccountFolderInUseTests {
         let reads = Reads()
 
         await #expect(throws: AgentAccountError.forgottenWithFolderKept(home.directory.path)) {
-            try await AgentAccountRemoval.remove(home, support: support, store: store, processes: {
+            try await AgentAccountRemoval.remove(home, support: support, store: store, keychain: .untouched, processes: {
                 reads.next() == 0 ? [] : nil
             })
         }
@@ -205,7 +205,7 @@ struct AgentAccountFolderInUseTests {
         let holder = ProcessVector(pid: 7, strings: ["X=\(home.directory.path)"])
 
         await #expect(throws: AgentAccountError.inUse(workspaces: ["billing"])) {
-            try await AgentAccountRemoval.remove(home, support: support, store: store, processes: { [holder] })
+            try await AgentAccountRemoval.remove(home, support: support, store: store, keychain: .untouched, processes: { [holder] })
         }
     }
 
@@ -215,7 +215,7 @@ struct AgentAccountFolderInUseTests {
         let home = try await account(in: store, support: support)
         let other = ProcessVector(pid: 7, strings: ["sleep", "HOME=/Users/someone"])
 
-        try await AgentAccountRemoval.remove(home, support: support, store: store, processes: { [other] })
+        try await AgentAccountRemoval.remove(home, support: support, store: store, keychain: .untouched, processes: { [other] })
 
         #expect(!FileManager.default.fileExists(atPath: home.directory.path))
     }

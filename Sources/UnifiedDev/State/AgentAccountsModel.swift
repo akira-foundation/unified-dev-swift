@@ -145,7 +145,7 @@ final class AgentAccountsModel {
         guard let store else { return }
         let support = Self.support(of: store)
         do {
-            try await AgentAccountRemoval.remove(row, support: support, store: store)
+            try await AgentAccountRemoval.remove(row, support: support, store: store, keychain: .login)
             if !row.isUnfinished { answers[row.id] = nil }
             failure = nil
         } catch AgentAccountError.folderLeftAlone(let path) {
@@ -156,6 +156,9 @@ final class AgentAccountsModel {
         } catch AgentAccountError.forgottenWithFolderKept(let path) {
             if !row.isUnfinished { answers[row.id] = nil }
             failure = "\(row.title) was forgotten, but its folder may still be in use, so it was left alone and is listed as an unfinished sign-in: \(path)"
+        } catch AgentAccountError.keychainEntriesLeft(let services) {
+            if !row.isUnfinished { answers[row.id] = nil }
+            failure = "\(row.title) was removed. \(AgentAccountError.keychainEntriesLeft(services).readableMessage)"
         } catch {
             failure = "Could not remove \(row.title): \(error.readableMessage)"
         }
