@@ -30,7 +30,6 @@ public actor SpendIndexer {
         try await store.pruneSpend(before: SpendRetention.oldestKept(from: now, calendar: calendar))
 
         var census = SpendCensus()
-        let cursors = try await store.transcriptCursors()
         let sources = TranscriptSources.sources(accounts: try await SpendRoster.homes(
             store: store, defaults: SpendAccounts.defaultHomes(home: home, environment: environment)
         ))
@@ -43,36 +42,48 @@ public actor SpendIndexer {
             let files = TranscriptSources.files(in: source)
             var pending = 0
             var visited = 0
-            for file in files {
-                if Task.isCancelled {
-                    outcome.finished = false
-                    break
+            pages: for page in TranscriptCursorSweep.pages(of: files) {
+                let cursors = try await store.transcriptCursors(forPaths: page.map(\.url.path))
+                for file in page {
+                    if Task.isCancelled {
+                        outcome.finished = false
+                        break pages
+                    }
+                    visited += 1
+                    let work = TranscriptWork.decide(for: file, cursor: cursors[file.url.path])
+                    guard work != .unchanged else { continue }
+                    guard let read = try await consume(file, work: work, batch: batch, calendar: calendar)
+                    else {
+                        outcome.unreadable += 1
+                        pending += 1
+                        outcome.finished = false
+                        continue
+                    }
+                    outcome.filesRead += 1
+                    outcome.bytesRead += read.bytesRead
+                    outcome.turns += read.turns
+                    outcome.abandonedLines += read.abandonedLines
+                    if !read.finished {
+                        pending += 1
+                        outcome.finished = false
+                    }
+                    await Task.yield()
                 }
-                visited += 1
-                let work = TranscriptWork.decide(for: file, cursor: cursors[file.url.path])
-                guard work != .unchanged else { continue }
-                guard let read = try await consume(file, work: work, batch: batch, calendar: calendar)
-                else {
-                    outcome.unreadable += 1
-                    pending += 1
-                    outcome.finished = false
-                    continue
-                }
-                outcome.filesRead += 1
-                outcome.bytesRead += read.bytesRead
-                outcome.turns += read.turns
-                outcome.abandonedLines += read.abandonedLines
-                if !read.finished {
-                    pending += 1
-                    outcome.finished = false
-                }
-                await Task.yield()
             }
             census.add(source.provider, files: files.count, pending: pending + (files.count - visited))
         }
 
         try await save(census)
+        if !Task.isCancelled { try await forgetVanishedCursors() }
         return outcome
+    }
+
+    private func forgetVanishedCursors() async throws {
+        let position = try await store.setting(TranscriptCursorSweep.positionKey) ?? ""
+        let paths = try await store.transcriptCursorPaths(after: position, limit: TranscriptCursorSweep.sweepBatch)
+        let vanished = TranscriptCursorSweep.vanished(in: paths) { FileManager.default.fileExists(atPath: $0) }
+        try await store.forgetTranscriptCursors(paths: vanished)
+        try await store.setSetting(TranscriptCursorSweep.positionKey, TranscriptCursorSweep.nextPosition(after: paths))
     }
 
     private func consume(
