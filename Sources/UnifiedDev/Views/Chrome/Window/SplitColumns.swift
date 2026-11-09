@@ -17,6 +17,16 @@ extension View {
     }
 }
 
+extension NSView {
+    func mainSplitView() -> NSSplitView? {
+        if let split = self as? NSSplitView, split.delegate is NSSplitViewController { return split }
+        for subview in subviews {
+            if let found = subview.mainSplitView() { return found }
+        }
+        return nil
+    }
+}
+
 private struct SplitWatcher: NSViewRepresentable {
     let onLayout: (NSSplitView) -> Void
 
@@ -78,7 +88,7 @@ private struct SplitWatcher: NSViewRepresentable {
         }
 
         private func attach() -> Bool {
-            guard let root = window?.contentView, let found = splitView(under: root) else { return false }
+            guard let found = window?.contentView?.mainSplitView() else { return false }
             guard found !== split else { return true }
             split = found
             if let watch { NotificationCenter.default.removeObserver(watch) }
@@ -89,14 +99,6 @@ private struct SplitWatcher: NSViewRepresentable {
             ) { [weak self] _ in MainActor.assumeIsolated { self?.report() } }
             report()
             return true
-        }
-
-        private func splitView(under view: NSView) -> NSSplitView? {
-            if let split = view as? NSSplitView, split.delegate is NSSplitViewController { return split }
-            for subview in view.subviews {
-                if let found = splitView(under: subview) { return found }
-            }
-            return nil
         }
     }
 }

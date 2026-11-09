@@ -4,7 +4,7 @@ import Core
 extension ArchivedColumnsProbe {
     static func measure(_ window: NSWindow) -> Drawn {
         let found = identifiers(in: window.contentView)
-        guard let root = window.contentView, let split = splitView(under: root) else {
+        guard let split = window.contentView?.mainSplitView() else {
             return Drawn(columns: [], identifiers: found)
         }
         let controller = split.delegate as? NSSplitViewController
@@ -18,13 +18,6 @@ extension ArchivedColumnsProbe {
             )
         }
         return Drawn(columns: columns, identifiers: found)
-    }
-    static func splitView(under view: NSView) -> NSSplitView? {
-        if let split = view as? NSSplitView, split.delegate is NSSplitViewController { return split }
-        for subview in view.subviews {
-            if let found = splitView(under: subview) { return found }
-        }
-        return nil
     }
     static func glass(_ window: NSWindow) async -> Double {
         await WindowCapture.read(window).ink
