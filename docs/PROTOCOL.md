@@ -143,13 +143,15 @@ The proxy is not there for tidiness. Measured on `claude 2.1.322` on 10 November
 isolated `CLAUDE_CONFIG_DIR` with made up credentials, a start with no proxy opened a connection to
 Anthropic before `init` was written: to `api.anthropic.com` with a token that had not expired, and
 to `platform.claude.com` to refresh one that had. With a real expired login that request carries the
-real refresh token, and an answer to it rewrites the account's credentials. With the proxy pointing at a socket that never accepts, nothing left the
+real refresh token, and an answer to it rewrites the account's credentials. With the proxy pointing at
+a socket that never accepts, nothing left the
 machine but the refresh held `.oauth_refresh.lock` in the account's directory, and the next start
 waited 7.7 seconds before it would refresh. With a socket that resets, `init` arrived in 0.26 seconds,
 no connection left the machine, no lock was left behind and the next start refreshed at once.
 
 `--setting-sources local` means neither the account's `settings.json` nor a project's shared one is
-read, so nothing in them can send the request elsewhere: measured, an account `settings.json` naming its own base URL,
+read, so nothing in them can send the request elsewhere: measured, an account `settings.json` naming
+its own base URL,
 Bedrock, an `HTTPS_PROXY` and an `apiKeyHelper` still sent the request to the local socket, and the
 helper never ran. The login is not a settings file and is still used. `--settings` puts back what the
 probe needs: both addresses, Bedrock, Vertex and Foundry switched off, `NO_PROXY`, `disableAllHooks`
@@ -162,22 +164,26 @@ scratch directory. With `--strict-mcp-config`, `--no-session-persistence` and
 Managed settings outrank every flag, so the probe does not start at all when one of them sets
 anything: `/Library/Application Support/ClaudeCode/managed-settings.json`, any `*.json` in its
 `managed-settings.d`, the `com.anthropic.claudecode` profile under `/Library/Managed Preferences`
-for this user or for the machine, or a `remote-settings.json` in the account's directory, which is
-where the CLI keeps what the organisation's server sent it. An empty object, which is what a
-personal account's `remote-settings.json` holds, does not count; a file that cannot be read does.
-Those paths are the ones `claude 2.1.322` names; writing to `/Library` needs root, so the precedence
+for this user or for the machine, or a `remote-settings.json` in the directory the CLI will use, which
+is where it keeps what the organisation's server sent it. That directory is the one the launch names in
+`CLAUDE_CONFIG_DIR`, including one the app inherited, and `~/.claude` only when nothing names one.
+An empty object, which is what a personal account's `remote-settings.json` holds, does not count; a
+file that cannot be read, or a `managed-settings.d` that cannot be listed, does. Those paths are the ones `claude 2.1.322` names; writing to `/Library` needs root, so the precedence
 itself was not reproduced here.
 
 An alias the account pins with `ANTHROPIC_DEFAULT_<ALIAS>_MODEL` in the `env` of its own
 `settings.json` is not asked: the probe reads that value from the file, since a turn would run it,
-and records it in place of an answer. The file is parsed as JSON and nothing else in it is used.
+and records it in place of an answer. The file is parsed as JSON and nothing else in it is used. A pin
+that is not a `claude-` id, such as a provider's own model id, is recorded as it is and the picker
+names no version for that alias rather than one it cannot vouch for.
 
 Each start writes the account's `~/.claude.json`. The CLI takes its own lock and writes through a
 temporary file, and twelve probes started at once in one directory left a file that parsed and no
 temporary file behind. The app also keeps the probe and a turn of the same account apart:
 `ClaudeAccountActivity` holds an account from the moment an `AgentRunner` starts its process until
 that process exits, a probe does not start a launch while the account is held, and a turn that
-arrives during a launch waits for it to end, after which the probe asks nothing more.
+arrives during a launch waits for it to end, after which the probe asks nothing more. A stop pressed
+during that wait ends the turn before its process starts.
 
 Measured on `claude 2.1.309`, the four built in aliases answered `claude-fable-5-1`, `claude-opus-5-5`,
 `claude-sonnet-5-5` and `claude-haiku-5-5`, under a second for all four. On `claude 2.1.322` the same
@@ -185,14 +191,16 @@ probe answered `claude-fable-5-2` for `fable`, so what an alias names moves with
 and not with the account. `ClaudeAliasRefresh` therefore probes each account once per version of the
 CLI: it reads `claude --version` when the catalogue is configured and whenever the composer loads its
 models, at most once a minute per account, and probes again when the version differs from the one
-that last answered. A version it cannot read keeps the last answer. An account with a turn running is
+that last answered, or when the managed settings or the account's pins have changed since. A version it
+cannot read keeps the last answer. An account with a turn running is
 left for the next check. A probe that missed any alias is tried again after ten minutes rather than
 every minute, because each attempt starts the CLI up to four times, and what it did answer is kept.
 
 The probe and a turn write the same setting per alias and account, and a turn writes beside it the
 version of the CLI that ran it, from `claude_code_version` in its `init`. A probe of that same version
 leaves the turn's answer alone, because a turn also sees what the probe cannot, such as a pin in the
-project's own settings. A probe of another version replaces it, and a pin read from the account's
+project's own settings, and so does a probe whose CLI version could not be read. A probe of another
+version replaces it, and a pin read from the account's
 settings replaces anything. The model picker names the version of what is stored, and only with
 nothing stored falls back to the newest usable entry of the account's `additionalModelOptionsCache`.
 The list comes last because it lags: it is what the server offered when the CLI last wrote the file,
