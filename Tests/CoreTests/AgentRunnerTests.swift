@@ -436,8 +436,8 @@ struct AgentRunnerPersistenceTests {
         """
         await runner.ingest(try #require(AgentEvent.decode(line: line)))
 
-        #expect(await ClaudeResolvedModel.observed(account: account, in: store) == ["opus": "claude-opus-5-5"])
-        #expect(await ClaudeResolvedModel.observed(account: nil, in: store).isEmpty)
+        #expect(await ClaudeResolvedModel.reported(account: account, in: store) == ["opus": "claude-opus-5-5"])
+        #expect(await ClaudeResolvedModel.reported(account: nil, in: store).isEmpty)
     }
 
     @Test("a chat with no model of its own is recorded under the alias the CLI was given")
@@ -454,7 +454,7 @@ struct AgentRunnerPersistenceTests {
         """
         await runner.ingest(try #require(AgentEvent.decode(line: line)))
 
-        #expect(await ClaudeResolvedModel.observed(account: nil, in: store) == ["opus": "claude-opus-5-5"])
+        #expect(await ClaudeResolvedModel.reported(account: nil, in: store) == ["opus": "claude-opus-5-5"])
     }
 
     @Test("and the same session goes back to idle when that turn's result arrives")

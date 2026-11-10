@@ -17,11 +17,12 @@ final class ComposerModelCatalog {
     private(set) var models: [AgentKind: [AgentModel]] = [:]
     private(set) var isLoading = false
     private(set) var failures: [AgentKind: ModelListFailure] = [:]
-    private(set) var observedClaudeModels: [String: String] = [:]
+    private(set) var reportedClaudeModels: [String: String] = [:]
 
     private var sources: [AgentKind: AgentModelSource]
     private var accounts: [AgentKind: AgentAccountHome] = [:]
     private var accountsAreKnown = false
+    private var store: Store?
     private var loadTask: Task<Void, Never>?
     private var loadGeneration = UUID()
     private var observationTask: Task<Void, Never>?
@@ -31,10 +32,11 @@ final class ComposerModelCatalog {
     }
 
     func configure(store: Store) {
+        self.store = store
         Task { await ComposerPlanningSupport.shared.refresh(from: store) }
         sources = AgentModelSource.live(store: store, accounts: accounts)
         guard accountsAreKnown else { return }
-        followClaudeObservations(in: store)
+        followClaudeReports(in: store)
         refresh()
     }
 
@@ -42,29 +44,39 @@ final class ComposerModelCatalog {
         guard adopted != accounts || !accountsAreKnown else { return }
         accountsAreKnown = true
         accounts = adopted
+        self.store = store
         sources = AgentModelSource.live(store: store, accounts: adopted)
-        followClaudeObservations(in: store)
+        followClaudeReports(in: store)
         refresh()
     }
 
-    private func followClaudeObservations(in store: Store) {
+    private func followClaudeReports(in store: Store) {
         observationTask?.cancel()
         let account = accounts[.claudeCode]
         observationTask = Task { [weak self] in
             var changes = store.changes(of: [.settings]).makeAsyncIterator()
+            self?.refreshClaudeAliases()
             repeat {
-                self?.adoptClaudeObservations(await ClaudeResolvedModel.observed(account: account, in: store))
+                self?.adoptClaudeReports(await ClaudeResolvedModel.reported(account: account, in: store))
             } while await changes.next() != nil
         }
     }
 
-    private func adoptClaudeObservations(_ observed: [String: String]) {
-        guard !Task.isCancelled, observed != observedClaudeModels else { return }
-        observedClaudeModels = observed
+    private func refreshClaudeAliases() {
+        guard let store else { return }
+        let account = accounts[.claudeCode]
+        Task { await ClaudeAliasRefresh.shared.refresh(account: account, in: store) }
+    }
+
+    private func adoptClaudeReports(_ reported: [String: String]) {
+        guard !Task.isCancelled, reported != reportedClaudeModels else { return }
+        reportedClaudeModels = reported
     }
 
     func load() {
-        guard accountsAreKnown, loadTask == nil else { return }
+        guard accountsAreKnown else { return }
+        refreshClaudeAliases()
+        guard loadTask == nil else { return }
         let needed = AgentModelSource.kindsAwaitingModels(sources: sources, loaded: models)
         guard !needed.isEmpty else { return }
         isLoading = true
@@ -122,7 +134,7 @@ final class ComposerModelCatalog {
         let known = (models[kind] ?? []).filter { !$0.hidden }
         if kind == .claudeCode {
             return ComposerOption.options(
-                ClaudeModelCatalog.offered(read: known, including: current, observed: observedClaudeModels)
+                ClaudeModelCatalog.offered(read: known, including: current, reported: reportedClaudeModels)
             )
         }
         let options = ComposerOption.options(known)

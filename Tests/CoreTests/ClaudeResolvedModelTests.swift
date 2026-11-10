@@ -17,27 +17,34 @@ struct ClaudeResolvedModelTests {
         AgentModel(id: id, displayName: id, unavailable: unavailable)
     }
 
-    private func version(listed: [AgentModel] = [], observed: [String: String] = [:]) -> String? {
-        ClaudeResolvedModel.version(ofAlias: "opus", listed: listed, observed: observed)
+    private func version(listed: [AgentModel] = [], reported: [String: String] = [:]) -> String? {
+        ClaudeResolvedModel.version(ofAlias: "opus", listed: listed, reported: reported)
     }
 
     @Test("the account's own list names the version of its family")
     func readsTheAccountList() {
         #expect(ClaudeResolvedModel.version(
-            ofAlias: "fable", listed: [model("claude-fable-5-1[1m]")], observed: [:]
+            ofAlias: "fable", listed: [model("claude-fable-5-1[1m]")], reported: [:]
         ) == "5.1")
     }
 
-    @Test("the list outranks what was observed, and the newest listed entry outranks an older one")
-    func theListComesFirst() {
-        let listed = [model("claude-opus-5-1"), model("claude-opus-5-5")]
+    @Test("what the CLI reported outranks an older version the account's list still carries")
+    func theReportComesFirst() {
+        let listed = [model("claude-opus-4-6"), model("claude-opus-4-7")]
 
-        #expect(version(listed: listed, observed: ["opus": "claude-opus-4-8"]) == "5.5")
+        #expect(version(listed: listed, reported: ["opus": "claude-opus-5-5"]) == "5.5")
     }
 
-    @Test("what the CLI reported answers when the list says nothing about the family")
-    func fallsBackToTheObservation() {
-        #expect(version(listed: [model("claude-fable-5-1")], observed: ["opus": "claude-opus-5-5"]) == "5.5")
+    @Test("the newest listed entry answers when the CLI reported nothing for the family")
+    func fallsBackToTheNewestListed() {
+        let listed = [model("claude-opus-5-1"), model("claude-opus-5-5")]
+
+        #expect(version(listed: listed, reported: ["fable": "claude-fable-5-1"]) == "5.5")
+    }
+
+    @Test("a report of another family does not hide the list")
+    func aWrongReportFallsBackToTheList() {
+        #expect(version(listed: [model("claude-opus-5-5")], reported: ["opus": "claude-sonnet-5"]) == "5.5")
     }
 
     @Test("a dated id of a whole version does not outrank a newer point release")
@@ -56,7 +63,7 @@ struct ClaudeResolvedModelTests {
 
     @Test("an alias that resolved to another family has no version of its own")
     func refusesAnotherFamily() {
-        #expect(version(observed: ["opus": "claude-sonnet-5"]) == nil)
+        #expect(version(reported: ["opus": "claude-sonnet-5"]) == nil)
     }
 
     @Test("with no source there is no version")
@@ -86,7 +93,7 @@ struct ClaudeResolvedModelTests {
     func offersTheAliasWithItsVersion() {
         let offered = ClaudeModelCatalog.offered(
             read: [model("claude-fable-5-1[1m]")],
-            observed: ["opus": "claude-opus-5-5"]
+            reported: ["opus": "claude-opus-5-5"]
         )
 
         let names = Dictionary(uniqueKeysWithValues: offered.map { ($0.id, $0.displayName) })
@@ -99,7 +106,7 @@ struct ClaudeResolvedModelTests {
     @Test("offering an already offered list keeps one row per alias, and its version")
     func offeringTwiceKeepsTheVersion() {
         let first = ClaudeModelCatalog.offered(read: [model("claude-fable-5-1")])
-        let second = ClaudeModelCatalog.offered(read: first, including: "fable", observed: ["opus": "claude-opus-5-5"])
+        let second = ClaudeModelCatalog.offered(read: first, including: "fable", reported: ["opus": "claude-opus-5-5"])
 
         #expect(second.filter { $0.id == "fable" }.map(\.displayName) == ["Fable 5.1"])
         #expect(second.filter { $0.id == "opus" }.map(\.displayName) == ["Opus 5.5"])
@@ -113,9 +120,9 @@ struct ClaudeResolvedModelTests {
         await ClaudeResolvedModel.record(requested: "opus", reported: "claude-opus-5", account: client, in: store)
         await ClaudeResolvedModel.record(requested: "sonnet", reported: "claude-sonnet-5", account: nil, in: store)
 
-        #expect(await ClaudeResolvedModel.observed(account: work, in: store) == ["opus": "claude-opus-5-5"])
-        #expect(await ClaudeResolvedModel.observed(account: client, in: store) == ["opus": "claude-opus-5"])
-        #expect(await ClaudeResolvedModel.observed(account: nil, in: store) == ["sonnet": "claude-sonnet-5"])
+        #expect(await ClaudeResolvedModel.reported(account: work, in: store) == ["opus": "claude-opus-5-5"])
+        #expect(await ClaudeResolvedModel.reported(account: client, in: store) == ["opus": "claude-opus-5"])
+        #expect(await ClaudeResolvedModel.reported(account: nil, in: store) == ["sonnet": "claude-sonnet-5"])
     }
 
     @Test("a later observation replaces the earlier one")
@@ -125,7 +132,7 @@ struct ClaudeResolvedModelTests {
         await ClaudeResolvedModel.record(requested: "opus", reported: "claude-opus-5", account: work, in: store)
         await ClaudeResolvedModel.record(requested: "opus", reported: "claude-opus-5-5", account: work, in: store)
 
-        #expect(await ClaudeResolvedModel.observed(account: work, in: store) == ["opus": "claude-opus-5-5"])
+        #expect(await ClaudeResolvedModel.reported(account: work, in: store) == ["opus": "claude-opus-5-5"])
     }
 
     @Test("only an alias answered with a real id of its family is recorded", arguments: [
@@ -139,7 +146,7 @@ struct ClaudeResolvedModelTests {
 
         await ClaudeResolvedModel.record(requested: requested, reported: reported, account: work, in: store)
 
-        #expect(await ClaudeResolvedModel.observed(account: work, in: store).isEmpty)
+        #expect(await ClaudeResolvedModel.reported(account: work, in: store).isEmpty)
     }
 
     @Test("forgetting an account forgets what it resolved to, and no other account's")
@@ -152,11 +159,39 @@ struct ClaudeResolvedModelTests {
         for alias in ClaudeModelCatalog.builtIn.map(\.id) {
             await ClaudeResolvedModel.record(requested: alias, reported: "claude-\(alias)-5", account: work, in: store)
         }
+        await ClaudeResolvedModel.record(["sonnet": "claude-sonnet-5-5"], account: work, in: store)
         await ClaudeResolvedModel.record(requested: "opus", reported: "claude-opus-5", account: client, in: store)
+        await ClaudeResolvedModel.record(["sonnet": "claude-sonnet-5-5"], account: client, in: store)
 
         try await store.forgetAgentAccount(work.id)
 
-        #expect(await ClaudeResolvedModel.observed(account: work, in: store).isEmpty)
-        #expect(await ClaudeResolvedModel.observed(account: client, in: store) == ["opus": "claude-opus-5"])
+        #expect(await ClaudeResolvedModel.reported(account: work, in: store).isEmpty)
+        #expect(await ClaudeResolvedModel.reported(account: client, in: store)
+            == ["opus": "claude-opus-5", "sonnet": "claude-sonnet-5-5"])
+    }
+
+    @Test("a probe and a turn write the same answer, so whichever came last is shown")
+    func theLatestAnswerWins() async throws {
+        let store = try makeTestStore("resolved")
+
+        await ClaudeResolvedModel.record(["opus": "claude-opus-5-5"], account: work, in: store)
+        await ClaudeResolvedModel.record(requested: "opus", reported: "claude-opus-5-6", account: work, in: store)
+        #expect(await ClaudeResolvedModel.reported(account: work, in: store) == ["opus": "claude-opus-5-6"])
+
+        await ClaudeResolvedModel.record(["opus": "claude-opus-5-7"], account: work, in: store)
+        #expect(await ClaudeResolvedModel.reported(account: work, in: store) == ["opus": "claude-opus-5-7"])
+    }
+
+    @Test("a probe keeps only an id of the alias's own family, per account")
+    func keepsProbesPerAccount() async throws {
+        let store = try makeTestStore("resolved")
+
+        await ClaudeResolvedModel.record(
+            ["opus": "claude-opus-5-5", "sonnet": "claude-haiku-5-5", "haiku": "haiku"], account: work, in: store
+        )
+        await ClaudeResolvedModel.record(["opus": "claude-opus-4-8"], account: client, in: store)
+
+        #expect(await ClaudeResolvedModel.reported(account: work, in: store) == ["opus": "claude-opus-5-5"])
+        #expect(await ClaudeResolvedModel.reported(account: client, in: store) == ["opus": "claude-opus-4-8"])
     }
 }
