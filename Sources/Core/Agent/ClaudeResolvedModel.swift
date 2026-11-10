@@ -9,6 +9,7 @@ public enum ClaudeResolvedModel {
         listed: [AgentModel],
         reported: [String: String]
     ) -> String? {
+        if let raw = reported[alias], !raw.hasPrefix("claude-") { return nil }
         if let current = reported[alias].flatMap({ parsed($0, alias: alias) }) { return label(current) }
         let listedVersions = listed.filter { $0.unavailable == nil }.compactMap { parsed($0.id, alias: alias) }
         return listedVersions.max { $1.isAbove($0) }.map(label)
@@ -53,10 +54,12 @@ public enum ClaudeResolvedModel {
     ) async {
         let id = accountID(account)
         let current = cliVersion.flatMap(comparable)
-        for (alias, model) in answers.all.sorted(by: { $0.key < $1.key }) where version(of: model, alias: alias) != nil {
+        for (alias, model) in answers.all.sorted(by: { $0.key < $1.key }) {
+            let pinned = answers.pinned[alias] != nil
+            guard pinned || version(of: model, alias: alias) != nil else { continue }
             let key = settingKey(alias: alias, account: id)
             let turn = try? await store.setting(turnKey(key))
-            if answers.pinned[alias] == nil, let current, turn == current { continue }
+            if !pinned, let turn, current == nil || turn == current { continue }
             if (try? await store.setting(key)) != model { try? await store.setSetting(key, model) }
             if turn != nil { try? await store.setSetting(turnKey(key), nil) }
         }

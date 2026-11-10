@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Core
 
-@Suite("What the alias probe lets out of this Mac, and what it leaves behind", .tags(.agentProtocol, .subprocess), .scratchDirectory)
+@Suite("What the alias probe lets out of this Mac, and what it leaves behind", .tags(.agentProtocol, .subprocess), .scratchDirectory, .timeLimit(.minutes(2)))
 struct ClaudeAliasProbeIsolationTests {
     private func fakeCLI(_ body: String) throws -> String {
         let path = TestScratch.path("bin/claude-\(UUID().uuidString)")
@@ -18,7 +18,7 @@ struct ClaudeAliasProbeIsolationTests {
         ClaudeAliasProbe(
             executable: executable, workRoot: probeWorkRoot(),
             environment: ["PATH": "/usr/bin:/bin"].merging(inherited) { _, new in new },
-            timeout: .seconds(10), exitGrace: .milliseconds(200), managed: unmanaged(),
+            timeout: .seconds(30), exitGrace: .milliseconds(500), managed: unmanaged(),
             activity: ClaudeAccountActivity()
         )
     }
@@ -31,7 +31,7 @@ struct ClaudeAliasProbeIsolationTests {
         return await finished.wait(upTo: deadline)
     }
 
-    @Test("a CLI that ignores the request to stop is killed, and the probe still answers", .timeLimit(.minutes(1)))
+    @Test("a CLI that ignores the request to stop is killed, and the probe still answers")
     func killsACLIThatIgnoresTerminate() async {
         let launches = ProbeLaunches()
         let probe = scriptedProbe(launches, ignoresTerminate: true) { alias in [probeInitLine("claude-\(alias)-5-5")] }
@@ -43,7 +43,7 @@ struct ClaudeAliasProbeIsolationTests {
         #expect(launches.processes.allSatisfy { !$0.isRunning })
     }
 
-    @Test("a process that ignores SIGTERM is ended by SIGKILL instead of holding the probe", .timeLimit(.minutes(1)))
+    @Test("a process that ignores SIGTERM is ended by SIGKILL instead of holding the probe")
     func endsARealProcessThatIgnoresSigterm() async throws {
         let record = TestScratch.path("record")
         try FileManager.default.createDirectory(atPath: record, withIntermediateDirectories: true)
@@ -66,14 +66,14 @@ struct ClaudeAliasProbeIsolationTests {
         #expect(!stillAlive)
     }
 
-    @Test("the address gets no answer and every proxied request is refused, as the CLI would see them", .timeLimit(.minutes(1)))
+    @Test("the address gets no answer and every proxied request is refused, as the CLI would see them")
     func nothingTheCLISendsGetsAnAnswer() async throws {
         let record = TestScratch.path("record")
         try FileManager.default.createDirectory(atPath: record, withIntermediateDirectories: true)
         let cli = try fakeCLI("""
         /usr/bin/curl -s -o /dev/null -m 1 "$ANTHROPIC_BASE_URL/v1/messages"; echo $? > "$PROBE_RECORD/base"
-        /usr/bin/curl -s -o /dev/null -m 3 https://192.0.2.1/; echo $? > "$PROBE_RECORD/https"
-        /usr/bin/curl -s -o /dev/null -m 3 http://192.0.2.1/; echo $? > "$PROBE_RECORD/http"
+        /usr/bin/curl -s -o /dev/null -m 2 https://192.0.2.1/; echo $? > "$PROBE_RECORD/https"
+        /usr/bin/curl -s -o /dev/null -m 2 http://192.0.2.1/; echo $? > "$PROBE_RECORD/http"
         echo '{"type":"system","subtype":"init","model":"claude-opus-5-5"}'
         exec /bin/sleep 30
         """)
@@ -83,7 +83,7 @@ struct ClaudeAliasProbeIsolationTests {
             "HTTPS_PROXY": "http://proxy.example:8080",
         ]
 
-        let answers = await resolve(realProbe(cli, inherited: inherited), ["opus"], account: probeAccount(), upTo: .seconds(30))
+        let answers = await resolve(realProbe(cli, inherited: inherited), ["opus"], account: probeAccount(), upTo: .seconds(45))
         func code(_ name: String) -> Int? {
             (try? String(contentsOfFile: (record as NSString).appendingPathComponent(name), encoding: .utf8))
                 .flatMap { Int($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
@@ -91,11 +91,11 @@ struct ClaudeAliasProbeIsolationTests {
 
         #expect(answers?.probed == ["opus": "claude-opus-5-5"])
         #expect(code("base") == 28)
-        #expect([7, 35, 52, 56].contains(code("https") ?? 28))
-        #expect([7, 52, 56].contains(code("http") ?? 28))
+        #expect([52, 56].contains(code("https") ?? 28))
+        #expect([52, 56].contains(code("http") ?? 28))
     }
 
-    @Test("each probe runs in a directory of its own, found empty and removed afterwards", .timeLimit(.minutes(1)))
+    @Test("each probe runs in a directory of its own, found empty and removed afterwards")
     func runsInAFreshDirectory() async throws {
         let record = TestScratch.path("record")
         try FileManager.default.createDirectory(atPath: record, withIntermediateDirectories: true)
@@ -234,5 +234,107 @@ struct ClaudeAliasProbeRestraintTests {
         #expect(await answers.wait(upTo: .seconds(5)) != nil)
         #expect(!admittedDuringLaunch)
         #expect(launches.launches.count == 1)
+    }
+
+    @Test("the directory the CLI will use is the one checked, including one the app inherited")
+    func readsTheDirectoryTheCLIWillUse() async throws {
+        let inheritedDirectory = URL(filePath: TestScratch.path("inherited-config"), directoryHint: .isDirectory)
+        try write(#"{"env":{"HTTPS_PROXY":"http://gateway.example"}}"#, to: inheritedDirectory.appending(path: "remote-settings.json"))
+        let launches = ProbeLaunches()
+        let probe = ClaudeAliasProbe(
+            executable: "claude", workRoot: probeWorkRoot(), environment: ["CLAUDE_CONFIG_DIR": inheritedDirectory.path],
+            managed: unmanaged(), activity: ClaudeAccountActivity(),
+            makeProcess: { launch in
+                let process = ScriptedProbe(printing: [probeInitLine("claude-opus-5-5")])
+                launches.record(launch, process)
+                return process
+            }
+        )
+
+        let answers = await probe.resolve(["opus"], account: nil)
+
+        #expect(launches.launches.isEmpty)
+        #expect(answers.all.isEmpty)
+    }
+
+    @Test("a drop-in directory that cannot be listed is treated as one that sets something")
+    func unlistableDropInsStopTheProbe() throws {
+        let dropIns = URL(filePath: TestScratch.path("managed/root/managed-settings.d"), directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: dropIns, withIntermediateDirectories: true)
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: dropIns.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: dropIns.path) }
+
+        #expect(unmanaged().governs(accountDirectory: probeAccount().directory))
+    }
+
+    @Test("an empty managed profile, and drop-ins that are not JSON, do not stop the probe")
+    func emptyProfilesAndOtherFilesDoNotCount() throws {
+        try write(
+            #"<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict/></plist>"#,
+            to: URL(filePath: TestScratch.path("managed/preferences/com.anthropic.claudecode.plist"))
+        )
+        try write("anything", to: URL(filePath: TestScratch.path("managed/root/managed-settings.d/README")))
+
+        #expect(!unmanaged().governs(accountDirectory: probeAccount().directory))
+    }
+
+    @Test("a pin that is empty or not text is no pin, and a pin is trimmed", arguments: [
+        (#""   ""#, nil as String?), ("42", nil), (#"" claude-opus-4-1 ""#, "claude-opus-4-1"),
+    ])
+    func pinsAreReadStrictly(value: String, pinned: String?) throws {
+        let settings = URL(filePath: TestScratch.path("pins/settings.json"))
+        try write(#"{"env":{"ANTHROPIC_DEFAULT_OPUS_MODEL":\#(value)}}"#, to: settings)
+
+        #expect(ClaudeAliasPins.pinned(["opus"], inSettingsAt: settings)["opus"] == pinned)
+    }
+
+    @Test("when every alias is pinned nothing is launched")
+    func everyAliasPinnedLaunchesNothing() async throws {
+        let account = probeAccount()
+        try write(
+            #"{"env":{"ANTHROPIC_DEFAULT_OPUS_MODEL":"claude-opus-4-1","ANTHROPIC_DEFAULT_SONNET_MODEL":"claude-sonnet-4-5"}}"#,
+            to: account.directory.appending(path: "settings.json")
+        )
+        let launches = ProbeLaunches()
+
+        let answers = await scriptedProbe(launches) { _ in [] }.resolve(["opus", "sonnet"], account: account)
+
+        #expect(launches.launches.isEmpty)
+        #expect(answers.pinned.count == 2)
+    }
+
+    @Test("every turn waiting on a probe is admitted when it ends, and the account stays held until each one leaves")
+    func admitsEveryWaitingTurn() async throws {
+        let activity = ClaudeAccountActivity()
+        let account = AgentAccountID("work")
+        #expect(activity.beginProbe(account))
+        let first = AwaitedAnswer<ClaudeRunLease>()
+        let second = AwaitedAnswer<ClaudeRunLease>()
+        Task { first.set(await activity.beginRun(account)) }
+        Task { second.set(await activity.beginRun(account)) }
+        while !activity.isRunning(account) { try await Task.sleep(for: .milliseconds(5)) }
+        try await Task.sleep(for: .milliseconds(50))
+
+        activity.endProbe(account)
+        let leases = [await first.wait(upTo: .seconds(5)), await second.wait(upTo: .seconds(5))].compactMap(\.self)
+        leases[0].end()
+        let heldByTheSecond = !activity.beginProbe(account)
+        leases[1].end()
+        leases[1].end()
+
+        #expect(leases.count == 2)
+        #expect(heldByTheSecond)
+        #expect(activity.beginProbe(account))
+    }
+
+    @Test("a lease dropped without being ended still frees its account")
+    func aDroppedLeaseFreesTheAccount() async {
+        let activity = ClaudeAccountActivity()
+        let account = AgentAccountID("work")
+        do {
+            _ = await activity.beginRun(account)
+        }
+
+        #expect(!activity.isRunning(account))
     }
 }

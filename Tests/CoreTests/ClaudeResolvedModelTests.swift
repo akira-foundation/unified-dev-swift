@@ -164,8 +164,9 @@ struct ClaudeResolvedModelTests {
         await ClaudeResolvedModel.record(ClaudeAliasAnswers(probed: ["sonnet": "claude-sonnet-5-5"]), cliVersion: nil, account: client, in: store)
 
         try await store.forgetAgentAccount(work.id)
+        await ClaudeResolvedModel.record(ClaudeAliasAnswers(probed: ["opus": "claude-opus-5-9"]), cliVersion: "2.1.322", account: work, in: store)
 
-        #expect(await ClaudeResolvedModel.reported(account: work, in: store).isEmpty)
+        #expect(await ClaudeResolvedModel.reported(account: work, in: store) == ["opus": "claude-opus-5-9"])
         #expect(await ClaudeResolvedModel.reported(account: client, in: store)
             == ["opus": "claude-opus-5", "sonnet": "claude-sonnet-5-5"])
     }
@@ -192,15 +193,34 @@ struct ClaudeResolvedModelTests {
         await ClaudeResolvedModel.record(requested: "opus", reported: "claude-opus-5-7", cliVersion: "2.1.322", account: work, in: store)
         await ClaudeResolvedModel.record(ClaudeAliasAnswers(pinned: ["opus": "claude-opus-4-1-20250805"]), cliVersion: "2.1.322", account: work, in: store)
         #expect(await ClaudeResolvedModel.reported(account: work, in: store) == ["opus": "claude-opus-4-1-20250805"])
+
+        await ClaudeResolvedModel.record(ClaudeAliasAnswers(probed: ["opus": "claude-opus-5-8"]), cliVersion: "2.1.322", account: work, in: store)
+        #expect(await ClaudeResolvedModel.reported(account: work, in: store) == ["opus": "claude-opus-5-8"])
     }
 
-    @Test("a probe whose CLI version is unknown still answers an alias no turn has run")
-    func anUnknownVersionStillFillsTheGaps() async throws {
+    @Test("a probe whose CLI version is unknown answers an alias no turn has run, and leaves one a turn has")
+    func anUnknownVersionOnlyFillsTheGaps() async throws {
         let store = try makeTestStore("resolved")
 
-        await ClaudeResolvedModel.record(ClaudeAliasAnswers(probed: ["opus": "claude-opus-5-5"]), cliVersion: nil, account: work, in: store)
+        await ClaudeResolvedModel.record(requested: "sonnet", reported: "claude-sonnet-4-5", cliVersion: "2.1.309", account: work, in: store)
+        await ClaudeResolvedModel.record(
+            ClaudeAliasAnswers(probed: ["opus": "claude-opus-5-5", "sonnet": "claude-sonnet-5-5"]), cliVersion: nil, account: work, in: store
+        )
 
-        #expect(await ClaudeResolvedModel.reported(account: work, in: store) == ["opus": "claude-opus-5-5"])
+        #expect(await ClaudeResolvedModel.reported(account: work, in: store) == ["opus": "claude-opus-5-5", "sonnet": "claude-sonnet-4-5"])
+    }
+
+    @Test("a pin to a model id the picker cannot read is kept, and the alias then names no version")
+    func anUnreadablePinShowsNoVersion() async throws {
+        let store = try makeTestStore("resolved")
+        let pin = "us.anthropic.claude-opus-4-5-v1:0"
+
+        await ClaudeResolvedModel.record(ClaudeAliasAnswers(probed: ["opus": "claude-opus-5-5"]), cliVersion: "2.1.322", account: work, in: store)
+        await ClaudeResolvedModel.record(ClaudeAliasAnswers(pinned: ["opus": pin]), cliVersion: "2.1.322", account: work, in: store)
+        let reported = await ClaudeResolvedModel.reported(account: work, in: store)
+
+        #expect(reported == ["opus": pin])
+        #expect(ClaudeResolvedModel.version(ofAlias: "opus", listed: [model("claude-opus-5-5")], reported: reported) == nil)
     }
 
     @Test("a probe keeps only an id of the alias's own family, per account")

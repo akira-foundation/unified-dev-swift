@@ -35,18 +35,20 @@ public actor ClaudeAliasRefresh {
         defer { probing.remove(id) }
         nextCheck[id] = moment + Self.recheckInterval
         let version = await version(in: store)
+        let aliases = ClaudeModelCatalog.builtIn.map(\.id)
+        let probe = await chosenProbe(in: store)
+        let settings = await probe.settingsFingerprint(aliases, account: account)
         if let answered = answeredVersion[id] {
-            guard let version, version != answered else { return }
+            guard let version, answered != "\(version)|\(settings)" else { return }
         }
         guard !activity.isRunning(id) else { return }
-        let aliases = ClaudeModelCatalog.builtIn.map(\.id)
-        let answers = await chosenProbe(in: store).resolve(aliases, account: account)
+        let answers = await probe.resolve(aliases, account: account)
         await ClaudeResolvedModel.record(answers, cliVersion: version, account: account, in: store)
         guard answers.all.count == aliases.count else {
             nextCheck[id] = moment + Self.retryInterval
             return
         }
-        answeredVersion[id] = version ?? Self.unknownVersion
+        answeredVersion[id] = "\(version ?? Self.unknownVersion)|\(settings)"
     }
 
     private func version(in store: Store) async -> String? {

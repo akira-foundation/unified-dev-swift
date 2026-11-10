@@ -39,16 +39,16 @@ public struct ClaudeAliasProbe: Sendable {
     }
 
     public func resolve(_ aliases: [String], account: AgentAccountHome?) async -> ClaudeAliasAnswers {
-        guard !managed.governs(accountDirectory: ClaudeAliasPins.accountDirectory(account)) else { return ClaudeAliasAnswers() }
-        let pins = ClaudeAliasPins.pinned(aliases, inSettingsAt: ClaudeAliasPins.settingsFile(of: account))
+        let inherited = await inheritedEnvironment()
+        let configuration = Self.configurationDirectory(in: AgentAccountEnvironment.apply(account, to: inherited))
+        guard !managed.governs(accountDirectory: configuration) else { return ClaudeAliasAnswers() }
+        let pins = ClaudeAliasPins.pinned(aliases, inSettingsAt: configuration.appending(path: "settings.json"))
         var found = ClaudeAliasAnswers(pinned: pins)
         let unpinned = aliases.filter { pins[$0] == nil }
         guard !unpinned.isEmpty else { return found }
         guard let endpoint = UnansweredEndpoint(), let proxy = RefusingEndpoint(),
               let directory = Self.freshDirectory(in: workRoot) else { return found }
         defer { try? FileManager.default.removeItem(atPath: directory) }
-        await LoginShellPath.ready()
-        let inherited = (environment ?? Shell.environment()).filter { !Self.proxyVariables.contains($0.key) }
         let id = ClaudeResolvedModel.accountID(account)
         for alias in unpinned {
             guard activity.beginProbe(id) else { break }
@@ -64,6 +64,26 @@ public struct ClaudeAliasProbe: Sendable {
         }
         withExtendedLifetime((endpoint, proxy)) {}
         return found
+    }
+
+    public func settingsFingerprint(_ aliases: [String], account: AgentAccountHome?) async -> String {
+        let configuration = Self.configurationDirectory(in: AgentAccountEnvironment.apply(account, to: await inheritedEnvironment()))
+        let governed = managed.governs(accountDirectory: configuration)
+        let pins = ClaudeAliasPins.pinned(aliases, inSettingsAt: configuration.appending(path: "settings.json"))
+        return "managed=\(governed);" + pins.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: ";")
+    }
+
+    private func inheritedEnvironment() async -> [String: String] {
+        await LoginShellPath.ready()
+        return (environment ?? Shell.environment()).filter { !Self.proxyVariables.contains($0.key) }
+    }
+
+    static func configurationDirectory(in environment: [String: String]) -> URL {
+        if let variable = AgentAccountEnvironment.directoryVariable(for: .claudeCode),
+           let path = environment[variable], !path.isEmpty {
+            return URL(filePath: path, directoryHint: .isDirectory)
+        }
+        return FileManager.default.homeDirectoryForCurrentUser.appending(path: ".claude", directoryHint: .isDirectory)
     }
 
     static func freshDirectory(in root: String) -> String? {

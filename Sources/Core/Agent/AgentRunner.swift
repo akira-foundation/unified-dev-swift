@@ -249,7 +249,7 @@ public actor AgentRunner {
         orchestrates = await grants.isOrchestrator()
         await LoginShellPath.ready()
         try await waitForCancelledRunToExit()
-        await admitRun()
+        try await admitRun()
         start()
 
         let generation = handle.generation
@@ -319,9 +319,14 @@ public actor AgentRunner {
 
     private static let shutdownPollInterval = Duration.milliseconds(25)
 
-    private func admitRun() async {
+    private func admitRun() async throws {
         guard handle.current == nil, runLease == nil else { return }
+        let stopsBefore = handle.stopRequests
         let lease = await activity.beginRun(ClaudeResolvedModel.accountID(account))
+        guard handle.stopRequests == stopsBefore else {
+            lease.end()
+            throw CancellationError()
+        }
         guard runLease == nil, handle.current == nil else { return lease.end() }
         runLease = lease
     }
@@ -810,6 +815,7 @@ private final class ProcessHandle: Sendable {
         var process: (any AgentProcessing)?
         var cancelled = false
         var run = 0
+        var stopRequests = 0
     }
 
     private let state = Mutex(State())
@@ -817,6 +823,8 @@ private final class ProcessHandle: Sendable {
     var current: (any AgentProcessing)? { state.withLock(\.process) }
 
     var generation: Int { state.withLock(\.run) }
+
+    var stopRequests: Int { state.withLock(\.stopRequests) }
 
     func beginRun(_ process: any AgentProcessing) -> Int {
         state.withLock { state in
@@ -845,6 +853,7 @@ private final class ProcessHandle: Sendable {
     func requestCancel(_ generation: Int) -> (accepted: Bool, process: (any AgentProcessing)?) {
         state.withLock { state -> (accepted: Bool, process: (any AgentProcessing)?) in
             guard generation == state.run else { return (false, nil) }
+            state.stopRequests += 1
             let accepted = !state.cancelled
             state.cancelled = true
             return (accepted, state.process)

@@ -16,14 +16,21 @@ public struct ClaudeManagedSettings: Sendable {
 
     func documents(accountDirectory: URL) -> [URL] {
         let dropIns = root.appending(path: "managed-settings.d", directoryHint: .isDirectory)
-        let listed = (try? FileManager.default.contentsOfDirectory(at: dropIns, includingPropertiesForKeys: nil)) ?? []
         return [root.appending(path: "managed-settings.json")]
-            + listed.filter { $0.pathExtension == "json" }.sorted { $0.path < $1.path }
+            + Self.dropIns(in: dropIns)
             + [
                 preferences.appending(path: user).appending(path: "\(Self.preferencesDomain).plist"),
                 preferences.appending(path: "\(Self.preferencesDomain).plist"),
                 accountDirectory.appending(path: Self.remoteFileName),
             ]
+    }
+
+    static func dropIns(in directory: URL) -> [URL] {
+        guard FileManager.default.fileExists(atPath: directory.path) else { return [] }
+        guard let listed = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) else {
+            return [directory]
+        }
+        return listed.filter { $0.pathExtension == "json" }.sorted { $0.path < $1.path }
     }
 
     public func governs(accountDirectory: URL) -> Bool {
