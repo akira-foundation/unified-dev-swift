@@ -30,27 +30,25 @@ public struct ClaudeAliasProbe: Sendable {
     public func resolve(_ aliases: [String], account: AgentAccountHome?) async -> [String: String] {
         guard let endpoint = UnansweredEndpoint() else { return [:] }
         await LoginShellPath.ready()
-        let inherited = environment ?? Shell.environment()
-        let resolved = await withTaskGroup(of: (String, String?).self) { group in
-            for alias in aliases {
-                let launch = AgentLaunch(
-                    executable: executable,
-                    arguments: Self.arguments(alias: alias, baseURL: endpoint.url),
-                    cwd: cwd,
-                    environment: AgentAccountEnvironment.apply(account, to: inherited)
-                        .merging(Self.overrides(baseURL: endpoint.url)) { _, override in override }
-                )
-                group.addTask { (alias, await reportedModel(launching: launch)) }
-            }
-            var found: [String: String] = [:]
-            for await (alias, model) in group {
-                if let model { found[alias] = model }
-            }
-            return found
+        let inherited = (environment ?? Shell.environment()).filter { !Self.proxyVariables.contains($0.key) }
+        var found: [String: String] = [:]
+        for alias in aliases {
+            let launch = AgentLaunch(
+                executable: executable,
+                arguments: Self.arguments(alias: alias, baseURL: endpoint.url),
+                cwd: cwd,
+                environment: AgentAccountEnvironment.apply(account, to: inherited)
+                    .merging(Self.overrides(baseURL: endpoint.url)) { _, override in override }
+            )
+            found[alias] = await reportedModel(launching: launch)
         }
         withExtendedLifetime(endpoint) {}
-        return resolved
+        return found
     }
+
+    static let proxyVariables: Set<String> = [
+        "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy",
+    ]
 
     static func arguments(alias: String, baseURL: String) -> [String] {
         [
@@ -58,6 +56,7 @@ public struct ClaudeAliasProbe: Sendable {
             "--model", alias,
             "--output-format", "stream-json",
             "--verbose",
+            "--setting-sources", "local",
             "--settings", settings(baseURL: baseURL),
             "--strict-mcp-config",
             "--no-session-persistence",
@@ -73,6 +72,8 @@ public struct ClaudeAliasProbe: Sendable {
             "CLAUDE_CODE_USE_FOUNDRY": "0",
             "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
             "DISABLE_AUTOUPDATER": "1",
+            "NO_PROXY": "127.0.0.1,localhost",
+            "no_proxy": "127.0.0.1,localhost",
         ]
     }
 
@@ -98,9 +99,19 @@ public struct ClaudeAliasProbe: Sendable {
         let process = makeProcess(launch)
         let lines = process.lines
         process.closeStdin()
-        let deadline = timeout
-        let model = await withTaskGroup(of: String?.self) { group in
-            group.addTask { await Self.firstInitModel(in: lines) }
+        let model = await Self.first(within: timeout) { await Self.firstInitModel(in: lines) }
+        process.terminate()
+        let exited = await Self.first(within: .seconds(2)) { _ = await process.exitStatus; return true }
+        if exited == nil { process.kill() }
+        return model
+    }
+
+    private static func first<Answer: Sendable>(
+        within deadline: Duration,
+        _ work: @escaping @Sendable () async -> Answer?
+    ) async -> Answer? {
+        await withTaskGroup(of: Answer?.self) { group in
+            group.addTask { await work() }
             group.addTask {
                 try? await Task.sleep(for: deadline)
                 return nil
@@ -109,8 +120,6 @@ public struct ClaudeAliasProbe: Sendable {
             group.cancelAll()
             return first.flatMap(\.self)
         }
-        process.terminate()
-        return model
     }
 
     private static func firstInitModel(in lines: AsyncThrowingStream<String, Error>) async -> String? {

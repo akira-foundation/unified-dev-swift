@@ -28,7 +28,7 @@ struct ModelSettingsView: View {
             } footer: {
                 VStack(alignment: .leading, spacing: Metrics.spacingSmall) {
                     ModelListFailureNote()
-                    Text("Each row selects a model and reasoning effort. A Claude family name such as Opus follows the newest version of that family. The number beside it is the version the installed Claude Code resolves it to for this account, and the transcript says which version ran. Project model settings take priority. Existing sessions keep their settings.")
+                    Text("Each row selects a model and reasoning effort. A Claude family name such as Opus follows the newest version of that family. The number beside it is the version Claude Code last resolved it to for this account, and the transcript says which version ran. Project model settings take priority. Existing sessions keep their settings.")
                         .settingsFootnote()
                     if let preset = ModelPresetLibrary.shared.list.defaultPreset {
                         Text("New sessions start on the default preset, \u{201C}\(preset.name)\u{201D}, rather than on this row. Change that under Model Presets.")

@@ -73,17 +73,18 @@ struct ClaudeAliasProbeTests {
         directory: URL(filePath: "/accounts/claudeCode/work"), isDefault: false
     )
 
-    @Test("the launch keeps the account's own settings and turns off hooks, servers, memory and the saved session")
+    @Test("the launch keeps the account's login, reads none of its settings files, and turns off hooks, servers, memory and the saved session")
     func launchesQuietly() throws {
         let arguments = ClaudeAliasProbe.arguments(alias: "opus", baseURL: "http://127.0.0.1:9")
 
         #expect(arguments.starts(with: ["-p", "."]))
+        let sources = try #require(arguments.firstIndex(of: "--setting-sources"))
+        #expect(arguments[sources + 1] == "local")
         #expect(alias(of: AgentLaunch(executable: "", arguments: arguments, cwd: "", environment: [:])) == "opus")
         #expect(arguments.contains("--strict-mcp-config"))
         #expect(arguments.contains("--no-session-persistence"))
         #expect(arguments.contains("--disable-slash-commands"))
         #expect(!arguments.contains("--bare"))
-        #expect(!arguments.contains("--setting-sources"))
 
         let index = try #require(arguments.firstIndex(of: "--settings"))
         let settings = try #require(JSONValue.parse(arguments[index + 1]))
@@ -99,6 +100,8 @@ struct ClaudeAliasProbeTests {
             "ANTHROPIC_BASE_URL": "https://api.anthropic.com",
             "CLAUDE_CODE_USE_BEDROCK": "1",
             "CLAUDE_CODE_USE_VERTEX": "1",
+            "HTTPS_PROXY": "http://proxy.example:8080",
+            "http_proxy": "http://proxy.example:8080",
             "PATH": "/usr/bin",
         ]
         _ = await probe(launches, inherited: inherited) { _ in [initLine("claude-opus-5-5")] }
@@ -114,6 +117,9 @@ struct ClaudeAliasProbeTests {
             #expect(launched[variable] == "0")
         }
         #expect(address.hasPrefix("http://127.0.0.1:"))
+        #expect(launched["HTTPS_PROXY"] == nil)
+        #expect(launched["http_proxy"] == nil)
+        #expect(launched["NO_PROXY"] == "127.0.0.1,localhost")
         #expect(env["ANTHROPIC_BASE_URL"]?.stringValue == address)
         #expect(launched["CLAUDE_CONFIG_DIR"] == work.directory.path)
         #expect(launched["PATH"] == "/usr/bin")
@@ -128,7 +134,7 @@ struct ClaudeAliasProbeTests {
         #expect(ClaudeAliasProbe.initModel(in: "Warning: something") == nil)
     }
 
-    @Test("every alias is asked at once, answered from its init, and each process is ended once it has answered")
+    @Test("every alias is asked in turn, answered from its init, and each process is ended once it has answered")
     func resolvesEveryAlias() async {
         let launches = ProbeLaunches()
         let resolved = await probe(launches) { alias in
@@ -136,11 +142,12 @@ struct ClaudeAliasProbeTests {
         }.resolve(["opus", "sonnet"], account: work)
 
         #expect(resolved == ["opus": "claude-opus-5-5", "sonnet": "claude-sonnet-5-5"])
+        #expect(launches.launches.map(alias(of:)) == ["opus", "sonnet"])
         #expect(launches.processes.map(\.terminationCount) == [1, 1])
         #expect(Set(launches.launches.map { $0.environment["ANTHROPIC_BASE_URL"] }).count == 1)
     }
 
-    @Test("a CLI that never reports is given up on at the deadline and ended")
+    @Test("a CLI that never reports is given up on at the deadline and ended", .timeLimit(.minutes(1)))
     func givesUpAtTheDeadline() async {
         let launches = ProbeLaunches()
         let resolved = await probe(launches, timeout: .milliseconds(50)) { _ in [] }.resolve(["opus"], account: nil)
@@ -191,6 +198,21 @@ struct ClaudeAliasProbeTests {
             "sonnet": "claude-sonnet-5-5", "haiku": "claude-haiku-5-5",
         ])
         #expect(await ClaudeResolvedModel.reported(account: nil, in: store).isEmpty)
+    }
+
+    @Test("an account whose probe answered nothing is asked again on the next refresh", .timeLimit(.minutes(1)))
+    func retriesAnAccountThatAnsweredNothing() async throws {
+        let store = try makeTestStore("probe")
+        let launches = ProbeLaunches()
+        let refresh = ClaudeAliasRefresh(probe: { _ in
+            probe(launches, timeout: .milliseconds(20)) { _ in [] }
+        })
+
+        await refresh.refresh(account: work, in: store)
+        await refresh.refresh(account: work, in: store)
+
+        #expect(launches.launches.count == 2 * ClaudeModelCatalog.builtIn.count)
+        #expect(await ClaudeResolvedModel.reported(account: work, in: store).isEmpty)
     }
 }
 

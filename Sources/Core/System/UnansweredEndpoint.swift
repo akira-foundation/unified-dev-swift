@@ -7,6 +7,7 @@ public final class UnansweredEndpoint: Sendable {
     public init?() {
         let opened = socket(AF_INET, SOCK_STREAM, 0)
         guard opened >= 0 else { return nil }
+        _ = fcntl(opened, F_SETFD, FD_CLOEXEC)
         var address = sockaddr_in()
         address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
         address.sin_family = sa_family_t(AF_INET)

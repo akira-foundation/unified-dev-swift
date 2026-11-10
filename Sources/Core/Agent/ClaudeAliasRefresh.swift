@@ -3,7 +3,8 @@ import Foundation
 public actor ClaudeAliasRefresh {
     public static let shared = ClaudeAliasRefresh()
 
-    private var refreshed: Set<AgentAccountID> = []
+    private var answered: Set<AgentAccountID> = []
+    private var probing: Set<AgentAccountID> = []
     private let probe: (@Sendable (Store) async -> ClaudeAliasProbe)?
 
     init(probe: (@Sendable (Store) async -> ClaudeAliasProbe)? = nil) {
@@ -11,7 +12,9 @@ public actor ClaudeAliasRefresh {
     }
 
     public func refresh(account: AgentAccountHome?, in store: Store) async {
-        guard refreshed.insert(ClaudeResolvedModel.accountID(account)).inserted else { return }
+        let id = ClaudeResolvedModel.accountID(account)
+        guard !answered.contains(id), probing.insert(id).inserted else { return }
+        defer { probing.remove(id) }
         let chosen: ClaudeAliasProbe
         if let probe {
             chosen = await probe(store)
@@ -20,6 +23,8 @@ public actor ClaudeAliasRefresh {
             chosen = ClaudeAliasProbe.using(executableOverride: overrides[.claudeCode])
         }
         let models = await chosen.resolve(ClaudeModelCatalog.builtIn.map(\.id), account: account)
-        await ClaudeResolvedModel.recordProbed(models, account: account, in: store)
+        guard !models.isEmpty else { return }
+        answered.insert(id)
+        await ClaudeResolvedModel.record(models, account: account, in: store)
     }
 }
