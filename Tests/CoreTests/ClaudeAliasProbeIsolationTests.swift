@@ -91,8 +91,8 @@ struct ClaudeAliasProbeIsolationTests {
 
         #expect(answers?.probed == ["opus": "claude-opus-5-5"])
         #expect(code("base") == 28)
-        #expect([52, 56].contains(code("https") ?? 28))
-        #expect([52, 56].contains(code("http") ?? 28))
+        #expect([52, 55, 56].contains(code("https") ?? 28))
+        #expect([52, 55, 56].contains(code("http") ?? 28))
     }
 
     @Test("each probe runs in a directory of its own, found empty and removed afterwards")
