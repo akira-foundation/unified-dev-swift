@@ -218,12 +218,15 @@ The owner decides when the next major comes.
 
 A commit already on a release branch that was marked breaking by mistake is excused by name in
 `commit_preprocessors` in `cliff.toml`, which rewrites that one message before git-cliff reads it,
-and it is then listed as what it is. Three are excused so far. `870b8712` (#434) undid #374, which
+and it is then listed as what it is. Four are excused so far. `870b8712` (#434) undid #374, which
 never shipped. `f1c119b8` and `5f328fed` (#460) removed `CodexAccount.isExpired`, the `now`
 parameter of `codexDetails`, `AgentAccountEnvironment.givesADirectory` and an initialiser of
 `AgentAccountPanel.Owner`, all of them internal to `Core` with no caller outside this repository,
 so nobody running v1.1.3 feels anything: the `!` was the habit of a published library applied to a
-target that is not one. `Tools/release/tests/breaking-bump.sh` holds both halves, that each excused
+target that is not one. `2ef4dd81` (#498) keeps the owner's browser panes out of the agents' tools,
+and v1.2.1 shipped it as a fix under a reworded message: an agent losing a pane it was never meant to
+reach is the defect being fixed, not a break for anybody running the app, and the commit body says
+what agents now have to do instead. `Tools/release/tests/breaking-bump.sh` holds both halves, that each excused
 commit derives no major and that any other break after a 1.x tag still derives 2.0.0, and the
 `lint` job runs it.
 

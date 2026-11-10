@@ -42,9 +42,11 @@ struct ClaudeResolvedModelTests {
         #expect(version(listed: listed, reported: ["fable": "claude-fable-5-1"]) == "5.5")
     }
 
-    @Test("a report of another family does not hide the list")
-    func aWrongReportFallsBackToTheList() {
-        #expect(version(listed: [model("claude-opus-5-5")], reported: ["opus": "claude-sonnet-5"]) == "5.5")
+    @Test("a stored model the alias cannot be read from names no version, rather than the list's newest", arguments: [
+        "claude-sonnet-5", "claude-3-5-sonnet-20241022", "us.anthropic.claude-opus-4-5-v1:0",
+    ])
+    func anUnreadableStoredModelNamesNoVersion(stored: String) {
+        #expect(version(listed: [model("claude-opus-5-5")], reported: ["opus": stored]) == nil)
     }
 
     @Test("a dated id of a whole version does not outrank a newer point release")
@@ -116,9 +118,9 @@ struct ClaudeResolvedModelTests {
     func keepsObservationsPerAccount() async throws {
         let store = try makeTestStore("resolved")
 
-        await ClaudeResolvedModel.record(requested: "opus", reported: "claude-opus-5-5", account: work, in: store)
-        await ClaudeResolvedModel.record(requested: "opus", reported: "claude-opus-5", account: client, in: store)
-        await ClaudeResolvedModel.record(requested: "sonnet", reported: "claude-sonnet-5", account: nil, in: store)
+        await ClaudeResolvedModel.record(requested: "opus", reported: "claude-opus-5-5", cliVersion: "2.1.322", account: work, in: store)
+        await ClaudeResolvedModel.record(requested: "opus", reported: "claude-opus-5", cliVersion: "2.1.322", account: client, in: store)
+        await ClaudeResolvedModel.record(requested: "sonnet", reported: "claude-sonnet-5", cliVersion: "2.1.322", account: nil, in: store)
 
         #expect(await ClaudeResolvedModel.reported(account: work, in: store) == ["opus": "claude-opus-5-5"])
         #expect(await ClaudeResolvedModel.reported(account: client, in: store) == ["opus": "claude-opus-5"])
@@ -129,8 +131,8 @@ struct ClaudeResolvedModelTests {
     func aNewVersionReplacesTheOldOne() async throws {
         let store = try makeTestStore("resolved")
 
-        await ClaudeResolvedModel.record(requested: "opus", reported: "claude-opus-5", account: work, in: store)
-        await ClaudeResolvedModel.record(requested: "opus", reported: "claude-opus-5-5", account: work, in: store)
+        await ClaudeResolvedModel.record(requested: "opus", reported: "claude-opus-5", cliVersion: "2.1.322", account: work, in: store)
+        await ClaudeResolvedModel.record(requested: "opus", reported: "claude-opus-5-5", cliVersion: "2.1.322", account: work, in: store)
 
         #expect(await ClaudeResolvedModel.reported(account: work, in: store) == ["opus": "claude-opus-5-5"])
     }
@@ -144,7 +146,7 @@ struct ClaudeResolvedModelTests {
     func recordsOnlyAResolvedAlias(requested: String, reported: String) async throws {
         let store = try makeTestStore("resolved")
 
-        await ClaudeResolvedModel.record(requested: requested, reported: reported, account: work, in: store)
+        await ClaudeResolvedModel.record(requested: requested, reported: reported, cliVersion: "2.1.322", account: work, in: store)
 
         #expect(await ClaudeResolvedModel.reported(account: work, in: store).isEmpty)
     }
@@ -157,29 +159,70 @@ struct ClaudeResolvedModelTests {
             createdAt: Date(timeIntervalSince1970: 1_000)
         ))
         for alias in ClaudeModelCatalog.builtIn.map(\.id) {
-            await ClaudeResolvedModel.record(requested: alias, reported: "claude-\(alias)-5", account: work, in: store)
+            await ClaudeResolvedModel.record(requested: alias, reported: "claude-\(alias)-5", cliVersion: "2.1.322", account: work, in: store)
         }
-        await ClaudeResolvedModel.record(["sonnet": "claude-sonnet-5-5"], account: work, in: store)
-        await ClaudeResolvedModel.record(requested: "opus", reported: "claude-opus-5", account: client, in: store)
-        await ClaudeResolvedModel.record(["sonnet": "claude-sonnet-5-5"], account: client, in: store)
+        await ClaudeResolvedModel.record(ClaudeAliasAnswers(probed: ["sonnet": "claude-sonnet-5-5"]), cliVersion: nil, account: work, in: store)
+        await ClaudeResolvedModel.record(requested: "opus", reported: "claude-opus-5", cliVersion: "2.1.322", account: client, in: store)
+        await ClaudeResolvedModel.record(ClaudeAliasAnswers(probed: ["sonnet": "claude-sonnet-5-5"]), cliVersion: nil, account: client, in: store)
 
         try await store.forgetAgentAccount(work.id)
+        await ClaudeResolvedModel.record(ClaudeAliasAnswers(probed: ["opus": "claude-opus-5-9"]), cliVersion: "2.1.322", account: work, in: store)
 
-        #expect(await ClaudeResolvedModel.reported(account: work, in: store).isEmpty)
+        #expect(await ClaudeResolvedModel.reported(account: work, in: store) == ["opus": "claude-opus-5-9"])
         #expect(await ClaudeResolvedModel.reported(account: client, in: store)
             == ["opus": "claude-opus-5", "sonnet": "claude-sonnet-5-5"])
     }
 
-    @Test("a probe and a turn write the same answer, so whichever came last is shown")
-    func theLatestAnswerWins() async throws {
+    @Test("a probe of the same CLI version never replaces what a turn observed")
+    func aTurnOutranksAProbeOfItsVersion() async throws {
         let store = try makeTestStore("resolved")
 
-        await ClaudeResolvedModel.record(["opus": "claude-opus-5-5"], account: work, in: store)
-        await ClaudeResolvedModel.record(requested: "opus", reported: "claude-opus-5-6", account: work, in: store)
+        await ClaudeResolvedModel.record(ClaudeAliasAnswers(probed: ["opus": "claude-opus-5-5"]), cliVersion: "2.1.322", account: work, in: store)
+        await ClaudeResolvedModel.record(requested: "opus", reported: "claude-opus-4-1", cliVersion: "2.1.322", account: work, in: store)
+        await ClaudeResolvedModel.record(ClaudeAliasAnswers(probed: ["opus": "claude-opus-5-5"]), cliVersion: "2.1.322 (Claude Code)", account: work, in: store)
+
+        #expect(await ClaudeResolvedModel.reported(account: work, in: store) == ["opus": "claude-opus-4-1"])
+    }
+
+    @Test("a probe of a newer CLI replaces a turn the older one ran, and a pin replaces any turn")
+    func aNewVersionOrAPinReplacesATurn() async throws {
+        let store = try makeTestStore("resolved")
+
+        await ClaudeResolvedModel.record(requested: "opus", reported: "claude-opus-5-5", cliVersion: "2.1.309", account: work, in: store)
+        await ClaudeResolvedModel.record(ClaudeAliasAnswers(probed: ["opus": "claude-opus-5-6"]), cliVersion: "2.1.322", account: work, in: store)
         #expect(await ClaudeResolvedModel.reported(account: work, in: store) == ["opus": "claude-opus-5-6"])
 
-        await ClaudeResolvedModel.record(["opus": "claude-opus-5-7"], account: work, in: store)
-        #expect(await ClaudeResolvedModel.reported(account: work, in: store) == ["opus": "claude-opus-5-7"])
+        await ClaudeResolvedModel.record(requested: "opus", reported: "claude-opus-5-7", cliVersion: "2.1.322", account: work, in: store)
+        await ClaudeResolvedModel.record(ClaudeAliasAnswers(pinned: ["opus": "claude-opus-4-1-20250805"]), cliVersion: "2.1.322", account: work, in: store)
+        #expect(await ClaudeResolvedModel.reported(account: work, in: store) == ["opus": "claude-opus-4-1-20250805"])
+
+        await ClaudeResolvedModel.record(ClaudeAliasAnswers(probed: ["opus": "claude-opus-5-8"]), cliVersion: "2.1.322", account: work, in: store)
+        #expect(await ClaudeResolvedModel.reported(account: work, in: store) == ["opus": "claude-opus-5-8"])
+    }
+
+    @Test("a probe whose CLI version is unknown answers an alias no turn has run, and leaves one a turn has")
+    func anUnknownVersionOnlyFillsTheGaps() async throws {
+        let store = try makeTestStore("resolved")
+
+        await ClaudeResolvedModel.record(requested: "sonnet", reported: "claude-sonnet-4-5", cliVersion: "2.1.309", account: work, in: store)
+        await ClaudeResolvedModel.record(
+            ClaudeAliasAnswers(probed: ["opus": "claude-opus-5-5", "sonnet": "claude-sonnet-5-5"]), cliVersion: nil, account: work, in: store
+        )
+
+        #expect(await ClaudeResolvedModel.reported(account: work, in: store) == ["opus": "claude-opus-5-5", "sonnet": "claude-sonnet-4-5"])
+    }
+
+    @Test("a pin to a model id the picker cannot read is kept, and the alias then names no version")
+    func anUnreadablePinShowsNoVersion() async throws {
+        let store = try makeTestStore("resolved")
+        let pin = "us.anthropic.claude-opus-4-5-v1:0"
+
+        await ClaudeResolvedModel.record(ClaudeAliasAnswers(probed: ["opus": "claude-opus-5-5"]), cliVersion: "2.1.322", account: work, in: store)
+        await ClaudeResolvedModel.record(ClaudeAliasAnswers(pinned: ["opus": pin]), cliVersion: "2.1.322", account: work, in: store)
+        let reported = await ClaudeResolvedModel.reported(account: work, in: store)
+
+        #expect(reported == ["opus": pin])
+        #expect(ClaudeResolvedModel.version(ofAlias: "opus", listed: [model("claude-opus-5-5")], reported: reported) == nil)
     }
 
     @Test("a probe keeps only an id of the alias's own family, per account")
@@ -187,9 +230,10 @@ struct ClaudeResolvedModelTests {
         let store = try makeTestStore("resolved")
 
         await ClaudeResolvedModel.record(
-            ["opus": "claude-opus-5-5", "sonnet": "claude-haiku-5-5", "haiku": "haiku"], account: work, in: store
+            ClaudeAliasAnswers(probed: ["opus": "claude-opus-5-5", "sonnet": "claude-haiku-5-5", "haiku": "haiku"]),
+            cliVersion: nil, account: work, in: store
         )
-        await ClaudeResolvedModel.record(["opus": "claude-opus-4-8"], account: client, in: store)
+        await ClaudeResolvedModel.record(ClaudeAliasAnswers(probed: ["opus": "claude-opus-4-8"]), cliVersion: nil, account: client, in: store)
 
         #expect(await ClaudeResolvedModel.reported(account: work, in: store) == ["opus": "claude-opus-5-5"])
         #expect(await ClaudeResolvedModel.reported(account: client, in: store) == ["opus": "claude-opus-4-8"])

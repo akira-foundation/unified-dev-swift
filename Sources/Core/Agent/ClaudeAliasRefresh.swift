@@ -7,20 +7,23 @@ public actor ClaudeAliasRefresh {
 
     private static let unknownVersion = "unknown"
 
-    private var answeredVersion: [AgentAccountID: String] = [:]
+    private var answered: [AgentAccountID: (version: String, settings: String)] = [:]
     private var nextCheck: [AgentAccountID: ContinuousClock.Instant] = [:]
     private var probing: Set<AgentAccountID> = []
     private let probe: (@Sendable (Store) async -> ClaudeAliasProbe)?
     private let installedVersion: (@Sendable (Store) async -> String?)?
     private let now: @Sendable () -> ContinuousClock.Instant
+    private let activity: ClaudeAccountActivity
 
     init(
         probe: (@Sendable (Store) async -> ClaudeAliasProbe)? = nil,
         installedVersion: (@Sendable (Store) async -> String?)? = nil,
+        activity: ClaudeAccountActivity = .shared,
         now: @escaping @Sendable () -> ContinuousClock.Instant = { ContinuousClock.now }
     ) {
         self.probe = probe
         self.installedVersion = installedVersion
+        self.activity = activity
         self.now = now
     }
 
@@ -32,16 +35,20 @@ public actor ClaudeAliasRefresh {
         defer { probing.remove(id) }
         nextCheck[id] = moment + Self.recheckInterval
         let version = await version(in: store)
-        if let answered = answeredVersion[id] {
-            guard let version, version != answered else { return }
+        let aliases = ClaudeModelCatalog.builtIn.map(\.id)
+        let probe = await chosenProbe(in: store)
+        let settings = await probe.settingsFingerprint(aliases, account: account)
+        if let last = answered[id], last.settings == settings {
+            guard let version, version != last.version else { return }
         }
-        let models = await chosenProbe(in: store).resolve(ClaudeModelCatalog.builtIn.map(\.id), account: account)
-        guard !models.isEmpty else {
+        guard !activity.isRunning(id) else { return }
+        let answers = await probe.resolve(aliases, account: account)
+        await ClaudeResolvedModel.record(answers, cliVersion: version, account: account, in: store)
+        guard answers.all.count == aliases.count else {
             nextCheck[id] = moment + Self.retryInterval
             return
         }
-        answeredVersion[id] = version ?? Self.unknownVersion
-        await ClaudeResolvedModel.record(models, account: account, in: store)
+        answered[id] = (version ?? Self.unknownVersion, settings)
     }
 
     private func version(in store: Store) async -> String? {

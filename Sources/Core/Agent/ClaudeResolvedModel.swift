@@ -9,7 +9,7 @@ public enum ClaudeResolvedModel {
         listed: [AgentModel],
         reported: [String: String]
     ) -> String? {
-        if let current = reported[alias].flatMap({ parsed($0, alias: alias) }) { return label(current) }
+        if let stored = reported[alias] { return parsed(stored, alias: alias).map(label) }
         let listedVersions = listed.filter { $0.unavailable == nil }.compactMap { parsed($0.id, alias: alias) }
         return listedVersions.max { $1.isAbove($0) }.map(label)
     }
@@ -34,19 +34,39 @@ public enum ClaudeResolvedModel {
     public static func record(
         requested alias: String,
         reported model: String,
+        cliVersion: String,
         account: AgentAccountHome?,
         in store: Store
     ) async {
-        await record([alias: model], account: account, in: store)
+        guard version(of: model, alias: alias) != nil else { return }
+        let key = settingKey(alias: alias, account: accountID(account))
+        let observed = comparable(cliVersion)
+        if (try? await store.setting(key)) != model { try? await store.setSetting(key, model) }
+        if (try? await store.setting(turnKey(key))) != observed { try? await store.setSetting(turnKey(key), observed) }
     }
 
-    static func record(_ models: [String: String], account: AgentAccountHome?, in store: Store) async {
+    static func record(
+        _ answers: ClaudeAliasAnswers,
+        cliVersion: String?,
+        account: AgentAccountHome?,
+        in store: Store
+    ) async {
         let id = accountID(account)
-        for (alias, model) in models.sorted(by: { $0.key < $1.key }) where version(of: model, alias: alias) != nil {
+        let current = cliVersion.flatMap(comparable)
+        for (alias, model) in answers.all.sorted(by: { $0.key < $1.key }) {
+            let pinned = answers.pinned[alias] != nil
+            guard pinned || version(of: model, alias: alias) != nil else { continue }
             let key = settingKey(alias: alias, account: id)
-            guard (try? await store.setting(key)) != model else { continue }
-            try? await store.setSetting(key, model)
+            let turn = try? await store.setting(turnKey(key))
+            if !pinned, let turn, current == nil || turn == current { continue }
+            if (try? await store.setting(key)) != model { try? await store.setSetting(key, model) }
+            if turn != nil { try? await store.setSetting(turnKey(key), nil) }
         }
+    }
+
+    static func comparable(_ cliVersion: String) -> String? {
+        let token = cliVersion.split(whereSeparator: \.isWhitespace).first.map(String.init) ?? ""
+        return token.isEmpty ? nil : token
     }
 
     public static func reported(account: AgentAccountHome?, in store: Store) async -> [String: String] {
@@ -59,7 +79,14 @@ public enum ClaudeResolvedModel {
     }
 
     static func settingKeys(account: AgentAccountID) -> [String] {
-        ClaudeModelCatalog.builtIn.map { settingKey(alias: $0.id, account: account) }
+        ClaudeModelCatalog.builtIn.flatMap {
+            let key = settingKey(alias: $0.id, account: account)
+            return [key, turnKey(key)]
+        }
+    }
+
+    private static func turnKey(_ key: String) -> String {
+        key + ".turn-cli"
     }
 
     private static func settingKey(alias: String, account: AgentAccountID) -> String {
