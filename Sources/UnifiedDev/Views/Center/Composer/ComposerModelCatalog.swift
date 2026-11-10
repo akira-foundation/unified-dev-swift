@@ -17,7 +17,7 @@ final class ComposerModelCatalog {
     private(set) var models: [AgentKind: [AgentModel]] = [:]
     private(set) var isLoading = false
     private(set) var failures: [AgentKind: ModelListFailure] = [:]
-    private(set) var observedClaudeModels: [String: String] = [:]
+    private(set) var reportedClaudeModels: [String: String] = [:]
 
     private var sources: [AgentKind: AgentModelSource]
     private var accounts: [AgentKind: AgentAccountHome] = [:]
@@ -34,7 +34,7 @@ final class ComposerModelCatalog {
         Task { await ComposerPlanningSupport.shared.refresh(from: store) }
         sources = AgentModelSource.live(store: store, accounts: accounts)
         guard accountsAreKnown else { return }
-        followClaudeObservations(in: store)
+        followClaudeReports(in: store)
         refresh()
     }
 
@@ -43,24 +43,25 @@ final class ComposerModelCatalog {
         accountsAreKnown = true
         accounts = adopted
         sources = AgentModelSource.live(store: store, accounts: adopted)
-        followClaudeObservations(in: store)
+        followClaudeReports(in: store)
         refresh()
     }
 
-    private func followClaudeObservations(in store: Store) {
+    private func followClaudeReports(in store: Store) {
         observationTask?.cancel()
         let account = accounts[.claudeCode]
         observationTask = Task { [weak self] in
             var changes = store.changes(of: [.settings]).makeAsyncIterator()
+            Task { await ClaudeAliasRefresh.shared.refresh(account: account, in: store) }
             repeat {
-                self?.adoptClaudeObservations(await ClaudeResolvedModel.observed(account: account, in: store))
+                self?.adoptClaudeReports(await ClaudeResolvedModel.reported(account: account, in: store))
             } while await changes.next() != nil
         }
     }
 
-    private func adoptClaudeObservations(_ observed: [String: String]) {
-        guard !Task.isCancelled, observed != observedClaudeModels else { return }
-        observedClaudeModels = observed
+    private func adoptClaudeReports(_ reported: [String: String]) {
+        guard !Task.isCancelled, reported != reportedClaudeModels else { return }
+        reportedClaudeModels = reported
     }
 
     func load() {
@@ -122,7 +123,7 @@ final class ComposerModelCatalog {
         let known = (models[kind] ?? []).filter { !$0.hidden }
         if kind == .claudeCode {
             return ComposerOption.options(
-                ClaudeModelCatalog.offered(read: known, including: current, observed: observedClaudeModels)
+                ClaudeModelCatalog.offered(read: known, including: current, reported: reportedClaudeModels)
             )
         }
         let options = ComposerOption.options(known)

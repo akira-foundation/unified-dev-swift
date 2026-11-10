@@ -121,10 +121,34 @@ changes nothing, and a resume that was really refused has the whole conversation
 `model` is an alias resolved, or the string `--model` was given when it names no alias. Measured on
 `claude 2.1.309`, `--model opus` reports `claude-opus-5-5`, and the same alias reported
 `claude-opus-5` on `claude 2.1.261`, so what an alias means belongs to the CLI and its account.
-`ClaudeResolvedModel` keeps the last answer per alias and account, which is how the model picker
-names the version of an alias the account's `additionalModelOptionsCache` does not list. A `--model`
-nobody has ever heard of comes back in this field unchanged, so this line never promises that the
-model exists.
+`ClaudeResolvedModel` keeps the last answer per alias and account. A `--model` nobody has ever heard
+of comes back in this field unchanged, so this line never promises that the model exists.
+
+### What an alias resolves to, without a turn
+
+`init` is written after the prompt is read and before the first request leaves, so the CLI can be
+asked what an alias means without anything reaching Anthropic. `ClaudeAliasProbe` starts one
+`claude -p . --model <alias> --output-format stream-json --verbose` per alias, under the account's
+own directory and login, with `ANTHROPIC_BASE_URL` pointing at an `UnansweredEndpoint`: a socket on
+127.0.0.1 that listens and never accepts, so the request sits in the kernel's queue unread. It takes
+the `model` of the first `init` and ends the process. The same address, with Bedrock, Vertex and
+Foundry switched off, goes into `--settings` as well as the environment, because flag settings
+outrank the account's `settings.json`: measured, an account file naming its own base URL and Bedrock
+still sent the request to the local socket. `disableAllHooks`, `autoMemoryEnabled: false`,
+`--strict-mcp-config`, `--no-session-persistence` and `--disable-slash-commands` keep it from running
+anyone's hooks or servers and from writing anything: measured on `claude 2.1.309` on 10 November
+2026, `~/.claude.json` came out with every key as it went in and `~/.claude/projects` gained nothing.
+`--bare` is not used, because it never reads the login and would answer for no account at all.
+
+Measured on that version, the four built in aliases answered `claude-fable-5-1`, `claude-opus-5-5`,
+`claude-sonnet-5-5` and `claude-haiku-5-5`, all four at once in about 0.4 seconds, 1 on a cold
+start. `ClaudeAliasRefresh` runs it once per account per launch of the app and keeps the answers in
+the settings table.
+
+The model picker names the version from, in order: that probe, the `init` of the last turn that ran
+the alias under that account, and the newest usable entry of the account's
+`additionalModelOptionsCache`. The list comes last because it lags: it is what the server offered when
+the CLI last wrote the file, and it has been seen naming an older version than the alias runs.
 
 ### Which models it has, and what happens when it does not have one
 
@@ -136,7 +160,8 @@ No subcommand lists models: `agents`, `attach`, `auth`, `auto-mode`, `doctor`, `
 `ultrareview`, `update`, and nothing else. Under `--input-format stream-json` the `init` line does
 not arrive until the first user message is written to stdin either: a session started and left
 alone printed seven `hook_started` and seven `hook_response` lines and then waited, with no `init`
-and no `model` anywhere. So asking the process costs a turn and answers nothing useful.
+and no `model` anywhere. Asking with a prompt and nowhere to send it does answer, for one alias at a
+time, which is what the section above does; for the list of models there is still only the file.
 
 **`~/.claude.json` carries the answer.** The CLI rewrites it on startup with what the server told
 it, and `additionalModelOptionsCache` is the list its own `/model` picker is built from. It is the
