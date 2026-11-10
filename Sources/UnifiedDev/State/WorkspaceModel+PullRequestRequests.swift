@@ -122,7 +122,7 @@ extension WorkspaceModel {
         return await send(text, to: session, from: source)
     }
 
-    private func instructionAuthority(for pullRequest: PullRequest?) async -> InstructionAuthority {
+    func instructionAuthority(for pullRequest: PullRequest?) async -> InstructionAuthority {
         await GitHub.instructionAuthority(
             for: workspace,
             pullRequest: pullRequest,
