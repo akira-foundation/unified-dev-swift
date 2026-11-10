@@ -39,6 +39,7 @@ enum PreviewScenarioLaunch {
         )
         UserDefaults.standard.removeObject(forKey: SoftwareUpdate.lastCheckedKey)
         UserDefaults.standard.removeObject(forKey: SoftwareUpdate.skippedVersionKey)
+        UserDefaults.standard.removeObject(forKey: SoftwareUpdate.offerHeldSinceKey)
     }
 
     private static func forgetSeededState() {

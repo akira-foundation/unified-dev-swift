@@ -42,6 +42,7 @@ public struct ArchiveRequest: Identifiable, Sendable, Equatable {
     public var problem: String?
     public var hazards: ArchiveHazards
     public var isChecking: Bool
+    public var stoppedCommands: [Subagent]
 
     public var id: WorkspaceID { workspace.id }
 
@@ -51,7 +52,8 @@ public struct ArchiveRequest: Identifiable, Sendable, Equatable {
         deleteBranch: Bool? = nil,
         problem: String? = nil,
         hazards: ArchiveHazards = ArchiveHazards(),
-        isChecking: Bool = false
+        isChecking: Bool = false,
+        stoppedCommands: [Subagent] = []
     ) {
         self.workspace = workspace
         self.report = report
@@ -59,6 +61,7 @@ public struct ArchiveRequest: Identifiable, Sendable, Equatable {
         self.problem = problem
         self.hazards = hazards
         self.isChecking = isChecking
+        self.stoppedCommands = stoppedCommands
     }
 
     public static func checking(workspace: Workspace, hazards: ArchiveHazards) -> ArchiveRequest {
@@ -79,6 +82,17 @@ public struct ArchiveRequest: Identifiable, Sendable, Equatable {
 
     public var notes: [String] {
         isChecking ? [] : report.ignoredFileNotes
+    }
+
+    public var refusal: String {
+        ArchiveNotice.afterFailing(refusalReason, stopping: stoppedCommands)
+    }
+
+    private var refusalReason: String {
+        if let problem { return problem }
+        let reasons = losses + notes
+        guard !reasons.isEmpty else { return "Confirm this archive in Unified Dev." }
+        return "Archiving would discard \(reasons.joined(separator: "; ")). Resolve this or review it in Unified Dev."
     }
 
     public var severity: Severity {
@@ -113,14 +127,16 @@ public struct ArchiveRequest: Identifiable, Sendable, Equatable {
             guard problem == nil || isAgentMidTurn else { return nil }
             return ArchiveRequest(
                 workspace: workspace, report: report, deleteBranch: deleteBranch,
-                problem: problem ?? Self.uncheckedOnConfirming, hazards: now
+                problem: problem ?? Self.uncheckedOnConfirming, hazards: now, stoppedCommands: stoppedCommands
             )
         }
         let atRisk = isAgentMidTurn || fresh.putsMoreAtRisk(
             than: report, deletingBranch: now.isDeletingBranch, isPullRequestMerged: now.isPullRequestMerged
         )
         guard atRisk else { return nil }
-        return ArchiveRequest(workspace: workspace, report: fresh, deleteBranch: deleteBranch, hazards: now)
+        return ArchiveRequest(
+            workspace: workspace, report: fresh, deleteBranch: deleteBranch, hazards: now, stoppedCommands: stoppedCommands
+        )
     }
 
     public func reportForArchiving(fresh: WorkspaceSafetyReport?) -> WorkspaceSafetyReport? {
@@ -181,6 +197,10 @@ public struct ArchiveRequest: Identifiable, Sendable, Equatable {
 
         if let problem {
             text += "\n\n\(problem)"
+        }
+
+        if let stopped = BackgroundWork.stopped(stoppedCommands) {
+            text += "\n\n\(stopped)"
         }
         return text
     }

@@ -35,8 +35,10 @@ extension AppModel {
     func reloadSpend() async {
         guard let store else { return }
         let since = SpendSpan.month.start(from: Date(), calendar: .current)
-        let loaded = (try? await store.spendDays(since: since)) ?? []
-        if spendDays != loaded { spendDays = loaded }
+        let read = await SpendDaysState.read(store, since: since)
+        var loaded = spendDaysState
+        loaded.apply(read)
+        if spendDaysState != loaded { spendDaysState = loaded }
         if let span = spendAccountsSpan { loadSpendAccounts(span: span) }
         let census = (try? await store.setting(SpendCensus.settingKey))
             .flatMap { try? JSONDecoder().decode(SpendCensus.self, from: Data($0.utf8)) }
@@ -51,7 +53,9 @@ extension AppModel {
         guard let store else { return }
         spendAccountsSpan = span
         spendAccountsTask?.cancel()
-        let input = SpendBoard.Input(days: profileSpendDays, window: span, now: now, calendar: .current)
+        let input = SpendBoard.Input(
+            days: profileSpendDays, standing: spendDaysState.standing, window: span, now: now, calendar: .current
+        )
         let profile = activeProfileID
         spendAccountsTask = Task { [weak self] in
             let state = await SpendBoard.accountsState(input, reading: store, in: profile)
@@ -68,12 +72,13 @@ extension AppModel {
     }
 
     private var profileSpendDays: [SpendDay] {
-        SpendProjects.days(spendDays, in: activeProfileID, workspaces: workspaces, repos: repos)
+        SpendProjects.days(spendDaysState.days, in: activeProfileID, workspaces: workspaces, repos: repos)
     }
 
     private func spendInput(span: SpendSpan, at now: Date) -> SpendBoard.Input {
         SpendBoard.Input(
             days: profileSpendDays,
+            standing: spendDaysState.standing,
             workspaces: workspaces,
             repos: repos,
             census: spendCensus,

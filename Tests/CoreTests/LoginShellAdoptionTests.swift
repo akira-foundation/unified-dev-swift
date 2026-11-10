@@ -103,6 +103,51 @@ struct LoginShellAdoptionTests {
         #expect(collector.joined.contains("waited"))
     }
 
+    @Test("GitHub access neither looks for gh nor asks it until the login shell has answered")
+    func gitHubAccessWaitsForTheProbe() async {
+        let watch = ProbeWatch()
+        watch.install()
+        defer { LoginShellPath.forget() }
+
+        LoginShellPath.begin()
+        let access = await Shell.$executableLookup.withValue({ _ in
+            watch.noteSpawn()
+            return "/opt/mise/bin/gh"
+        }) {
+            await GitHub.$commandOverride.withValue({ arguments, _ in
+                #expect(arguments == ["auth", "status"])
+                watch.noteSpawn()
+                return ShellResult(status: 0, stdout: "", stderr: "")
+            }) {
+                await GitHub.access()
+            }
+        }
+
+        #expect(access == .ready)
+        #expect(watch.spawns == [true, true])
+    }
+
+    @Test("the language server is not looked for until the login shell has answered")
+    func languageServerWaitsForTheProbe() async {
+        let watch = ProbeWatch()
+        watch.install()
+        defer { LoginShellPath.forget() }
+        let server = SourceLanguageServer()
+
+        LoginShellPath.begin()
+        await #expect(throws: SourceLanguageServerError.self) {
+            try await Shell.$executableLookup.withValue({ _ in
+                watch.noteSpawn()
+                return nil
+            }) {
+                _ = try await server.definition(root: "/tmp/w", path: "a.php", text: "<?php", offset: 0, language: .php)
+            }
+        }
+        await server.close()
+
+        #expect(watch.spawns == [true])
+    }
+
     @Test("a Claude Code agent is not spawned until the login shell has answered")
     func claudeWaitsForTheProbe() async throws {
         let watch = ProbeWatch()

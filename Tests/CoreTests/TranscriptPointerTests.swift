@@ -27,4 +27,14 @@ struct TranscriptPointerTests {
     func both() {
         #expect(TranscriptPointer.over(link: true, chipThatOpens: true) == .hand)
     }
+
+    @Test("a code block's chrome is an arrow, because nothing there is text")
+    func chromeIsAnArrow() {
+        #expect(TranscriptPointer.overChrome(selectableText: false) == .arrow)
+    }
+
+    @Test("a command's output inside the chrome stays selectable text")
+    func outputInChromeIsText() {
+        #expect(TranscriptPointer.overChrome(selectableText: true) == .text)
+    }
 }

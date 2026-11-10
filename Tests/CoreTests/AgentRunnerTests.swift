@@ -418,6 +418,45 @@ struct AgentRunnerPersistenceTests {
         #expect(stored.agentSessionID == "s-1")
     }
 
+    @Test("the model an alias resolved to is kept under the account that ran it")
+    func theResolvedModelIsKeptForTheAccount() async throws {
+        let store = try makeTestStore("agent")
+        let session = try await makeSession(store)
+        let account = AgentAccountHome(
+            provider: .claudeCode, id: AgentAccountID("work"),
+            directory: URL(filePath: "/accounts/claudeCode/work"), isDefault: false
+        )
+        let runner = AgentRunner(
+            workspacePath: "/tmp/w", session: session, store: store,
+            segmentID: try await activeSegmentID(store, session), account: account
+        )
+
+        let line = """
+        {"type":"system","subtype":"init","session_id":"s-1","cwd":"/tmp/w","model":"claude-opus-5-5"}
+        """
+        await runner.ingest(try #require(AgentEvent.decode(line: line)))
+
+        #expect(await ClaudeResolvedModel.reported(account: account, in: store) == ["opus": "claude-opus-5-5"])
+        #expect(await ClaudeResolvedModel.reported(account: nil, in: store).isEmpty)
+    }
+
+    @Test("a chat with no model of its own is recorded under the alias the CLI was given")
+    func aChatWithNoModelRecordsTheDefaultAlias() async throws {
+        let store = try makeTestStore("agent")
+        let session = try await store.upsert(try await makeSession(store).with { $0.model = "" })
+        let runner = AgentRunner(
+            workspacePath: "/tmp/w", session: session, store: store,
+            segmentID: try await activeSegmentID(store, session)
+        )
+
+        let line = """
+        {"type":"system","subtype":"init","session_id":"s-1","cwd":"/tmp/w","model":"claude-opus-5-5"}
+        """
+        await runner.ingest(try #require(AgentEvent.decode(line: line)))
+
+        #expect(await ClaudeResolvedModel.reported(account: nil, in: store) == ["opus": "claude-opus-5-5"])
+    }
+
     @Test("and the same session goes back to idle when that turn's result arrives")
     func theSelfStartedTurnStillEndsOnItsResult() async throws {
         let store = try makeTestStore("agent")
@@ -634,6 +673,110 @@ struct AgentRunnerProcessTests {
         #expect(try await store.messageCount(sessionID: session.id) == 26)
         let first = try await store.messages(sessionID: session.id)[0]
         #expect(first.kind == .user)
+    }
+
+    @Test("a running process holds its account against the alias probe until it exits, and waits for a launch in flight")
+    func holdsTheAccountWhileItRuns() async throws {
+        let store = try makeTestStore("agent")
+        let session = try await makeSession(store)
+        let recorder = ProcessRecorder()
+        let activity = ClaudeAccountActivity()
+        let account = AgentAccountHome.defaultID(for: .claudeCode)
+        let runner = AgentRunner(
+            workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session),
+            activity: activity, makeProcess: recorder.factory
+        )
+
+        #expect(activity.beginProbe(account))
+        let sending = Task { try await runner.send("hello") }
+        try await Task.sleep(for: .milliseconds(100))
+        let launchedDuringProbe = recorder.all.count
+        activity.endProbe(account)
+        try await sending.value
+        let heldWhileRunning = activity.isRunning(account) && !activity.beginProbe(account)
+        try #require(recorder.last).endOutput()
+        await waitUntil("the runner stopped") { await runner.isRunning == false }
+
+        #expect(launchedDuringProbe == 0)
+        #expect(heldWhileRunning)
+        #expect(!activity.isRunning(account))
+        #expect(activity.beginProbe(account))
+    }
+
+    @Test("a stop pressed while a turn waits for the alias probe ends that turn before it starts")
+    func aStopDuringTheWaitIsKept() async throws {
+        let store = try makeTestStore("agent")
+        let session = try await makeSession(store)
+        let recorder = ProcessRecorder()
+        let activity = ClaudeAccountActivity()
+        let account = AgentAccountHome.defaultID(for: .claudeCode)
+        let runner = AgentRunner(
+            workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session),
+            activity: activity, makeProcess: recorder.factory
+        )
+
+        #expect(activity.beginProbe(account))
+        let sending = Task { try await runner.send("hello") }
+        await waitUntil("the turn waits for the probe") { activity.isRunning(account) }
+        runner.cancelNow()
+        try await Task.sleep(for: .milliseconds(50))
+        activity.endProbe(account)
+        let outcome = await sending.result
+
+        #expect(throws: CancellationError.self) { try outcome.get() }
+        #expect(recorder.all.isEmpty)
+        #expect(!activity.isRunning(account))
+    }
+
+    @Test("a stop pressed while two sends wait for the probe ends both of them")
+    func aStopEndsEverySendWaiting() async throws {
+        let store = try makeTestStore("agent")
+        let session = try await makeSession(store)
+        let recorder = ProcessRecorder()
+        let activity = ClaudeAccountActivity()
+        let account = AgentAccountHome.defaultID(for: .claudeCode)
+        let runner = AgentRunner(
+            workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session),
+            activity: activity, makeProcess: recorder.factory
+        )
+
+        #expect(activity.beginProbe(account))
+        let first = Task { try await runner.send("hello") }
+        await waitUntil("the first send waits for the probe") { activity.isRunning(account) }
+        let second = Task { try await runner.send("and this") }
+        try await Task.sleep(for: .milliseconds(100))
+        runner.cancelNow()
+        try await Task.sleep(for: .milliseconds(50))
+        activity.endProbe(account)
+        let outcomes = [await first.result, await second.result]
+
+        #expect(outcomes.allSatisfy { (try? $0.get()) == nil })
+        #expect(recorder.all.isEmpty)
+        #expect(!activity.isRunning(account))
+    }
+
+    @Test("a stop that belongs to an earlier send, arriving late, does not end a turn waiting for the probe")
+    func aLateStopOfAnEarlierSendIsIgnored() async throws {
+        let store = try makeTestStore("agent")
+        let session = try await makeSession(store)
+        let recorder = ProcessRecorder()
+        let activity = ClaudeAccountActivity()
+        let account = AgentAccountHome.defaultID(for: .claudeCode)
+        let runner = AgentRunner(
+            workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session),
+            activity: activity, makeProcess: recorder.factory
+        )
+
+        #expect(activity.beginProbe(account))
+        let sending = Task { try await runner.send("hello") }
+        await waitUntil("the turn waits for the probe") { activity.isRunning(account) }
+        await runner.cancel(generation: 0, admission: 0)
+        activity.endProbe(account)
+        try await sending.value
+
+        #expect(recorder.all.count == 1)
+        try #require(recorder.last).endOutput()
+        await waitUntil("the runner stopped") { await runner.isRunning == false }
     }
 
     @Test("the stored output style reaches the process the runner spawns")

@@ -41,10 +41,11 @@ enum BrowserTab {
         }
     }
 
-    static func openWindow(_ url: URL, in model: WorkspaceModel) {
+    static func openWindow(_ url: URL, in model: WorkspaceModel, access: BrowserPaneAccess) {
         guard canOpen(url) else { return }
         let tab = CenterTabStore.shared.add(
-            kind: .browser, workspaceID: model.workspace.id, url: url.absoluteString
+            kind: .browser, workspaceID: model.workspace.id, url: url.absoluteString,
+            browserAccess: access
         )
         WorkspaceTabsStore.shared.reveal(.tool(tab.id), in: model)
     }
@@ -72,9 +73,14 @@ enum BrowserTab {
     private static func show(_ address: String, in model: WorkspaceModel, reloading: Bool = false) {
         let tabs = CenterTabStore.shared
         let open = tabs.tabs(for: model.workspace.id).filter { $0.kind == .browser }
-        let addresses = open.map { tabs.liveBrowser(for: $0)?.currentURL?.absoluteString ?? $0.url }
+        let panes = open.map {
+            LinkOpening.OpenPane(
+                address: tabs.liveBrowser(for: $0)?.currentURL?.absoluteString ?? $0.url,
+                access: $0.browserAccess
+            )
+        }
         let tab: CenterTab
-        if let index = LinkOpening.tab(showing: address, among: addresses) {
+        if let index = LinkOpening.tab(showing: address, among: panes) {
             tab = open[index]
             if reloading || tabs.liveBrowser(for: tab)?.failure != nil { tabs.browser(for: tab, root: model.workspace.path).load(address) }
         } else {

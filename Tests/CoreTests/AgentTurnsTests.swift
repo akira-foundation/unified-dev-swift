@@ -101,6 +101,11 @@ struct AgentTurnsTests {
         }
     }
 
+    @Test("only a running or a waiting session is mid turn, so only those are asked about before stopping")
+    func midTurnIsRunningOrWaiting() {
+        #expect(Set(SessionState.allCases.filter(\.isMidTurn)) == [.running, .waiting])
+    }
+
     @Test("waiting and running are separate answers")
     func waitingIsNotRunning() {
         let stored = [stored("s1", .waiting)]

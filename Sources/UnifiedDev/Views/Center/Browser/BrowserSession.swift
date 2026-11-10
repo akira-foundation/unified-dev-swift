@@ -49,10 +49,14 @@ final class BrowserSession {
 
     @ObservationIgnored private let root: String
 
-    init(url: String, root: String = "") {
+    let access: BrowserPaneAccess
+
+    init(url: String, root: String = "", access: BrowserPaneAccess = .owner) {
         self.root = root
+        self.access = access
         Self.preferInspectorDocked()
         let configuration = WKWebViewConfiguration()
+        configuration.websiteDataStore = Self.dataStore(for: access.storage)
         Self.enableDeveloperExtras(on: configuration.preferences)
         webView = BrowserPageWebView(frame: .zero, configuration: configuration)
         webView.allowsBackForwardNavigationGestures = true
@@ -357,6 +361,13 @@ final class BrowserSession {
         if loadProgress != progress { loadProgress = progress }
         if let url = webView.url, url != currentURL { currentURL = url }
         adopt(BrowserTabTitle.BrowserPage(address: displayAddress))
+    }
+
+    private static func dataStore(for storage: BrowserPaneStorage) -> WKWebsiteDataStore {
+        switch storage {
+        case .standard: .default()
+        case .dedicated(let identifier): WKWebsiteDataStore(forIdentifier: identifier)
+        }
     }
 
     private static func enableDeveloperExtras(on preferences: WKPreferences) {

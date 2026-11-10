@@ -120,7 +120,8 @@ config directory is `~/.cursor` (exists here, holds `hooks.json`). OpenCode's is
 
 ## A second account per process
 
-Read off this machine on 2026-10-24, with Claude Code 2.1.309 and Codex 0.157.0 installed, and the
+Read off this machine on 2026-10-24, with Claude Code 2.1.309 and Codex 0.157.0 installed, Claude
+Code's keychain rows again on 2026-11-08, and the
 Grok column on 2026-11-07 with Grok 1.0.70, which the first reading could not reach because the
 binary was absent. This is the other half of the detection table above: not where the session lives,
 but whether a second one can be pointed at per process, and what happens to a turn already running
@@ -131,10 +132,10 @@ nothing more.
 | | Claude Code | Codex | Grok |
 | --- | --- | --- | --- |
 | Variable that moves the config directory | `CLAUDE_CONFIG_DIR` | `CODEX_HOME` | `GROK_HOME` |
-| Where the session file lands | `$CLAUDE_CONFIG_DIR/.credentials.json` | `$CODEX_HOME/auth.json` | `$GROK_HOME/auth.json` |
+| Where the session lands | the login keychain, per directory (below) | `$CODEX_HOME/auth.json` | `$GROK_HOME/auth.json` |
 | Where the identity lands | `.claude.json` beside the config directory for the default account, inside it for any other | the same `auth.json` | the same `auth.json` |
 | Second session per process | yes, total isolation | yes, total isolation | yes, one home at a time; parallel processes not driven |
-| Falls back to the keychain | no | no | no |
+| Keeps the login in the keychain | yes | no, unless its keyring mode is on | no |
 | Enumerates or switches accounts | no subcommand does either | no subcommand does either | no subcommand does either |
 
 Grok was measured on 2026-11-07 with Grok 1.0.70, which the earlier reading could not do because
@@ -146,13 +147,31 @@ out, since a login read from a shared keychain would have reached the fresh dire
 `auth.json` is written until a login happens there. `grok login` and `grok logout` are the only auth
 subcommands; neither lists accounts nor switches between them.
 
+Where Claude Code's login goes was measured again on 2026-11-08 with Claude Code 2.1.309, with a
+stand-in `security` first on `PATH` and a throwaway `HOME`, so that no real entry was read. Under a
+`CLAUDE_CONFIG_DIR`, a login lives in the login keychain, in two generic password entries:
+`Claude Code-credentials-<digest>` for the OAuth session and `Claude Code-<digest>` for a managed API
+key. The digest is the first eight hex digits of the SHA-256 of the value of the variable in Unicode
+NFC, with no other normalising: a trailing slash or a symbolic link gives another digest. The
+account attribute is `$USER`, or the login name when that is unset or empty, or `claude-code-user`
+when the result holds anything but letters, digits, `.`, `_` and `-`. `claude auth status` answered
+`loggedIn: true` from a stand-in entry under exactly that name and false under any other, and
+`claude auth logout` deletes both entries. The default account has no digest, and is never touched.
+
+Removing a Claude Code account deletes those two entries of that account's directory, after its
+folder, through `AgentAccountRemoval`, and an entry that cannot be deleted is named to the owner.
+The rule is the CLI's and can change with it, so a later version may keep its login under a name this
+one does not reach.
+
+This reading wrote no `.credentials.json`; the code still reads one where a folder has it. The
+paragraphs that follow are the reading of 2026-10-24.
+
 Both CLIs were driven with an empty config directory and with one holding nothing but the copied
 session file. Empty answers "not logged in" while the default directory keeps answering that it is;
 the copied session file alone is enough to answer that it is logged in. Claude Code's only lock is
 `$CLAUDE_CONFIG_DIR/.claude.json.lock`, inside the directory, so two directories share no lock and
-three processes ran in parallel without contention. Neither CLI reads the keychain: with the session
-file removed from a config directory both report no session, and the `Claude Code-credentials`
-entries that exist in this keychain are not read by the installed CLI. `codex doctor` reports
+three processes ran in parallel without contention. In that reading neither CLI read the keychain,
+which the measurement above contradicts for Claude Code. `codex doctor` reports
 `auth storage mode: File` here; the binary also carries a keyring mode, which is off on this machine
 and therefore unmeasured, so the mode has to be read rather than assumed.
 

@@ -23,11 +23,18 @@ public struct ArchiveRetention: Sendable, Hashable {
         now: Date,
         protecting protected: Set<WorkspaceID> = []
     ) -> [ArchivedWorkspaceFootprint] {
-        let oldestFirst = footprints.sorted { $0.archivedAt < $1.archivedAt }
+        let oldestFirst = footprints.sorted { left, right in
+            let leftDate = left.archivedAt ?? .distantFuture
+            let rightDate = right.archivedAt ?? .distantFuture
+            return leftDate == rightDate
+                ? left.workspace.lastActivityAt < right.workspace.lastActivityAt
+                : leftDate < rightDate
+        }
         var expired: [ArchivedWorkspaceFootprint] = []
         var kept: [ArchivedWorkspaceFootprint] = []
         for footprint in oldestFirst {
-            guard let maximumAge, now.timeIntervalSince(footprint.archivedAt) >= maximumAge else {
+            guard let maximumAge, let archivedAt = footprint.archivedAt,
+                  now.timeIntervalSince(archivedAt) >= maximumAge else {
                 kept.append(footprint)
                 continue
             }
@@ -35,8 +42,9 @@ public struct ArchiveRetention: Sendable, Hashable {
         }
 
         guard let maximumBytes else { return expired }
-        let deletable = kept.prefix {
-            !protected.contains($0.id) && now.timeIntervalSince($0.archivedAt) >= Self.sizeLimitGrace
+        let deletable = kept.prefix { footprint in
+            guard let archivedAt = footprint.archivedAt, !protected.contains(footprint.id) else { return false }
+            return now.timeIntervalSince(archivedAt) >= Self.sizeLimitGrace
         }
         var remaining = kept.reduce(0) { $0 + $1.totalBytes }
         let beyondReach = remaining - deletable.reduce(0) { $0 + $1.totalBytes }

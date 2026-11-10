@@ -56,6 +56,12 @@ turn list. Rewind status queries treat a failed or malformed read as unavailable
 evidence that a turn disappeared. These history methods affect conversation context only.
 Unified Dev owns the independent file/index snapshots and recovery journal.
 
+A rewind records the thread that held the turn, and only that thread losing the turn counts as
+proof the agent went back. `thread/read` and `thread/turns/list` answer for a thread that is not
+loaded, so the question opens nothing and writes nothing. `thread/revert` needs a loaded thread,
+and it resumes the stored id without falling back to a new thread. `thread/resume` of an unknown
+id fails with `no rollout found`, and the same id stays stable across a revert.
+
 ```
 codex app-server generate-json-schema --out <dir>
 ```
@@ -63,6 +69,18 @@ codex app-server generate-json-schema --out <dir>
 writes every request, response and notification as JSON Schema: 95 client methods, 1 client
 notification, 70 server notifications, 10 server-to-client requests. Regenerate it rather than
 reading a transcript and guessing. Do not commit the dump; it is 1.1 MB and it is reproducible.
+
+### The tools a chat can see
+
+Unified Dev registers the bridge on the app-server command line, and `mcpServerStatus/list` reports
+every tool on it. A model on `codex-cli 0.157.0` is not handed those tools by name: the request
+carries `exec`, `wait` and `request_user_input`, the MCP tools sit behind `exec` as
+`tools.mcp__<server>__<tool>`, and they are found by filtering `ALL_TOOLS`.
+`CodexThreadInstructions` tells a workspace chat that other chats can be read and by which tools.
+
+`developerInstructions` count only on `thread/start`. On `thread/resume` the server ignores them,
+so a thread keeps the instructions it opened with, and a chat opened before this text existed has
+to start a new thread to get it.
 
 ### Verified facts
 

@@ -77,7 +77,7 @@ struct AgentAccountSettlementTests {
         )
 
         #expect(made.plan.directoryExists)
-        #expect(made.discard())
+        #expect(made.discard(processes: { [] }))
         #expect(!made.plan.directoryExists)
     }
 
@@ -87,7 +87,7 @@ struct AgentAccountSettlementTests {
         )
         try Data(#"{"oauthAccount":{"emailAddress":"a@b.c"}}"#.utf8).write(to: made.plan.home.identityPath)
 
-        #expect(made.discard())
+        #expect(made.discard(processes: { [] }))
         #expect(!made.plan.directoryExists)
     }
 
@@ -95,9 +95,9 @@ struct AgentAccountSettlementTests {
         let made = try AgentAccountCreation.reserve(
             provider: .claudeCode, label: "Client", existing: [], support: scratchSupport()
         )
-        made.discard()
+        made.discard(processes: { [] })
 
-        #expect(!made.discard())
+        #expect(!made.discard(processes: { [] }))
     }
 
     @Test func twoCreationsOfTheSameLabelBeforeEitherSignsInGetDifferentFolders() throws {
@@ -116,7 +116,7 @@ struct AgentAccountSettlementTests {
         try writeIdentity(of: succeeded.plan)
         let failed = try AgentAccountCreation.reserve(provider: .claudeCode, label: "Client", existing: [], support: support, discriminant: "fixed")
 
-        failed.discard()
+        failed.discard(processes: { [] })
 
         #expect(succeeded.plan.directoryExists)
         #expect(FileManager.default.fileExists(atPath: succeeded.plan.home.identityPath.path))

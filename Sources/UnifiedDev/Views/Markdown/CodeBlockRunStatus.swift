@@ -3,6 +3,7 @@ import Core
 
 struct CodeBlockRunStatus: View {
     var run: CodeBlockRun
+    var onOutput: (CGRect) -> Void
     @State private var showsOutput = false
 
     private static let outputHeight: CGFloat = 220
@@ -43,6 +44,10 @@ struct CodeBlockRunStatus: View {
             .font(Typo.code)
             .foregroundStyle(Palette.textPrimary)
             .textSelection(.enabled)
+            .onGeometryChange(for: CGRect.self, of: {
+                MarkdownChromeHit.visibleText(frame: $0.frame(in: .named(markdownChromeSpace)), scrollBounds: $0.bounds(of: .scrollView))
+            }, action: onOutput)
+            .onDisappear { onOutput(.null) }
     }
 
     @ViewBuilder

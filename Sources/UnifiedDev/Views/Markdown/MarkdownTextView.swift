@@ -54,13 +54,6 @@ struct MarkdownTextView: NSViewRepresentable {
     }
 }
 
-private final class MarkdownChromeHost: NSHostingView<AnyView> {
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        let hit = super.hitTest(point)
-        return hit === self ? nil : hit
-    }
-}
-
 @MainActor
 final class MarkdownTextOverlay {
     struct Chrome {
@@ -109,6 +102,12 @@ final class MarkdownTextOverlay {
 
     var chromeViews: [NSView] {
         hosts.keys.sorted().compactMap { hosts[$0] }.flatMap { [$0.header, $0.footer] }
+    }
+
+    func pointer(at point: NSPoint) -> TranscriptPointer? {
+        let bars = hosts.values.lazy.flatMap { [$0.header, $0.footer] }
+        guard let host = bars.first(where: { $0.frame.contains(point) }) else { return nil }
+        return .overChrome(selectableText: host.selectableText.contains(host.convert(point, from: host.superview)))
     }
 
     func apply(_ new: MarkdownText, to view: LinkTextView) {
@@ -191,7 +190,8 @@ final class MarkdownTextOverlay {
             host.header.rootView = AnyView(
                 MarkdownCodeHeader(
                     code: spec.code, language: spec.language, command: command,
-                    canRun: chrome.runsCommands && isExpanded, actions: chrome.actions
+                    canRun: chrome.runsCommands && isExpanded, actions: chrome.actions,
+                    onControls: { [weak header = host.header] in header?.controls = $0 }
                 )
                 .environment(\.fontScale, chrome.fontScale)
                 .environment(\.chatFont, chrome.chatFont)
@@ -202,7 +202,9 @@ final class MarkdownTextOverlay {
                     lines: spec.lines, foldsLines: spec.isFolded, isExpanded: spec.visibleAll, command: command,
                     actions: chrome.actions,
                     onToggle: { chrome.onToggleFold(index) },
-                    onHeight: { chrome.onFooterHeight(index, $0) }
+                    onHeight: { chrome.onFooterHeight(index, $0) },
+                    onControls: { [weak footer = host.footer] in footer?.controls = $0 },
+                    onOutput: { [weak footer = host.footer] in footer?.selectableText = $0 }
                 )
                 .environment(\.fontScale, chrome.fontScale)
                 .environment(\.chatFont, chrome.chatFont)

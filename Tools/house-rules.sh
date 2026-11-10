@@ -357,6 +357,7 @@ id_type_allowed_lines=(
 id_type_allowed_properties=(
   'Sources/Core/Agent/Delivery.swift:providerTurnID'             # the provider's accepted turn, used for recovery
   'Sources/Core/Transcript/TurnCheckpoint.swift:providerTurnID' # the same provider turn correlated with a snapshot
+  'Sources/Core/Transcript/TurnCheckpoint.swift:providerThreadID' # the provider's thread that held the turn being rewound
   'Sources/Core/Agent/PlanArtefact.swift:sourceID'               # the provider's plan item or tool-use token
   'Sources/Core/Presentation/AgentQuestionDigest.swift:answerID'  # the same opaque question answer id, carried for the closed line
 )
@@ -419,6 +420,18 @@ while IFS= read -r hit; do
   fi
 done <<EOF
 $(git grep --untracked -n -I -E 'await (Git|Shell)\.' -- 'Sources/UnifiedDev/Views/*' || true)
+EOF
+
+echo "==> a worktree is removed through the guard that protects an orchestrator"
+while IFS= read -r hit; do
+  [ -n "$hit" ] || continue
+  file="${hit%%:*}"
+  if [ "$file" != 'Sources/Core/Workspace/WorkspaceManager+WorktreeRemoval.swift' ]; then
+    echo "$hit" | show
+    report "$file calls Git.removeWorktree directly. Use WorkspaceManager.removeWorktree(of:at:force:), which refuses the worktree of a project's orchestrator."
+  fi
+done <<EOF
+$(git grep --untracked -n -I -F 'Git.removeWorktree' -- 'Sources/*' || true)
 EOF
 
 echo "==> a test's defaults live in its scratch directory"

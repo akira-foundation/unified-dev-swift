@@ -93,7 +93,7 @@ final class AppModel {
     @ObservationIgnored var transcriptSearchTask: Task<Void, Never>?
     @ObservationIgnored var transcriptBackfillTask: Task<Void, Never>?
 
-    var spendDays: [SpendDay] = []
+    var spendDaysState = SpendDaysState()
     var spendCensus = SpendCensus()
     var spendAccounts = SpendAccountsState.notRead
     @ObservationIgnored var spendAccountsTask: Task<Void, Never>?
@@ -122,6 +122,7 @@ final class AppModel {
     private(set) var askStatus: WorkspaceStatus?
 
     private var archivingWorkspaceIDs: Set<WorkspaceID> = []
+    @ObservationIgnored var missingWorktrees = MissingWorktreeWatch()
 
     func isArchiving(_ id: WorkspaceID) -> Bool { archivingWorkspaceIDs.contains(id) }
 
@@ -535,6 +536,7 @@ final class AppModel {
                 guard DiffRefreshSchedule.isDue(activity: activity, lastRun: lastRun, now: now)
                 else { continue }
                 lastRun = now
+                await self.noteMissingWorktrees(exempt: self.archivingWorkspaceIDs.union(self.restoring))
                 let refreshed = await self.refreshDiffStats(activity: activity)
                 if let selected = self.selection.workspaceID, refreshed.contains(selected) {
                     await self.refreshSelectedChangedFiles(activity: activity)

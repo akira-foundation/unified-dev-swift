@@ -865,10 +865,34 @@ drain into, and a press that finds the workspace already made writes no second o
 ### The browser pane, and what it does and does not hand over
 
 **Stated as a capability rather than as a list of tools: an agent working in a workspace can see
-what the owner has open in that workspace, read one of its browser panes as words, as a picture or
+which panes are open in that workspace, read a browser pane open to agents as words, as a picture or
 as a numbered list of the things a reader could use, move that pane about, and act on the things in
-that list, in the workspace it is standing in and nowhere else. What it cannot do is describe a
-verb and have Unified Dev perform it.**
+that list, in the workspace it is standing in and nowhere else. What it cannot do is reach a browser
+pane the owner has kept, or describe a verb and have Unified Dev perform it.**
+
+**A browser pane is either the owner's or open to agents, and the two do not share storage.**
+`BrowserPaneAccess` says which, per tab, and every decision about it is in the core.
+
+| | The owner's | Open to agents |
+| --- | --- | --- |
+| How a pane gets there | The owner opened it, by a link or the menu, or it was restored with no access recorded | An agent opened it with `pane_open` or `pane_split`, or the owner shared it |
+| Storage | WebKit's default store for the app | One persistent store with a fixed identifier, shared by every agent pane in every workspace and profile |
+| `browser_*` | Refused, by `BrowserPaneChoice.choose` | Served |
+| `pane_list`, `workspace_tabs` | Number only: named "Owner's browser", no address, no title, `open_to_agents` false | Everything, `open_to_agents` true |
+| `pane_close`, `pane_rename` | Refused | Served |
+
+A popup and a duplicated pane take the access of the pane they came from. A link the owner follows
+never reuses a pane open to agents, so nothing the owner signs in to through a link lands in their storage.
+
+**Only the owner moves a pane.** The eye button in a browser's toolbar does it, and no bridge tool
+can. Sharing rebuilds the pane on the agents' store and reloads the address there, signed out, since
+nothing is copied between the stores. Taking a pane back leaves it blank, because the address it holds
+may be one an agent chose, and loading that with the owner's sign-ins is what the separation exists
+to prevent. Anything signed in to on the agents' side is within reach of every agent, in every
+workspace, which is what the button's help says.
+
+**What this does not hold.** The separation is the bridge's. An agent that can run commands runs as
+this user, and what it can read on disk is limited by that user, as section 2 says of the token.
 
 **This section used to say the opposite, and the change is worth reading rather than skipping.**
 Until the acting tools were added it said, in prose and with an argument, that the pane could not be
@@ -1023,9 +1047,8 @@ and never look for its phrase while the page was still streaming it.
 `browser_go` takes the two schemes `pane_open` takes and refuses the rest, through the same reading,
 so neither door will render `file:///` in the owner's window on a model's say-so.
 
-**And no self-approved tool draws one.** A web view that is drawn fetches its page, from the
-owner's browser with whatever he is signed into, and `browser_go` asks before doing exactly that to
-an existing tab. So the three self-approved tools that put things on the screen stop short of it.
+**And no self-approved tool draws one.** A web view that is drawn fetches its page, with whatever is signed in to the agents' browser, and
+`browser_go` asks before doing exactly that to an existing tab. So the three self-approved tools that put things on the screen stop short of it.
 `pane_open` opens a browser behind the tab in front and ignores `focus`, because `PaneOrder` gives a
 browser no focus whatever the caller asked for, and `PaneOrder.placement` keeps the tab in front
 where it was. No `BrowserSession` exists until `BrowserTabView` draws the tab, so nothing is fetched
@@ -1154,8 +1177,10 @@ fortnight, which is ordinary use; what is not ordinary is the rate. Neither numb
 limit. Six worktrees and six agents is already real money, and the point of both is that somebody
 notices at six or at eight instead of at forty.
 
-Both are counted from the database rather than kept in memory, so they survive a restart and two
-calls racing cannot both read the same stale number.
+Both are counted from the database rather than kept in memory, so they survive a restart. The count
+is a reading and not a reservation: a workspace's row is written only after `git worktree add` has finished,
+so two starts at the same moment can both pass on the same number. Nothing is taken back; the next start is
+refused until it holds fewer than the ceiling.
 
 Every start is deduplicated by a digest of the call, because a model retries and a retried spawn
 cuts a second worktree. A repeat answers with the workspace that already exists and a note saying
@@ -1251,7 +1276,7 @@ are renamed, so the position is a plain line of its own, written by the app, and
 
 The four pane tools are on the list because each adds or changes something the reader can see and
 undo, in the workspace whose agent is asking and nowhere else. None of them may draw a browser,
-which would fetch a page from the owner's browser without asking: the browser pane section above
+which would fetch a page from the browser without asking: the browser pane section above
 says how each stops short of it. `pane_close` refuses the two cases that would cost anything: it
 will not empty the centre column, and it cannot close the review or the notes, which hold the
 reader's own work. With kind `canvas` it closes the workspace's canvas wherever it sits, in the tab
@@ -1281,12 +1306,12 @@ pulling them out of it.
 
 **The seven browser tools split, and the line between them is the chrome.** `pane_list` and
 `browser_read` report the strip and the address bar: what is open, what it is called, where each
-browser is pointed, whether it is loading. Every fact of that is on the screen in front of the owner
+browser open to agents is pointed, whether it is loading. Every fact of that is on the screen in front of the owner
 already, none of it is the contents of a page, and they have to be callable unattended because they
 are the first call of any turn that then does something useful. The other five are off the list, in
 two groups. `browser_reload`, `browser_go` and `browser_scroll` change what the person is looking
-at: a reload can lose what they had half typed into a form, a navigation is a request made from
-their browser with whatever they are logged into, and a scroll moves the page under somebody who is
+at: a reload can lose what they had half typed into a form, a navigation is a request made with
+whatever is signed in to the agents' browser, and a scroll moves the page under somebody who is
 reading it. `browser_screenshot` and `browser_text` carry the page itself into a model's context,
 which is to say off this machine, and a page he is signed into is his own data. Unified Dev cannot tell a
 dev server's front page from an administration screen, so it does not try: it asks, and the person
@@ -1345,6 +1370,16 @@ it through. "Allowed automatically" with no reason is the thing that makes peopl
 permission model.
 
 ### What an orchestrator's commands get
+
+**The role does not land on a workspace at work.** The limits on an orchestrator are applied when an agent
+launches, and a turn already running under `acceptEdits` or `bypassPermissions`, Codex's sandbox once its thread is
+open, and a terminal chat have nowhere to be stopped afterwards. So `Store.setOrchestrator` refuses, in the same
+write, when any chat of the workspace is running or waiting, crew included, and when the app says something is still at work there:
+a background task of a chat, or an agent process it finds in one of the workspace's terminals when asked, or it cannot tell.
+Make Orchestrator then leaves that workspace exactly as it is and starts a new one as the orchestrator, opened
+with `OrchestratorHandover`'s account: the workspace it stands in for, its chats, the most recent of their conversations, any agent
+found in a terminal, and the instruction to leave those agents running. Every name and transcript in that account is fenced as untrusted text. A workspace whose chats are all at rest takes the
+role where it stands.
 
 The project's orchestrator gets three answers to a shell command, and `OrchestratorToolGuard` picks
 one on every ask, reading the role from the store each time.

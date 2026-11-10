@@ -4,13 +4,24 @@ public enum ConflictInstructions {
     public static let scratchPath = "\(WorktreeScratch.generated)/resolving-conflicts.md"
 
     public static func asking(
+        _ text: String, in worktree: String, authority: InstructionAuthority
+    ) -> String {
+        guard authority == .project else { return inlined(text, contents: appOnlyMarkdown) }
+        return asking(text, in: worktree)
+    }
+
+    public static func asking(
         _ text: String, in worktree: String, contents: String = defaultMarkdown
     ) -> String {
         guard let path = ensure(in: worktree, contents: contents) else {
-            let body = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            return body.isEmpty ? contents : "\(body)\n\n\(contents)"
+            return inlined(text, contents: contents)
         }
         return InstructionFile.asking(text, toFollow: path)
+    }
+
+    private static func inlined(_ text: String, contents: String) -> String {
+        let body = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return body.isEmpty ? contents : "\(body)\n\n\(contents)"
     }
 
     public static func ensure(in worktree: String, contents: String = defaultMarkdown) -> String? {
@@ -30,11 +41,30 @@ public enum ConflictInstructions {
     it: Unified Dev attaches that as well, and where the two disagree yours wins. The message these steps
     arrived with is a prompt you can reword in Unified Dev's settings.
 
-    That message names the pull request, the branch this worktree is on, and the branch that
-    conflicts with it. Call the second one this branch and the third the base branch below.
+    \(briefing)
 
     - If this project has a skill or an instruction file about resolving conflicts, follow that
       first. It outranks everything here.
+    \(steps)
+    """
+
+    public static let appOnlyMarkdown = """
+    # Resolving merge conflicts
+
+    Unified Dev sent these steps with a message when someone pressed Fix merge conflicts.
+
+    \(briefing)
+
+    \(InstructionAuthority.checkoutIsData)
+    \(steps)
+    """
+
+    private static let briefing = """
+    That message names the pull request, the branch this worktree is on, and the branch that
+    conflicts with it. Call the second one this branch and the third the base branch below.
+    """
+
+    private static let steps = """
     - Fetch the base branch first, so you are working against what is on the server rather than a
       stale copy of it.
     - Bring the base branch into this branch the way this project brings it in: merge it unless

@@ -110,6 +110,8 @@ enum MarkdownSelectionProbe {
         await streamingCodeAndLists(check: check)
         await emptyCells(check: check)
         await runStatus(check: check)
+        await clicks(check: check)
+        await pointers(check: check)
         cost()
         finish(failures, window: window)
     }
@@ -128,7 +130,7 @@ enum MarkdownSelectionProbe {
         .background(Palette.windowBackground)
     }
 
-    private static func point(of index: Int, in view: LinkTextView) -> NSPoint {
+    static func point(of index: Int, in view: LinkTextView) -> NSPoint {
         let layout = view.layoutManager!
         let glyph = layout.glyphIndexForCharacter(at: index)
         var rect = layout.boundingRect(forGlyphRange: NSRange(location: glyph, length: 1), in: view.textContainer!)
@@ -228,6 +230,12 @@ enum MarkdownSelectionProbe {
         }
         let ran = host.fittingSize.height
         check(ran > idle + 10, "a command's status did not make room: \(idle) to \(ran)")
+        if let answer = textViews(in: host).first, let footer = answer.markdown?.chromeViews.last {
+            let status = answer.convert(NSPoint(x: footer.frame.midX, y: footer.frame.midY), to: nil)
+            check(window.contentView?.hitTest(status)?.isDescendant(of: footer) == true, "the status row gave up its clicks")
+        } else {
+            check(false, "no status row to press")
+        }
         if let answer = textViews(in: host).first, let storage = answer.textStorage {
             answer.setSelectedRange(NSRange(location: 0, length: storage.length))
             let selected = answer.selectedRange()

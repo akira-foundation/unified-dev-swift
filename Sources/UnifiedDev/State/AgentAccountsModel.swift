@@ -75,6 +75,13 @@ final class AgentAccountsModel {
         await adopt(asked, rows: rows, defaults: defaults, store: store)
     }
 
+    func confirmSignIn(of account: AgentAccountID, executables: [AgentKind: String], store: Store?) async {
+        answers[account] = nil
+        lastAskedAt = nil
+        await reload(store: store)
+        await askIfDue(after: 0, executables: executables, store: store)
+    }
+
     func beginCreation(provider: AgentKind, label: String, profile: ProfileID, store: Store?) async -> Creation? {
         guard let store, let clean = AgentAccountCreation.cleanLabel(label) else { return nil }
         let support = Self.support(of: store)
@@ -109,8 +116,8 @@ final class AgentAccountsModel {
         })
         creatingDirectory = nil
         guard let standing = concluded else {
-            creation.reservation.discard()
             failure = "The sign-in for \(plan.label) did not complete, so no account was added."
+            await creation.reservation.discardOnceReleased()
             await reload(store: store)
             return
         }
@@ -138,7 +145,7 @@ final class AgentAccountsModel {
         guard let store else { return }
         let support = Self.support(of: store)
         do {
-            try await AgentAccountRemoval.remove(row, support: support, store: store)
+            try await AgentAccountRemoval.remove(row, support: support, store: store, keychain: .login)
             if !row.isUnfinished { answers[row.id] = nil }
             failure = nil
         } catch AgentAccountError.folderLeftAlone(let path) {
@@ -146,6 +153,12 @@ final class AgentAccountsModel {
             failure = row.isUnfinished
                 ? "Could not remove \(row.title): its folder is not where Unified Dev expected it, so it was left alone: \(path)"
                 : "\(row.title) was forgotten, but its folder is not where Unified Dev expected it, so it was left alone: \(path)"
+        } catch AgentAccountError.forgottenWithFolderKept(let path) {
+            if !row.isUnfinished { answers[row.id] = nil }
+            failure = "\(row.title) was forgotten, but its folder may still be in use, so it was left alone and is listed as an unfinished sign-in: \(path)"
+        } catch AgentAccountError.keychainEntriesLeft(let services) {
+            if !row.isUnfinished { answers[row.id] = nil }
+            failure = "\(row.title) was removed. \(AgentAccountError.keychainEntriesLeft(services).readableMessage)"
         } catch {
             failure = "Could not remove \(row.title): \(error.readableMessage)"
         }

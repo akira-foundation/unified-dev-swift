@@ -41,6 +41,14 @@ public enum OrchestratorRole {
             + "Stop it being the orchestrator first if you want it gone."
     }
 
+    public static func removalObjection(toWorktreeAt path: String, among workspaces: [Workspace]) -> String? {
+        guard let orchestrator = workspaces.first(where: {
+            $0.isOrchestrator && FolderPath.sameFolder($0.path, path)
+        }) else { return nil }
+        return "\(orchestrator.name) is this project's orchestrator, so its worktree is never removed. "
+            + "Stop it being the orchestrator first if you want it gone."
+    }
+
     public static func watchesStartedWorkspaces(requested: Bool, callerIsOrchestrator: Bool) -> Bool {
         requested || callerIsOrchestrator
     }

@@ -2,6 +2,26 @@ import SwiftUI
 import Core
 
 extension WorkspaceModel {
+    var pullRequestStanding: PullRequestStanding {
+        PullRequestStanding.of(
+            branch: workspace.branch,
+            baseBranch: workspace.baseBranch,
+            ahead: branchCommits.commits.count,
+            aheadIsCapped: branchCommits.isTruncated,
+            hasUnreadCommitCount: !hasReadBranchCommits,
+            pullRequest: pullRequest,
+            localWork: localWork,
+            hasRemote: hasRemote ?? true,
+            continued: continued
+        )
+    }
+
+    func canConfirmMerge(branchActions: BranchActionAvailability, isWorking: Bool) -> Bool {
+        MergeConfirmation.canConfirm(
+            pullRequest: pullRequest, localWork: localWork, branchActions: branchActions, isWorking: isWorking
+        )
+    }
+
     func requestPullRequest(overrides: PromptOverrides = PromptOverrides()) async -> String? {
         let template = overrides.template(for: .createPullRequest)
         let wanted = Set(PromptTemplate.variableNames(in: template))
@@ -27,7 +47,11 @@ extension WorkspaceModel {
 
         activeSessionID = session.id
         isExpectingPullRequest = true
-        await transcript(for: session).submit(await pullRequestTurn(text: render.text))
+        let authority = await instructionAuthority(for: pullRequest)
+        let text = await PullRequestInstructions.turn(
+            render.text, in: workspace.path, authority: authority
+        )
+        await transcript(for: session).submit(text)
         return nil
     }
 
@@ -84,24 +108,36 @@ extension WorkspaceModel {
         guard let session = await sessionToWriteInto(titledIfNew: "Merge") else {
             return "Could not open a session in \(workspace.name) to send the request to."
         }
+        let authority = await instructionAuthority(for: pullRequest)
 
         let context = MergePromptContext(workspace: workspace, pullRequest: pullRequest, method: method)
         let render = context.render(template: overrides.template(for: .mergePullRequest))
 
-        let text = await turn(render.text, for: .merge)
+        let text = await turn(render.text, for: .merge, authority: authority)
         activeSessionID = session.id
         await transcript(for: session).submit(text)
         return nil
     }
 
-    private func turn(_ text: String, for subject: ProjectInstructions.Subject) async -> String {
+    private func instructionAuthority(for pullRequest: PullRequest?) async -> InstructionAuthority {
+        await GitHub.instructionAuthority(
+            for: workspace,
+            pullRequest: pullRequest,
+            hasReadPullRequest: hasReadPullRequest,
+            readFailure: WorkspacePullRequests.shared.unresolvedFailure(for: workspace.id)
+        )
+    }
+
+    private func turn(
+        _ text: String, for subject: ProjectInstructions.Subject, authority: InstructionAuthority
+    ) async -> String {
         await reloadSettings()
         let stated = ProjectInstructions.stated(subject, in: settings)
         let path = workspace.path
         let extra = await Task.detached(priority: .userInitiated) {
-            ProjectInstructions.resolve(subject, in: path, stated: stated)
+            ProjectInstructions.resolve(subject, in: path, stated: stated, authority: authority)
         }.value
-        return ProjectInstructions.turn(text, for: subject, adding: extra)
+        return ProjectInstructions.turn(text, for: subject, adding: extra, authority: authority)
     }
 
     func writeFixConflictsRequest(
@@ -115,13 +151,14 @@ extension WorkspaceModel {
         let context = FixConflictsPromptContext(workspace: workspace, pullRequest: pullRequest)
         let render = context.render(template: overrides.template(for: .fixConflicts))
 
+        let authority = await instructionAuthority(for: pullRequest)
         let path = workspace.path
         let rendered = render.text
         let asked = await Task.detached(priority: .userInitiated) {
-            ConflictInstructions.asking(rendered, in: path)
+            ConflictInstructions.asking(rendered, in: path, authority: authority)
         }.value
         activeSessionID = session.id
-        return await ComposerHandoff.write(await turn(asked, for: .fixConflicts), to: self).failure
+        return await ComposerHandoff.write(await turn(asked, for: .fixConflicts, authority: authority), to: self).failure
     }
 
     func sendCheckFailureRequest() async -> String? {
@@ -208,13 +245,6 @@ extension WorkspaceModel {
         guard let names else { return }
         let found = !names.isEmpty
         if hasRemote != found { hasRemote = found }
-    }
-
-    private func pullRequestTurn(text: String) async -> String {
-        if let path = await PullRequestInstructions.ensure(in: workspace.path) {
-            return PullRequestInstructions.asking(text, toFollow: path)
-        }
-        return text + "\n\n" + PullRequestInstructions.defaultMarkdown
     }
 
     private func openingPrompt() async -> String {

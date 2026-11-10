@@ -106,7 +106,7 @@ struct SpendAccountIndexingTests {
         let first = try await world.createAccount(label: "Client")
         try world.transcript([claudeLine(90, identity: "msg_before")], in: first)
         _ = try await world.refresh()
-        try await AgentAccountRemoval.remove(first, support: world.support, store: world.store)
+        try await AgentAccountRemoval.remove(first, support: world.support, store: world.store, keychain: .untouched, processes: { [] })
 
         let second = try await world.createAccount(label: "Client")
         try world.transcript([claudeLine(20, identity: "msg_after")], in: second)
@@ -197,7 +197,7 @@ struct SpendAccountIndexingTests {
         try world.transcript([claudeLine(90, identity: "msg_removed")], in: removed)
         _ = try await world.refresh()
 
-        try await AgentAccountRemoval.remove(removed, support: world.support, store: world.store)
+        try await AgentAccountRemoval.remove(removed, support: world.support, store: world.store, keychain: .untouched, processes: { [] })
         _ = try await world.refresh()
         let lines = try await world.lines()
 

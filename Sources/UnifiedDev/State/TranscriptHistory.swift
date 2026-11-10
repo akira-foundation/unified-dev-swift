@@ -149,11 +149,13 @@ final class TranscriptHistory {
             }
             let backup = try await store.prepareTranscriptRewind(checkpoint)
             try requireAttachments(backup.prompt, cwd: transcript.cwd)
-            guard try await transcript.providerContainsTurn(turnID) else { throw ConversationRewindError.missingTurn }
+            guard case .retained(let providerThreadID) = try await transcript.providerTurnPresence(turnID) else {
+                throw ConversationRewindError.missingTurn
+            }
             try await requireIdleWorkspace(transcript: transcript, app: app, store: store)
             var journal = try await service.prepareRewind(
                 checkpoint: checkpoint, cwd: transcript.cwd, restoringFiles: restoringFiles,
-                operationLease: HistoryWorkspaceGate.shared.lease(for: workspace.id)
+                providerThreadID: providerThreadID, operationLease: HistoryWorkspaceGate.shared.lease(for: workspace.id)
             )
             pendingRewind = journal
             HistoryWorkspaceGate.shared.mark(workspace.id, unresolved: true)
@@ -186,12 +188,10 @@ final class TranscriptHistory {
         defer { endRewind(in: workspace.id, app: app) }
         do {
             try await requireIdleWorkspace(transcript: transcript, app: app, store: store)
-            let reverted: Bool
-            if journal.stage == .providerReverted { reverted = true } else {
-                let retained = try await transcript.providerContainsTurn(turnID)
-                reverted = !retained
-            }
-            if reverted {
+            let decision: CheckpointRewind.RecoveryDecision = journal.stage == .providerReverted
+                ? .completeRewind
+                : journal.recoveryDecision(given: try await transcript.providerTurnPresence(turnID))
+            if decision == .completeRewind {
                 var confirmed = journal
                 confirmed.stage = .providerReverted
                 try await store.saveCheckpointRewind(confirmed)
@@ -203,7 +203,8 @@ final class TranscriptHistory {
                 resolved.failure = nil
                 try await store.saveCheckpointRewind(resolved)
                 pendingRewind = nil
-                failure = nil
+                blockingSessionID = nil
+                failure = decision == .undoUnproven ? CheckpointRewind.unprovenRecoveryNotice : nil
                 HistoryWorkspaceGate.shared.mark(workspace.id, unresolved: false)
             }
         } catch { failure = "Could not resolve the interrupted rewind: \(error)" }

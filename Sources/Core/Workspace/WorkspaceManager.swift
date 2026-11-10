@@ -12,6 +12,7 @@ public enum WorkspaceError: Error, CustomStringConvertible {
     case archiveScriptIncomplete(ShellFailure)
     case workspaceGone(String)
     case orchestratorRefused(String)
+    case orchestratorHasLiveWork
 
     public var description: String {
         switch self {
@@ -29,6 +30,8 @@ public enum WorkspaceError: Error, CustomStringConvertible {
             "The archive script did not finish, so nothing was removed: \(failure.description)"
         case .workspaceGone(let name): "\(name) is no longer in the database"
         case .orchestratorRefused(let sentence): sentence
+        case .orchestratorHasLiveWork:
+            "An agent is working in this workspace or a chat is open in its terminal, so it cannot become the orchestrator."
         }
     }
 }
@@ -45,7 +48,14 @@ public struct WorkspaceManager: Sendable {
     public static let workspacesRoot: URL = WorkspacesRoot.resolve()
 
     private func profileFolder(of repo: Repo) async throws -> String {
-        try await store.profile(id: repo.profileID)?.folder ?? ProfileID.initial.rawValue
+        let folders = try await store.profiles().map(\.folder)
+        let folder = try await store.profile(id: repo.profileID)?.folder ?? ProfileID.initial.rawValue
+        return ProfileFolder.usable(
+            folder,
+            under: workspacesRoot,
+            recordedWorktrees: try await store.workspacePaths(),
+            otherProfiles: Set(folders).subtracting([folder])
+        )
     }
 
     @discardableResult
@@ -218,7 +228,7 @@ public struct WorkspaceManager: Sendable {
                     number: request.number, into: worktreePath, localBranch: branch
                 )
             } catch {
-                try? await Git.removeWorktree(repo: repo.path, path: worktreePath, force: true)
+                await discardFreshWorktree(of: repo, at: worktreePath)
                 throw error
             }
         case .branch(let existing):
@@ -580,7 +590,7 @@ public struct WorkspaceManager: Sendable {
                 ))
             }
         }
-        try await Git.removeWorktree(repo: repo.path, path: workspace.path, force: force)
+        try await removeWorktree(of: repo, at: workspace.path, force: force)
 
         let keptBranch: ArchiveKeptBranch?
         if shouldDeleteBranch {
@@ -642,8 +652,11 @@ public struct WorkspaceManager: Sendable {
     }
 
     private func refuseArchivingAnOrchestrator(_ id: WorkspaceID) async throws {
-        guard let stored = try await store.workspace(id: id),
-              let objection = OrchestratorRole.archiveObjection(to: stored) else { return }
+        guard let stored = try await store.workspace(id: id) else { return }
+        let active = try await store.workspaces(repoID: stored.repoID)
+        let objection = OrchestratorRole.archiveObjection(to: stored)
+            ?? OrchestratorRole.removalObjection(toWorktreeAt: stored.path, among: active)
+        guard let objection else { return }
         throw WorkspaceError.orchestratorRefused(objection)
     }
 

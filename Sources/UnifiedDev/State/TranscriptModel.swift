@@ -51,6 +51,8 @@ final class TranscriptModel {
         return app.existingModel(for: workspace.id)?.workspace ?? workspace
     }
 
+    var orchestrates: Bool { workspaceNow?.isOrchestrator == true }
+
     private(set) var rows: [TranscriptRow] = []
     private(set) var presentationRevision = 0
     @ObservationIgnored private var foldCache = TranscriptFoldCache()
@@ -265,9 +267,9 @@ final class TranscriptModel {
         }
     }
 
-    func providerContainsTurn(_ turnID: String) async throws -> Bool {
+    func providerTurnPresence(_ turnID: String) async throws -> ConversationTurnPresence {
         guard let runner = await ensureRunner(purpose: .answering), runner.supportsConversationRewind else { throw ConversationRewindError.unsupported }
-        return try await runner.containsTurn(turnID)
+        return try await runner.turnPresence(turnID)
     }
 
     func rewindProvider(beforeTurnID: String) async throws {
@@ -1113,9 +1115,9 @@ final class TranscriptModel {
         }
     }
 
-    private var isOrchestratorWorkspace: Bool {
+    private func readOrchestratorRole(from store: Store) async -> Bool {
         guard let id = workspace?.id else { return false }
-        return app.workspaces.first { $0.id == id }?.isOrchestrator ?? false
+        return await store.orchestratesAtLaunch(workspaceID: id)
     }
 
     private var isWorkspaceArchiving: Bool {
@@ -1156,8 +1158,9 @@ final class TranscriptModel {
         }
         let account = resolved
         guard !usesInteractiveTerminal else { return nil }
+        let orchestrates = await readOrchestratorRole(from: store)
         let fingerprint = AgentRunnerFingerprint(
-            session: session, account: account, orchestrates: isOrchestratorWorkspace, segment: seat.segmentID
+            session: session, account: account, orchestrates: orchestrates, segment: seat.segmentID
         )
         let setup = AgentRunnerSetup.decide(
             gate: AgentDeliveryGate.decide(
@@ -1223,7 +1226,7 @@ final class TranscriptModel {
         )
         self.runner = runner
         runnerFingerprint = AgentRunnerFingerprint(
-            session: session, account: account, orchestrates: isOrchestratorWorkspace, segment: seat.segmentID
+            session: session, account: account, orchestrates: orchestrates, segment: seat.segmentID
         )
         startIdleEviction()
         startPump(on: runner)

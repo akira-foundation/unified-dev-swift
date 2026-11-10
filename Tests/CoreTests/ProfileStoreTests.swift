@@ -50,6 +50,15 @@ struct ProfileStoreTests {
         #expect(profile.folder == "unified-dev-2")
     }
 
+    @Test("a new profile does not take a folder that differs only in case")
+    func occupiedFolderIgnoresCase() async throws {
+        let store = try makeTestStore("profiles-occupied-case")
+        let profile = try await store.createProfile(
+            name: "Unified Dev", colour: Accent.all[1], symbol: "star", occupiedFolders: ["Unified-Dev"]
+        )
+        #expect(profile.folder == "unified-dev-2")
+    }
+
     @Test("a project moved to another profile stays there")
     func updateMovesProfile() async throws {
         let store = try makeTestStore("profiles-move")
@@ -167,7 +176,8 @@ struct ProfileStoreTests {
         try await seeding.setOrchestrator(true, workspaceID: lead.id)
         _ = try await seeding.upsert(Workspace(
             repoID: repo.id, name: "old", branch: "b/old",
-            path: TestScratch.unique("old"), baseBranch: "main", state: .archived
+            path: TestScratch.unique("old"), baseBranch: "main", state: .archived,
+            archivedAt: Date(timeIntervalSince1970: 1_000_000)
         ))
         let reposBefore = try await seeding.repos()
         let workspacesBefore = try await seeding.workspaces(repoID: repo.id, includeArchived: true)

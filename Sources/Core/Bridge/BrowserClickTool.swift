@@ -10,7 +10,7 @@ public struct BrowserClickTool: BridgeToolHandling {
     public let tool = BridgeTool(
         name: BrowserPaneToolName.click,
         description: """
-            Press one element of the page in a browser pane the person has open: a button, a \
+            Press one element of the page in a browser pane that is open to you: a button, a \
             link, a checkbox, whatever browser_snapshot listed.
 
             \(BrowserElementArgument.sentence)

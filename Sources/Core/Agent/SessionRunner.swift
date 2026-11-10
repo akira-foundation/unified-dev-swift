@@ -15,7 +15,7 @@ public protocol SessionRunner: Actor {
     func sendDelivery(_ delivery: Delivery) async throws
     nonisolated var supportsConversationRewind: Bool { get }
     func rewind(beforeTurnID: String) async throws
-    func containsTurn(_ turnID: String) async throws -> Bool
+    func turnPresence(_ turnID: String) async throws -> ConversationTurnPresence
 
     nonisolated func cancelNow()
 
@@ -30,7 +30,9 @@ public protocol SessionRunner: Actor {
 extension SessionRunner {
     public nonisolated var supportsConversationRewind: Bool { false }
     public func rewind(beforeTurnID: String) async throws { throw ConversationRewindError.unsupported }
-    public func containsTurn(_ turnID: String) async throws -> Bool { throw ConversationRewindError.unsupported }
+    public func turnPresence(_ turnID: String) async throws -> ConversationTurnPresence {
+        throw ConversationRewindError.unsupported
+    }
     public func evictIfIdle(for duration: Duration) async -> Bool { false }
     public nonisolated var presentationFeed: AgentPresentationFeed? { nil }
     public nonisolated var stopsBackgroundTasks: Bool { false }

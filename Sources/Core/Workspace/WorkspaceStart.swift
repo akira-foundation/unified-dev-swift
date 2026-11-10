@@ -167,7 +167,7 @@ extension WorkspaceManager {
     }
 
     private func discardRefusedStart(_ workspace: Workspace, repo: Repo, deletingBranch: Bool) async {
-        try? await Git.removeWorktree(repo: repo.path, path: workspace.path, force: true)
+        await discardFreshWorktree(of: repo, at: workspace.path)
         if deletingBranch {
             try? await Git.deleteBranch(workspace.branch, in: repo.path, force: true)
         }

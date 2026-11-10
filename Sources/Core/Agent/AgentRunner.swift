@@ -62,6 +62,8 @@ public actor AgentRunner {
     private var requestedResume: String?
     private var lastContextWindow: Int?
     private let pending = PendingAsks()
+    private let activity: ClaudeAccountActivity
+    private var runLease: ClaudeRunLease?
 
     private let grants: SessionGrants
     private var alive = false
@@ -85,8 +87,10 @@ public actor AgentRunner {
         account: AgentAccountHome? = nil,
         inheritedEnvironment: [String: String]? = nil,
         shutdownBudget: Duration = AgentRunner.defaultShutdownBudget,
+        activity: ClaudeAccountActivity = .shared,
         makeProcess: @escaping @Sendable (AgentLaunch) -> any AgentProcessing = AgentRunner.spawn
     ) {
+        self.activity = activity
         self.workspacePath = workspacePath
         self.sessionID = session.id
         self.session = session
@@ -233,6 +237,7 @@ public actor AgentRunner {
     private func send(_ text: String, recording: Data?, deliveryID: DeliveryID?, deliveredSeq: Int?,
                       interactionMode: InteractionMode?) async throws {
         guard !wasEvicted else { throw ProviderIdleError.retired }
+        let admission = handle.beginAdmission()
         sendsInFlight += 1
         sink.noteActivity()
         defer { sendsInFlight -= 1 }
@@ -245,6 +250,7 @@ public actor AgentRunner {
         orchestrates = await grants.isOrchestrator()
         await LoginShellPath.ready()
         try await waitForCancelledRunToExit()
+        try await admitRun(admission)
         start()
 
         let generation = handle.generation
@@ -313,6 +319,17 @@ public actor AgentRunner {
     }
 
     private static let shutdownPollInterval = Duration.milliseconds(25)
+
+    private func admitRun(_ admission: Int) async throws {
+        guard handle.current == nil, runLease == nil else { return }
+        let lease = await activity.beginRun(ClaudeResolvedModel.accountID(account))
+        guard !handle.wasStopped(during: admission) else {
+            lease.end()
+            throw CancellationError()
+        }
+        guard runLease == nil, handle.current == nil else { return lease.end() }
+        runLease = lease
+    }
 
     private func start() {
         guard handle.current == nil else { return }
@@ -414,6 +431,13 @@ public actor AgentRunner {
 
         switch event {
         case .initialized(let info):
+            await ClaudeResolvedModel.record(
+                requested: ModelAlias.cliValue(for: session.model),
+                reported: info.model,
+                cliVersion: info.version,
+                account: account,
+                in: store
+            )
             var moved = session.apply(.turnStarted).moves
             if !info.sessionID.isEmpty, session.agentSessionID != info.sessionID {
                 session = session.with {
@@ -656,6 +680,8 @@ public actor AgentRunner {
 
         alive = false
         handle.endRun(generation)
+        runLease?.end()
+        runLease = nil
         killTask?.cancel()
         killTask = nil
 
@@ -696,12 +722,12 @@ public actor AgentRunner {
     }
 
     public func cancel() {
-        cancel(generation: handle.generation)
+        cancel(generation: handle.generation, admission: handle.admission)
     }
 
-    func cancel(generation: Int) {
+    func cancel(generation: Int, admission: Int? = nil) {
         guard generation == handle.generation else { return }
-        let request = handle.requestCancel(generation)
+        let request = handle.requestCancel(generation, admission: admission ?? handle.admission)
 
         let wasCancelled = cancelled
         markCancelled()
@@ -742,14 +768,15 @@ public actor AgentRunner {
 
     public nonisolated func cancelNow() {
         let generation = handle.generation
-        let request = handle.requestCancel(generation)
+        let admission = handle.admission
+        let request = handle.requestCancel(generation, admission: admission)
         let denied = denyPendingAsks(PermissionDecision.stoppedMessage)
         if request.accepted { request.process?.terminate() }
         Task { [weak self] in
             if !denied.isEmpty {
                 await self?.recordDenied(denied, as: PermissionAskOutcome.stopped)
             }
-            await self?.cancel(generation: generation)
+            await self?.cancel(generation: generation, admission: admission)
         }
     }
 
@@ -789,6 +816,8 @@ private final class ProcessHandle: Sendable {
         var process: (any AgentProcessing)?
         var cancelled = false
         var run = 0
+        var admission = 0
+        var stoppedThrough = 0
     }
 
     private let state = Mutex(State())
@@ -796,6 +825,19 @@ private final class ProcessHandle: Sendable {
     var current: (any AgentProcessing)? { state.withLock(\.process) }
 
     var generation: Int { state.withLock(\.run) }
+
+    var admission: Int { state.withLock(\.admission) }
+
+    func beginAdmission() -> Int {
+        state.withLock { state in
+            state.admission += 1
+            return state.admission
+        }
+    }
+
+    func wasStopped(during admission: Int) -> Bool {
+        state.withLock { admission <= $0.stoppedThrough }
+    }
 
     func beginRun(_ process: any AgentProcessing) -> Int {
         state.withLock { state in
@@ -821,9 +863,10 @@ private final class ProcessHandle: Sendable {
         state.withLock { $0.process != nil && $0.cancelled }
     }
 
-    func requestCancel(_ generation: Int) -> (accepted: Bool, process: (any AgentProcessing)?) {
+    func requestCancel(_ generation: Int, admission: Int) -> (accepted: Bool, process: (any AgentProcessing)?) {
         state.withLock { state -> (accepted: Bool, process: (any AgentProcessing)?) in
             guard generation == state.run else { return (false, nil) }
+            state.stoppedThrough = max(state.stoppedThrough, admission)
             let accepted = !state.cancelled
             state.cancelled = true
             return (accepted, state.process)

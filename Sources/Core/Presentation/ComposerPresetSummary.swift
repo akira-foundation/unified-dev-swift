@@ -13,10 +13,11 @@ public struct ComposerPresetSummary: Equatable, Sendable {
         presets: ModelPresetList,
         modelLabel: String,
         effortLabel: String,
-        models: [AgentKind: [AgentModel]] = [:]
+        models: [AgentKind: [AgentModel]] = [:],
+        orchestrates: Bool = false
     ) {
         let matched = presets.matching(controls, models: models)
-        let permission = controls.permissionMode.label(on: controls.agentKind)
+        let permission = controls.permissionLabel(orchestrates: orchestrates)
         let base = "\(modelLabel), \(effortLabel), \(permission)"
         self.matched = matched
         self.title = matched?.name ?? "\(modelLabel) \u{00B7} \(effortLabel)"

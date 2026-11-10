@@ -64,10 +64,7 @@ struct AgentAccountSignOutTests {
         #expect(text.contains("may have cost it"))
     }
 
-    @Test func recoveryDoesNotPointAtAButtonThatDoesNotExistNorAtAnotherAccount() {
-        let text = AgentAccountSignOut.recovery(provider: .codex)
-        #expect(text.contains("no sign-in button"))
-        #expect(text.contains("Codex config directory"))
-        #expect(!text.contains("another account"))
+    @Test func recoveryDoesNotSendTheOwnerToAnotherAccount() {
+        #expect(!AgentAccountSignOut.recovery(provider: .codex).contains("another account"))
     }
 }

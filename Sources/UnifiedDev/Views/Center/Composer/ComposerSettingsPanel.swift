@@ -7,6 +7,7 @@ struct ComposerSettingsPanel: View {
     var efforts: [ComposerOption]
     var outputStyles: [ComposerOption]
     var permissionModes: [ComposerOption]
+    var orchestrates: Bool = false
     var account: ComposerAccountSection?
     var matchedPreset: ModelPreset?
     var suggestedPresetName: String
@@ -26,6 +27,7 @@ struct ComposerSettingsPanel: View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: Metrics.spacing) {
                 settingRow("Model") { modelPicker }
+                ModelListFailureNote()
                 if let onOpenInNewChat, !newChatProviders.isEmpty {
                     settingRow("New chat") { newChatMenu(onOpenInNewChat) }
                 }
@@ -56,7 +58,7 @@ struct ComposerSettingsPanel: View {
                 settingRow("Permissions") {
                     optionPicker(
                         "Permissions",
-                        selection: controls.permissionMode.rawValue,
+                        selection: controls.runningPermissionMode(orchestrates: orchestrates).rawValue,
                         options: permissionModes,
                         onSelect: onPermissionMode
                     )

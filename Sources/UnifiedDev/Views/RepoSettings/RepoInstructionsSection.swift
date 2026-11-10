@@ -27,6 +27,7 @@ struct RepoInstructionsSection: View {
                 VStack(alignment: .leading, spacing: Metrics.spacing) {
                     Text("Saved instructions apply to every workspace in this project, including existing ones. Commit the settings file to share them with your team.")
                     Text("Unified Dev attaches these instructions alongside its built-in merge and conflict-resolution steps. Empty fields add nothing.")
+                    Text("A branch from a fork, opened by someone else, or of an origin Unified Dev cannot confirm gets the built-in steps alone: this project's files and these fields are left out.")
                 }
                 .settingsFootnote()
                 .frame(maxWidth: .infinity, alignment: .leading)

@@ -43,7 +43,7 @@ struct WorkspaceTabToolTests {
             number: number,
             title: title,
             isActive: false,
-            detail: .browser(BrowserPaneReport(number: 1, name: title, address: address))
+            detail: .browser(BrowserPaneReport(number: 1, name: title, address: address, access: .agents))
         )
     }
 
@@ -406,7 +406,7 @@ struct WorkspaceTabToolTests {
             number: 1,
             title: "Docs",
             isActive: true,
-            detail: .browser(BrowserPaneReport(number: 1, name: "Docs", address: "https://example.com"))
+            detail: .browser(BrowserPaneReport(number: 1, name: "Docs", address: "https://example.com", access: .agents))
         )
         #expect(WorkspaceTabSelection.withoutMoving(inFront) == .alreadyInFront(inFront))
         #expect(WorkspaceTabSelection.withoutMoving(terminal(2)) == nil)

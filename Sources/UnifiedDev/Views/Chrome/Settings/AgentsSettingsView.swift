@@ -73,7 +73,8 @@ struct AgentsSettingsView: View {
                     activity: accounts.activity,
                     canSignIn: status.executablePath != nil,
                     onAdd: { accountsFlow.isNamingAccount = true },
-                    onRemove: { accountsFlow.removing = $0 }
+                    onRemove: { accountsFlow.removing = $0 },
+                    onSignInAgain: { accountsFlow.signInAgain($0, executable: status.executablePath) }
                 )
 
                 if status.connection == .notInstalled {

@@ -9,6 +9,7 @@ enum NewPane {
         url: String = "",
         title: String? = nil,
         directory: String = "",
+        browserAccess: BrowserPaneAccess = .owner,
         place: @escaping @MainActor (PaneContent) -> Void
     ) {
         switch kind {
@@ -27,7 +28,8 @@ enum NewPane {
 
         case .browser:
             let tab = CenterTabStore.shared.add(
-                kind: .browser, workspaceID: model.workspace.id, url: url, title: title
+                kind: .browser, workspaceID: model.workspace.id, url: url, title: title,
+                browserAccess: browserAccess
             )
             place(.tool(tab.id))
         }

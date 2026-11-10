@@ -43,7 +43,10 @@ enum InspectorToolbar {
     struct MergeButton: View {
         @Bindable var model: WorkspaceModel
 
+        @Environment(AppModel.self) private var app
+
         @State private var isWorking = false
+        @State private var pendingMerge: GitHub.MergeMethod?
 
         var body: some View {
             Menu {
@@ -57,11 +60,28 @@ enum InspectorToolbar {
             } label: {
                 Text(model.mergeMethod.buttonLabel)
             } primaryAction: {
-                merge()
+                propose()
             }
             .disabled(isWorking)
             .help(model.mergeMethod.buttonLabel)
             .id(model.mergeMethod)
+            .mergeConfirmation(
+                $pendingMerge, model: model, canConfirm: canConfirm, arrowEdge: .bottom, onConfirm: merge
+            )
+        }
+
+        private var canConfirm: Bool {
+            model.canConfirmMerge(
+                branchActions: .mayActOnBranch(
+                    isAgentBusy: app.isRunning(model.workspace), pullRequest: model.pullRequest
+                ),
+                isWorking: isWorking
+            )
+        }
+
+        private func propose() {
+            guard canConfirm else { return }
+            GitHubSignIn.shared.run(directory: model.workspace.path) { pendingMerge = model.mergeMethod }
         }
 
         private var binding: Binding<GitHub.MergeMethod> {
@@ -71,12 +91,13 @@ enum InspectorToolbar {
             )
         }
 
-        private func merge() {
+        private func merge(_ method: GitHub.MergeMethod) {
             guard let pullRequest = model.pullRequest else { return }
             isWorking = true
+            model.pullRequestNotice = nil
             Task {
                 defer { isWorking = false }
-                _ = await model.requestMerge(pullRequest, method: model.mergeMethod)
+                _ = await model.requestMerge(pullRequest, method: method)
             }
         }
     }

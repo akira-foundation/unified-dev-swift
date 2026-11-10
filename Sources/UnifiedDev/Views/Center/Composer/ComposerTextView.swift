@@ -16,6 +16,7 @@ final class ComposerTextView: NSTextView, HoverQuickLookSource {
     var onAttach: (@MainActor ([AttachmentSource], NSRange) -> Bool)?
     var onAttachmentFailure: @MainActor @Sendable (String) -> Void = { _ in }
     var dropRoot: (@MainActor () -> String?)?
+    var dropOwner: (@MainActor () -> String)?
     var openAttachment: (@MainActor (String) -> Void)?
     var hoverAttachment: (@MainActor (String?) -> Void)?
 

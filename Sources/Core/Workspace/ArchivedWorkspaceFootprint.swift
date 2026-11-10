@@ -11,13 +11,13 @@ public struct ArchivedWorkspaceFootprint: Sendable, Identifiable, Hashable {
     public let hasNote: Bool
     public var branchIsLocal: Bool?
 
+    static let measuringBatch = 256
+
     public var id: WorkspaceID { workspace.id }
 
     public var totalBytes: Int { transcriptBytes + otherBytes }
 
-    public var archivedAt: Date {
-        workspace.archivedAt ?? workspace.lastActivityAt
-    }
+    public var archivedAt: Date? { workspace.archivedAt }
 
     public var contents: String {
         var parts = [ArchiveDeletion.bytes(totalBytes)]

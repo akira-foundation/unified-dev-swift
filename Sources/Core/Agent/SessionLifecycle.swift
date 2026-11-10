@@ -12,7 +12,12 @@ public enum SessionEvent: Sendable, Hashable {
 }
 
 public extension SessionState {
-    var isMidTurn: Bool { self == .running || self == .waiting }
+    var isMidTurn: Bool {
+        switch self {
+        case .running, .waiting: true
+        case .idle, .failed, .cancelled: false
+        }
+    }
 
     func transition(on event: SessionEvent) -> StateTransition<SessionState> {
         switch event {

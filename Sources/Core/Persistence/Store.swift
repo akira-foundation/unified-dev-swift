@@ -684,6 +684,8 @@ public actor Store {
             AgentAccountChoiceColumns.forgetWorkspaceChoices,
             ProfileAccountColumns.migrate,
             { try PreAccountChatOwners.record($0, predatingAccounts: current <= beforeAccounts.count) },
+            sql(InboxNotificationColumns.createTable),
+            { try UndatedArchives.stamp($0) },
         ]
 
         guard current >= 0, current <= migrations.count else {
@@ -731,6 +733,9 @@ public actor Store {
             try db.run(SessionSegmentColumns.forgetHistory, [.text(id)])
             try db.run(AgentAccountColumns.release("session_segments"), [.text(id)])
             try db.run(AgentAccountColumns.delete, [.text(id)])
+            for key in ClaudeResolvedModel.settingKeys(account: id) {
+                try db.run("DELETE FROM settings WHERE key = ?", [.text(key)])
+            }
         }
     }
 
@@ -1062,6 +1067,10 @@ public actor Store {
         return try db.query(sql, [.text(repoID)]).map(Self.workspace(from:))
     }
 
+    public func workspacePaths() throws -> [String] {
+        try db.query("SELECT path FROM workspaces").compactMap { $0.string("path") }
+    }
+
     public func workspace(id: WorkspaceID) throws -> Workspace? {
         try db.query("SELECT * FROM workspaces WHERE id = ?", [.text(id)]).first.map(Self.workspace(from:))
     }
@@ -1157,7 +1166,13 @@ public actor Store {
         try db.run("DELETE FROM workspaces WHERE id = ?", [.text(id)])
     }
 
-    public func archivedFootprints() throws -> [ArchivedWorkspaceFootprint] {
+    public func archivedFootprints() async throws -> [ArchivedWorkspaceFootprint] {
+        try await archivedFootprints(betweenBatches: { await Task.yield() })
+    }
+
+    func archivedFootprints(
+        betweenBatches pause: @Sendable () async -> Void
+    ) async throws -> [ArchivedWorkspaceFootprint] {
         let rows = try db.query("""
             SELECT w.*, r.name AS repo_name
             FROM workspaces w
@@ -1171,15 +1186,7 @@ public actor Store {
             sessions[row.string("workspace_id") ?? ""] = Int(row.int("n") ?? 0)
         }
 
-        var messages: [String: (count: Int, bytes: Int)] = [:]
-        for row in try db.query("""
-            SELECT s.workspace_id AS wid, COUNT(m.id) AS n,
-                   COALESCE(SUM(LENGTH(m.payload)), 0) AS bytes
-            FROM messages m JOIN sessions s ON s.id = m.session_id
-            GROUP BY s.workspace_id
-            """) {
-            messages[row.string("wid") ?? ""] = (Int(row.int("n") ?? 0), Int(row.int("bytes") ?? 0))
-        }
+        let messages = try await archivedTranscriptSizes(betweenBatches: pause)
 
         var comments: [String: (count: Int, bytes: Int)] = [:]
         for row in try db.query("""
@@ -1220,6 +1227,47 @@ public actor Store {
                 reviewCommentCount: comment.0,
                 hasNote: note > 0
             )
+        }
+    }
+
+    private func archivedTranscriptSizes(
+        betweenBatches pause: @Sendable () async -> Void
+    ) async throws -> [String: (count: Int, bytes: Int)] {
+        var sizes: [String: (count: Int, bytes: Int)] = [:]
+        for session in try db.query("""
+            SELECT s.id AS sid, s.workspace_id AS wid
+            FROM sessions s JOIN workspaces w ON w.id = s.workspace_id
+            WHERE w.state = 'archived'
+            """) {
+            let total = try await transcriptSize(of: session.string("sid") ?? "", betweenBatches: pause)
+            let workspaceID = session.string("wid") ?? ""
+            let sum = sizes[workspaceID] ?? (0, 0)
+            sizes[workspaceID] = (sum.count + total.count, sum.bytes + total.bytes)
+        }
+        return sizes
+    }
+
+    private func transcriptSize(
+        of sessionID: String,
+        betweenBatches pause: @Sendable () async -> Void
+    ) async throws -> (count: Int, bytes: Int) {
+        var total = (count: 0, bytes: 0)
+        var lastSeq = Int64.min
+        while true {
+            let batch = try db.query("""
+                SELECT COUNT(*) AS n, COALESCE(SUM(size), 0) AS bytes, MAX(seq) AS last FROM (
+                    SELECT seq, LENGTH(payload) AS size FROM messages
+                    WHERE session_id = ? AND seq > ? ORDER BY seq LIMIT ?
+                )
+                """,
+                [.text(sessionID), .int(lastSeq), .int(Int64(ArchivedWorkspaceFootprint.measuringBatch))]
+            ).first
+            let read = Int(batch?.int("n") ?? 0)
+            total.count += read
+            total.bytes += Int(batch?.int("bytes") ?? 0)
+            lastSeq = batch?.int("last") ?? lastSeq
+            await pause()
+            if read < ArchivedWorkspaceFootprint.measuringBatch { return total }
         }
     }
 
@@ -1599,17 +1647,19 @@ public actor Store {
         try db.query("SELECT * FROM sessions WHERE id = ?", [.text(id)]).first.map(Self.session(from:))
     }
 
-    public func sessionActivity() throws -> [SessionActivity] {
+    public func sessionActivity(includingArchivedWorkspaces: Bool = false) throws -> [SessionActivity] {
         let states = AgentTurns.Kind.allCases.map(\.sessionState)
         let placeholders = states.map { _ in "?" }.joined(separator: ", ")
+        let workspaceStates = includingArchivedWorkspaces ? WorkspaceState.allCases : [.active]
+        let workspacePlaceholders = workspaceStates.map { _ in "?" }.joined(separator: ", ")
         return try db.query(
             """
             SELECT s.id AS id, s.workspace_id AS workspace_id, s.state AS state
             FROM sessions s
             JOIN workspaces w ON w.id = s.workspace_id
-            WHERE s.archived_at IS NULL AND w.state = ? AND s.state IN (\(placeholders))
+            WHERE s.archived_at IS NULL AND w.state IN (\(workspacePlaceholders)) AND s.state IN (\(placeholders))
             """,
-            [.text(WorkspaceState.active.rawValue)] + states.map { SQLValue.text($0.rawValue) }
+            workspaceStates.map { SQLValue.text($0.rawValue) } + states.map { SQLValue.text($0.rawValue) }
         ).map { row in
             SessionActivity(
                 sessionID: SessionID(row.string("id") ?? newID()),
@@ -3212,9 +3262,26 @@ public actor Store {
         return PlanApproval.implementationMode(configured ?? AppDefaults.fallbackPermissionMode)
     }
 
-    public func transcriptCursors() throws -> [String: TranscriptCursor] {
-        let rows = try db.query("SELECT * FROM usage_files").map(SpendColumns.cursor(from:))
+    public func transcriptCursors(forPaths paths: [String]) throws -> [String: TranscriptCursor] {
+        guard !paths.isEmpty else { return [:] }
+        let placeholders = paths.map { _ in "?" }.joined(separator: ", ")
+        let rows = try db.query(
+            "SELECT * FROM usage_files WHERE path IN (\(placeholders))", paths.map(SQLValue.text)
+        ).map(SpendColumns.cursor(from:))
         return Dictionary(rows.map { ($0.path, $0) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    public func transcriptCursorPaths(after path: String, limit: Int) throws -> [String] {
+        try db.query(
+            "SELECT path FROM usage_files WHERE path > ? ORDER BY path LIMIT ?",
+            [.text(path), .int(Int64(limit))]
+        ).compactMap { $0.string("path") }
+    }
+
+    public func forgetTranscriptCursors(paths: [String]) throws {
+        guard !paths.isEmpty else { return }
+        let placeholders = paths.map { _ in "?" }.joined(separator: ", ")
+        try db.run("DELETE FROM usage_files WHERE path IN (\(placeholders))", paths.map(SQLValue.text))
     }
 
     public func forgetSpend(ofFile path: String) throws {

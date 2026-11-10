@@ -10,7 +10,7 @@ public struct BrowserFillTool: BridgeToolHandling {
     public let tool = BridgeTool(
         name: BrowserPaneToolName.fill,
         description: """
-            Type into one field of the page in a browser pane the person has open. The text \
+            Type into one field of the page in a browser pane that is open to you. The text \
             replaces whatever the field held, and the page is told the way a typed value tells \
             it: an input event and a change event.
 

@@ -22,6 +22,13 @@ the same folder get different ones, the second ending in `-2`. `ProfileFolder` d
 The initial profile's folder is `unified`: its new worktrees are created under `unified/`. Worktrees
 that already existed before profiles are never moved and stay where they were.
 
+A folder never resolves into the directory of a project from before profiles, which holds its
+worktrees directly as `<workspaces root>/<project>/<branch>`. When a profile's folder is one of those
+directories, recorded or found on disk, its new worktrees go under the same name ending in `-2`, or
+the next number free, for as long as that directory holds a checkout or a workspace still records
+it. The profile's own folder does not change, and neither do worktrees that already exist. Folder names are compared ignoring case, as the
+disk does.
+
 ## Accounts
 
 Every agent account belongs to one profile. Settings, Agents lists the accounts of the active
@@ -75,7 +82,10 @@ accounts it owns are listed nowhere and wait for it to have its own again. Delet
 by then has no projects, gives its accounts back to Unified.
 
 Removing an account is refused while an agent runs under it, counting the agents that reach it as
-their profile's default as well as those whose project chose it. The confirmation names the projects
+their profile's default, those whose project chose it and chats recorded on it, in archived workspaces
+as well. For a folder inside the accounts root it is also refused while any process
+of this user names the folder in its arguments or environment, and when Unified Dev cannot
+read a process to tell; a folder outside that root is never deleted, so its row can always go. The confirmation names the projects
 that chose it; they go back to their profile's default, and in a profile with accounts of its own and
 no default for that CLI they do not start until another is chosen.
 

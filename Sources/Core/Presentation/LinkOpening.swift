@@ -9,7 +9,8 @@ public enum LinkOpening {
 
     public static let settingDetail =
         "Links in chats, terminals and previews open in a tab of the workspace. Control-click a chat link, "
-        + "or Shift-Command-click a terminal link, to use your default browser. Sign-in pages always open there."
+        + "or Shift-Command-click a terminal link, to use your default browser. Sign-in pages always open there. "
+        + "Agents cannot read or use these tabs unless you share one from its toolbar."
 
     public static func target(
         for url: URL,
@@ -24,9 +25,21 @@ public enum LinkOpening {
         return .browserTab
     }
 
-    public static func tab(showing address: String, among addresses: [String]) -> Int? {
+    public struct OpenPane: Equatable, Sendable {
+        public var address: String
+        public var access: BrowserPaneAccess
+
+        public init(address: String, access: BrowserPaneAccess) {
+            self.address = address
+            self.access = access
+        }
+    }
+
+    public static func tab(showing address: String, among panes: [OpenPane]) -> Int? {
         let wanted = pageIdentity(address)
-        return addresses.lastIndex { !$0.isEmpty && pageIdentity($0) == wanted }
+        return panes.lastIndex {
+            !$0.access.isOpenToAgents && !$0.address.isEmpty && pageIdentity($0.address) == wanted
+        }
     }
 
     private static let signInSegments: Set<String> = [

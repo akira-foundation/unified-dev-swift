@@ -16,22 +16,27 @@ final class ComposerModelCatalog {
 
     private(set) var models: [AgentKind: [AgentModel]] = [:]
     private(set) var isLoading = false
-    private(set) var lastFailure: String?
+    private(set) var failures: [AgentKind: ModelListFailure] = [:]
+    private(set) var reportedClaudeModels: [String: String] = [:]
 
     private var sources: [AgentKind: AgentModelSource]
     private var accounts: [AgentKind: AgentAccountHome] = [:]
     private var accountsAreKnown = false
+    private var store: Store?
     private var loadTask: Task<Void, Never>?
     private var loadGeneration = UUID()
+    private var observationTask: Task<Void, Never>?
 
     init(sources: [AgentKind: AgentModelSource] = AgentModelSource.live()) {
         self.sources = sources
     }
 
     func configure(store: Store) {
+        self.store = store
         Task { await ComposerPlanningSupport.shared.refresh(from: store) }
         sources = AgentModelSource.live(store: store, accounts: accounts)
         guard accountsAreKnown else { return }
+        followClaudeReports(in: store)
         refresh()
     }
 
@@ -39,19 +44,45 @@ final class ComposerModelCatalog {
         guard adopted != accounts || !accountsAreKnown else { return }
         accountsAreKnown = true
         accounts = adopted
+        self.store = store
         sources = AgentModelSource.live(store: store, accounts: adopted)
+        followClaudeReports(in: store)
         refresh()
     }
 
+    private func followClaudeReports(in store: Store) {
+        observationTask?.cancel()
+        let account = accounts[.claudeCode]
+        observationTask = Task { [weak self] in
+            var changes = store.changes(of: [.settings]).makeAsyncIterator()
+            self?.refreshClaudeAliases()
+            repeat {
+                self?.adoptClaudeReports(await ClaudeResolvedModel.reported(account: account, in: store))
+            } while await changes.next() != nil
+        }
+    }
+
+    private func refreshClaudeAliases() {
+        guard let store else { return }
+        let account = accounts[.claudeCode]
+        Task { await ClaudeAliasRefresh.shared.refresh(account: account, in: store) }
+    }
+
+    private func adoptClaudeReports(_ reported: [String: String]) {
+        guard !Task.isCancelled, reported != reportedClaudeModels else { return }
+        reportedClaudeModels = reported
+    }
+
     func load() {
-        guard accountsAreKnown, loadTask == nil else { return }
+        guard accountsAreKnown else { return }
+        refreshClaudeAliases()
+        guard loadTask == nil else { return }
         let needed = AgentModelSource.kindsAwaitingModels(sources: sources, loaded: models)
         guard !needed.isEmpty else { return }
-        lastFailure = nil
         isLoading = true
         let generation = loadGeneration
         loadTask = Task { [sources] in
-            var failure: String?
+            var collected: [AgentKind: ModelListFailure] = [:]
             for kind in needed {
                 guard generation == self.loadGeneration else { return }
                 guard let source = sources[kind] else { continue }
@@ -60,11 +91,11 @@ final class ComposerModelCatalog {
                     guard generation == self.loadGeneration else { return }
                     self.models[kind] = fetched
                 } catch {
-                    if failure == nil { failure = error.readableMessage }
+                    collected[kind] = await source.failure(of: kind, because: error)
                 }
             }
             guard generation == self.loadGeneration else { return }
-            self.lastFailure = failure
+            self.failures = collected
             self.isLoading = false
             self.loadTask = nil
         }
@@ -75,7 +106,7 @@ final class ComposerModelCatalog {
         loadGeneration = UUID()
         let generation = loadGeneration
         models = [:]
-        lastFailure = nil
+        failures = [:]
         isLoading = true
         loadTask = Task { [sources] in
             for source in sources.values { await source.invalidate() }
@@ -84,6 +115,10 @@ final class ComposerModelCatalog {
             self.isLoading = false
             load()
         }
+    }
+
+    func hasGivenUp(on kind: AgentKind) -> Bool {
+        ModelListFailure.hasGivenUp(on: kind, among: failures, isLoading: isLoading)
     }
 
     func sections(includingCurrent current: String, on kind: AgentKind) -> [ComposerModelSection] {
@@ -99,7 +134,7 @@ final class ComposerModelCatalog {
         let known = (models[kind] ?? []).filter { !$0.hidden }
         if kind == .claudeCode {
             return ComposerOption.options(
-                ClaudeModelCatalog.offered(read: known, including: current)
+                ClaudeModelCatalog.offered(read: known, including: current, reported: reportedClaudeModels)
             )
         }
         let options = ComposerOption.options(known)

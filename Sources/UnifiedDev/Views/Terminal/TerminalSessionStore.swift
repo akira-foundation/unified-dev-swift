@@ -257,6 +257,19 @@ final class TerminalSessionStore {
     var onAgentActivityChanged: (() -> Void)?
     var onAgentTurnFinished: ((WorkspaceID) async -> Void)?
 
+    func agentsInTerminals(of workspaceID: WorkspaceID) async -> [AgentKind]? {
+        ensurePersistence()
+        guard let table = await ProcessTable.current(), !table.rows.isEmpty else { return nil }
+        var shells = livePanes().filter { paneOwner[$0.pane] == workspaceID }.map(\.shell)
+        if let persistence {
+            guard let snapshot = await persistence.panePIDSnapshot() else { return nil }
+            let names = TmuxSessions.sessions(ofWorkspace: workspaceID, in: Array(snapshot.keys))
+            shells += names.compactMap { snapshot[$0] }
+        }
+        return shells.compactMap { table.interactiveAgentProcess(ofShell: $0) }
+            .compactMap { ProcessTable.interactiveAgent(command: $0.command) }
+    }
+
     func detectedAgent(inPane pane: String) -> AgentKind? {
         paneAgents[pane]
     }

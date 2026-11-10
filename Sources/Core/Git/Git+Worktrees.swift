@@ -38,7 +38,7 @@ extension Git {
         }
     }
 
-    public static func removeWorktree(repo: String, path: String, force: Bool = false) async throws {
+    static func removeWorktree(repo: String, path: String, force: Bool = false) async throws {
         try validate(ref: path, label: "worktree path")
 
         var result = try await run(["worktree", "remove", "--", path], in: repo)

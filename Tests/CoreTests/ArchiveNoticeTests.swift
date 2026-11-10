@@ -98,4 +98,35 @@ struct ArchiveNoticeTests {
             + "there. It stopped a background command: Serve.")
         #expect(notice.tone == .warning)
     }
+
+    @Test("a failed archive adds the success notice's sentence about what it stopped")
+    func failureNamesTheStoppedCommands() {
+        let sentence = ArchiveNotice.afterFailing("Could not remove the worktree.", stopping: [command("Serve")])
+
+        #expect(sentence == "Could not remove the worktree. It stopped a background command: Serve.")
+    }
+
+    @Test("a failed archive that stopped no command says only why it failed")
+    func failureWithNothingStopped() {
+        #expect(ArchiveNotice.afterFailing("Could not remove the worktree.", stopping: []) == "Could not remove the worktree.")
+    }
+
+    @Test("a failed script names what was stopped before the script's own output")
+    func scriptFailureNamesTheStoppedCommands() {
+        let message = ArchiveNotice.scriptFailure(
+            workspaceName: "Docs", status: 3, output: "\nboom\n", stopping: [command("Serve"), command("Watch")]
+        )
+
+        #expect(message == "\u{201C}Docs\u{201D} is still here: its worktree and its branch are untouched. "
+            + "Any agent it was running has been stopped. It stopped 2 background commands: Serve and Watch."
+            + "\n\nThe script exited with status 3.\n\nboom")
+    }
+
+    @Test("a command stopped by an earlier attempt is named once, ahead of any stopped since")
+    func commandsAcrossAttempts() {
+        let serve = command("Serve")
+        let watch = command("Watch")
+
+        #expect(ArchiveNotice.everyCommandStopped(earlier: [serve], now: [serve, watch]) == [serve, watch])
+    }
 }
