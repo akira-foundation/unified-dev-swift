@@ -42,9 +42,11 @@ struct ClaudeResolvedModelTests {
         #expect(version(listed: listed, reported: ["fable": "claude-fable-5-1"]) == "5.5")
     }
 
-    @Test("a report of another family does not hide the list")
-    func aWrongReportFallsBackToTheList() {
-        #expect(version(listed: [model("claude-opus-5-5")], reported: ["opus": "claude-sonnet-5"]) == "5.5")
+    @Test("a stored model the alias cannot be read from names no version, rather than the list's newest", arguments: [
+        "claude-sonnet-5", "claude-3-5-sonnet-20241022", "us.anthropic.claude-opus-4-5-v1:0",
+    ])
+    func anUnreadableStoredModelNamesNoVersion(stored: String) {
+        #expect(version(listed: [model("claude-opus-5-5")], reported: ["opus": stored]) == nil)
     }
 
     @Test("a dated id of a whole version does not outrank a newer point release")

@@ -174,8 +174,9 @@ itself was not reproduced here.
 An alias the account pins with `ANTHROPIC_DEFAULT_<ALIAS>_MODEL` in the `env` of its own
 `settings.json` is not asked: the probe reads that value from the file, since a turn would run it,
 and records it in place of an answer. The file is parsed as JSON and nothing else in it is used. A pin
-that is not a `claude-` id, such as a provider's own model id, is recorded as it is and the picker
-names no version for that alias rather than one it cannot vouch for.
+the picker cannot read a version of that alias from, such as a provider's own model id, an id of
+another family or an older naming, is recorded as it is, and the picker names no version for that
+alias rather than one it cannot vouch for.
 
 Each start writes the account's `~/.claude.json`. The CLI takes its own lock and writes through a
 temporary file, and twelve probes started at once in one directory left a file that parsed and no

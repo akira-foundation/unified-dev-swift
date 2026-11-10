@@ -222,4 +222,25 @@ struct ClaudeAliasRefreshTests {
         #expect(await ClaudeResolvedModel.reported(account: account, in: store)["opus"] == "claude-opus-4-1")
         #expect(launches.launches.count == 2 * ClaudeModelCatalog.builtIn.count - 1)
     }
+
+    @Test("a pin added while the CLI version cannot be read is still picked up")
+    func aChangedPinIsAskedAgainWithoutAVersion() async throws {
+        let store = try makeTestStore("refresh")
+        let launches = ProbeLaunches()
+        let clock = ManualClock()
+        let account = work
+        let version = InstalledVersion("2.1.322")
+        let subject = refresh(launches, version: version, clock: clock) { alias in
+            [probeInitLine("claude-\(alias)-5-5")]
+        }
+
+        await subject.refresh(account: account, in: store)
+        version.change(to: nil)
+        try #"{"env":{"ANTHROPIC_DEFAULT_OPUS_MODEL":"claude-opus-4-1"}}"#
+            .write(to: account.directory.appending(path: "settings.json"), atomically: true, encoding: .utf8)
+        clock.advance(by: ClaudeAliasRefresh.recheckInterval)
+        await subject.refresh(account: account, in: store)
+
+        #expect(await ClaudeResolvedModel.reported(account: account, in: store)["opus"] == "claude-opus-4-1")
+    }
 }

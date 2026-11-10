@@ -728,6 +728,30 @@ struct AgentRunnerProcessTests {
         #expect(!activity.isRunning(account))
     }
 
+    @Test("a stop that belongs to an earlier send, arriving late, does not end a turn waiting for the probe")
+    func aLateStopOfAnEarlierSendIsIgnored() async throws {
+        let store = try makeTestStore("agent")
+        let session = try await makeSession(store)
+        let recorder = ProcessRecorder()
+        let activity = ClaudeAccountActivity()
+        let account = AgentAccountHome.defaultID(for: .claudeCode)
+        let runner = AgentRunner(
+            workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session),
+            activity: activity, makeProcess: recorder.factory
+        )
+
+        #expect(activity.beginProbe(account))
+        let sending = Task { try await runner.send("hello") }
+        await waitUntil("the turn waits for the probe") { activity.isRunning(account) }
+        await runner.cancel(generation: 0, admission: 0)
+        activity.endProbe(account)
+        try await sending.value
+
+        #expect(recorder.all.count == 1)
+        try #require(recorder.last).endOutput()
+        await waitUntil("the runner stopped") { await runner.isRunning == false }
+    }
+
     @Test("the stored output style reaches the process the runner spawns")
     func spawnsWithTheStoredOutputStyle() async throws {
         let store = try makeTestStore("agent")

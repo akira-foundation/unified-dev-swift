@@ -7,7 +7,7 @@ public actor ClaudeAliasRefresh {
 
     private static let unknownVersion = "unknown"
 
-    private var answeredVersion: [AgentAccountID: String] = [:]
+    private var answered: [AgentAccountID: (version: String, settings: String)] = [:]
     private var nextCheck: [AgentAccountID: ContinuousClock.Instant] = [:]
     private var probing: Set<AgentAccountID> = []
     private let probe: (@Sendable (Store) async -> ClaudeAliasProbe)?
@@ -38,8 +38,8 @@ public actor ClaudeAliasRefresh {
         let aliases = ClaudeModelCatalog.builtIn.map(\.id)
         let probe = await chosenProbe(in: store)
         let settings = await probe.settingsFingerprint(aliases, account: account)
-        if let answered = answeredVersion[id] {
-            guard let version, answered != "\(version)|\(settings)" else { return }
+        if let last = answered[id], last.settings == settings {
+            guard let version, version != last.version else { return }
         }
         guard !activity.isRunning(id) else { return }
         let answers = await probe.resolve(aliases, account: account)
@@ -48,7 +48,7 @@ public actor ClaudeAliasRefresh {
             nextCheck[id] = moment + Self.retryInterval
             return
         }
-        answeredVersion[id] = "\(version ?? Self.unknownVersion)|\(settings)"
+        answered[id] = (version ?? Self.unknownVersion, settings)
     }
 
     private func version(in store: Store) async -> String? {

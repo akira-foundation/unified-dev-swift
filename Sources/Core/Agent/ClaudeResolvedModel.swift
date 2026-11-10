@@ -9,8 +9,7 @@ public enum ClaudeResolvedModel {
         listed: [AgentModel],
         reported: [String: String]
     ) -> String? {
-        if let raw = reported[alias], !raw.hasPrefix("claude-") { return nil }
-        if let current = reported[alias].flatMap({ parsed($0, alias: alias) }) { return label(current) }
+        if let stored = reported[alias] { return parsed(stored, alias: alias).map(label) }
         let listedVersions = listed.filter { $0.unavailable == nil }.compactMap { parsed($0.id, alias: alias) }
         return listedVersions.max { $1.isAbove($0) }.map(label)
     }

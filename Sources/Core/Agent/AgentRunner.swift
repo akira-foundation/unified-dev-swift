@@ -237,6 +237,7 @@ public actor AgentRunner {
     private func send(_ text: String, recording: Data?, deliveryID: DeliveryID?, deliveredSeq: Int?,
                       interactionMode: InteractionMode?) async throws {
         guard !wasEvicted else { throw ProviderIdleError.retired }
+        let admission = handle.beginAdmission()
         sendsInFlight += 1
         sink.noteActivity()
         defer { sendsInFlight -= 1 }
@@ -249,7 +250,7 @@ public actor AgentRunner {
         orchestrates = await grants.isOrchestrator()
         await LoginShellPath.ready()
         try await waitForCancelledRunToExit()
-        try await admitRun()
+        try await admitRun(admission)
         start()
 
         let generation = handle.generation
@@ -319,11 +320,10 @@ public actor AgentRunner {
 
     private static let shutdownPollInterval = Duration.milliseconds(25)
 
-    private func admitRun() async throws {
+    private func admitRun(_ admission: Int) async throws {
         guard handle.current == nil, runLease == nil else { return }
-        let stopsBefore = handle.stopRequests
         let lease = await activity.beginRun(ClaudeResolvedModel.accountID(account))
-        guard handle.stopRequests == stopsBefore else {
+        guard !handle.wasStopped(during: admission) else {
             lease.end()
             throw CancellationError()
         }
@@ -722,12 +722,12 @@ public actor AgentRunner {
     }
 
     public func cancel() {
-        cancel(generation: handle.generation)
+        cancel(generation: handle.generation, admission: handle.admission)
     }
 
-    func cancel(generation: Int) {
+    func cancel(generation: Int, admission: Int? = nil) {
         guard generation == handle.generation else { return }
-        let request = handle.requestCancel(generation)
+        let request = handle.requestCancel(generation, admission: admission ?? handle.admission)
 
         let wasCancelled = cancelled
         markCancelled()
@@ -768,14 +768,15 @@ public actor AgentRunner {
 
     public nonisolated func cancelNow() {
         let generation = handle.generation
-        let request = handle.requestCancel(generation)
+        let admission = handle.admission
+        let request = handle.requestCancel(generation, admission: admission)
         let denied = denyPendingAsks(PermissionDecision.stoppedMessage)
         if request.accepted { request.process?.terminate() }
         Task { [weak self] in
             if !denied.isEmpty {
                 await self?.recordDenied(denied, as: PermissionAskOutcome.stopped)
             }
-            await self?.cancel(generation: generation)
+            await self?.cancel(generation: generation, admission: admission)
         }
     }
 
@@ -815,7 +816,8 @@ private final class ProcessHandle: Sendable {
         var process: (any AgentProcessing)?
         var cancelled = false
         var run = 0
-        var stopRequests = 0
+        var admission = 0
+        var stoppedAdmission: Int?
     }
 
     private let state = Mutex(State())
@@ -824,7 +826,18 @@ private final class ProcessHandle: Sendable {
 
     var generation: Int { state.withLock(\.run) }
 
-    var stopRequests: Int { state.withLock(\.stopRequests) }
+    var admission: Int { state.withLock(\.admission) }
+
+    func beginAdmission() -> Int {
+        state.withLock { state in
+            state.admission += 1
+            return state.admission
+        }
+    }
+
+    func wasStopped(during admission: Int) -> Bool {
+        state.withLock { $0.stoppedAdmission == admission }
+    }
 
     func beginRun(_ process: any AgentProcessing) -> Int {
         state.withLock { state in
@@ -850,10 +863,10 @@ private final class ProcessHandle: Sendable {
         state.withLock { $0.process != nil && $0.cancelled }
     }
 
-    func requestCancel(_ generation: Int) -> (accepted: Bool, process: (any AgentProcessing)?) {
+    func requestCancel(_ generation: Int, admission: Int) -> (accepted: Bool, process: (any AgentProcessing)?) {
         state.withLock { state -> (accepted: Bool, process: (any AgentProcessing)?) in
             guard generation == state.run else { return (false, nil) }
-            state.stopRequests += 1
+            if admission == state.admission { state.stoppedAdmission = admission }
             let accepted = !state.cancelled
             state.cancelled = true
             return (accepted, state.process)
