@@ -128,11 +128,16 @@ struct GrokQuotaTests {
     func aSilentGrokIsGivenUpOn() async {
         let box = ProcessBox()
         box.ignore(GrokQuotaSource.method)
-        let source = GrokQuotaSource(environment: [:], timeout: .milliseconds(200), makeProcess: box.factory)
-        let started = ContinuousClock.now
+        let watchdogs = WatchdogGates()
+        let source = GrokQuotaSource(
+            environment: [:], timeout: .milliseconds(200), makeProcess: box.factory, watchdogSleep: watchdogs.sleep
+        )
 
-        #expect(await source.read() == nil)
-        #expect(ContinuousClock.now - started < .seconds(10))
+        async let answer = source.read()
+        await watchdogs.expireTheOneLeft(afterAsking: 2)
+
+        #expect(await answer == nil)
+        #expect(watchdogs.asked == [.milliseconds(200), .milliseconds(200)])
         #expect(GrokQuotaSource.timeout < GrokClient.requestTimeout)
     }
 
@@ -140,11 +145,16 @@ struct GrokQuotaTests {
     func aSilentHandshakeIsGivenUpOn() async {
         let box = ProcessBox()
         box.ignore("initialize")
-        let source = GrokQuotaSource(environment: [:], timeout: .milliseconds(200), makeProcess: box.factory)
-        let started = ContinuousClock.now
+        let watchdogs = WatchdogGates()
+        let source = GrokQuotaSource(
+            environment: [:], timeout: .milliseconds(200), makeProcess: box.factory, watchdogSleep: watchdogs.sleep
+        )
 
-        #expect(await source.read() == nil)
-        #expect(ContinuousClock.now - started < .seconds(10))
+        async let answer = source.read()
+        await watchdogs.expireTheOneLeft(afterAsking: 1)
+
+        #expect(await answer == nil)
+        #expect(watchdogs.asked == [.milliseconds(200)])
     }
 
     @Test("a handshake refused as unknown is a failure, not a CLI without billing", .timeLimit(.minutes(1)))

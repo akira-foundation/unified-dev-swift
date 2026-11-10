@@ -18,6 +18,7 @@ public struct GrokQuotaSource: AgentQuotaSource {
     private let timeout: Duration
     private let bundleIdentifier: String?
     private let makeProcess: @Sendable (AgentLaunch) -> any AgentProcessing
+    private let watchdogSleep: @Sendable (Duration) async throws -> Void
 
     public init(
         executable: String = GrokClient.executable,
@@ -26,7 +27,8 @@ public struct GrokQuotaSource: AgentQuotaSource {
         account: AgentAccountHome? = nil,
         timeout: Duration = GrokQuotaSource.timeout,
         bundleIdentifier: String? = Bundle.main.bundleIdentifier,
-        makeProcess: @escaping @Sendable (AgentLaunch) -> any AgentProcessing = GrokClient.spawn
+        makeProcess: @escaping @Sendable (AgentLaunch) -> any AgentProcessing = GrokClient.spawn,
+        watchdogSleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {
         self.executable = executable
         self.cwd = cwd
@@ -35,6 +37,7 @@ public struct GrokQuotaSource: AgentQuotaSource {
         self.timeout = timeout
         self.bundleIdentifier = bundleIdentifier
         self.makeProcess = makeProcess
+        self.watchdogSleep = watchdogSleep
     }
 
     public func standing() async -> QuotaStanding {
@@ -51,7 +54,7 @@ public struct GrokQuotaSource: AgentQuotaSource {
             account: account,
             environment: environment ?? Shell.environment()
         )
-        let client = GrokClient(configuration: configuration, makeProcess: makeProcess)
+        let client = GrokClient(configuration: configuration, makeProcess: makeProcess, watchdogSleep: watchdogSleep)
         defer { Task { await client.stop() } }
         do {
             try await client.start(timeout: timeout)

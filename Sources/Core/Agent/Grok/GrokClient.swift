@@ -63,6 +63,7 @@ public actor GrokClient {
 
     private let configuration: Configuration
     private let makeProcess: @Sendable (AgentLaunch) -> any AgentProcessing
+    private let watchdogSleep: @Sendable (Duration) async throws -> Void
     private var process: (any AgentProcessing)?
     private let live = LiveProcess()
     private var readTask: Task<Void, Never>?
@@ -83,10 +84,12 @@ public actor GrokClient {
 
     public init(
         configuration: Configuration,
-        makeProcess: @escaping @Sendable (AgentLaunch) -> any AgentProcessing = GrokClient.spawn
+        makeProcess: @escaping @Sendable (AgentLaunch) -> any AgentProcessing = GrokClient.spawn,
+        watchdogSleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {
         self.configuration = configuration
         self.makeProcess = makeProcess
+        self.watchdogSleep = watchdogSleep
     }
 
     public static let spawn: @Sendable (AgentLaunch) -> any AgentProcessing = { launch in
@@ -172,8 +175,8 @@ public actor GrokClient {
         let id = GrokRequestID.number(nextRequestID)
         nextRequestID += 1
 
-        let watchdog = Task { [weak self] in
-            try await Task.sleep(for: timeout)
+        let watchdog = Task { [weak self, watchdogSleep] in
+            try await watchdogSleep(timeout)
             await self?.abandon(id, method: method, after: timeout)
         }
         defer { watchdog.cancel() }
