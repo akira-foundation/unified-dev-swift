@@ -23,8 +23,9 @@ public struct PaneListTool: BridgeToolHandling {
             what the tab is called, and whether it is in the tab they are looking at right now. \
             The canvas also carries 'path', the workspace file it is showing.
 
-            A browser pane also says where it is pointed and whether it is still loading, and \
-            carries the number the browser_ tools take. Call this first whenever you mean to read \
+            A browser pane also says, in 'open_to_agents', whether you may use it, and carries the \
+            number the browser_ tools take. One open to you says where it is pointed and whether \
+            it is still loading; one the person kept says neither, and those tools refuse it. Call this first whenever you mean to read \
             or drive one of them, because those numbers change as tabs are opened and closed.
 
             It reads your own workspace and takes no arguments. It reports the tab strip and never \

@@ -83,7 +83,8 @@ final class CenterTabStore {
     @discardableResult
     func add(
         kind: CenterTab.Kind, workspaceID: WorkspaceID, url: String = "", title: String? = nil,
-        directory: String = "", agentSessionID: SessionID? = nil, runScriptID: String? = nil
+        directory: String = "", agentSessionID: SessionID? = nil, runScriptID: String? = nil,
+        browserAccess: BrowserPaneAccess = .owner
     ) -> CenterTab {
         var tabs = tabs(for: workspaceID)
         let tab = CenterTab(
@@ -94,7 +95,8 @@ final class CenterTabStore {
             isNamed: title != nil,
             directory: directory,
             agentSessionID: agentSessionID,
-            runScriptID: runScriptID
+            runScriptID: runScriptID,
+            browserAccess: browserAccess
         )
         tabs.append(tab)
         apply(tabs, to: workspaceID)
@@ -282,9 +284,21 @@ final class CenterTabStore {
 
     func browser(for tab: CenterTab, root: String = "") -> BrowserSession {
         if let existing = browsers[tab.id] { return existing }
-        let session = BrowserSession(url: tab.url, root: root)
+        let session = BrowserSession(url: tab.url, root: root, access: tab.browserAccess)
         browsers[tab.id] = session
         return session
+    }
+
+    func setBrowserAccess(_ access: BrowserPaneAccess, for tab: CenterTab) {
+        guard tab.kind == .browser, tab.browserAccess != access else { return }
+        browsers[tab.id]?.stop()
+        browsers[tab.id] = nil
+        update(tab) {
+            $0.browserAccess = access
+            let page = access.arrivalPage(from: $0.url)
+            $0.url = page.address
+            $0.pageTitle = page.title
+        }
     }
 
     func liveBrowser(for tab: CenterTab) -> BrowserSession? {

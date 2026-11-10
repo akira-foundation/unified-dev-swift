@@ -10,7 +10,7 @@ public struct BrowserWaitTool: BridgeToolHandling {
     public let tool = BridgeTool(
         name: BrowserPaneToolName.wait,
         description: """
-            Wait for the page in a browser pane the person has open to settle after something you \
+            Wait for the page in a browser pane that is open to you to settle after something you \
             did. Pass 'text' to wait for a phrase to appear in the page, or 'gone' to wait for \
             one to leave it, or neither to wait for the load to finish. One at a time.
 

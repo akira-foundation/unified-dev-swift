@@ -9,7 +9,8 @@ struct BrowserPaneTroubleTests {
             number: 1,
             name: "Service Tokens",
             address: "http://there-there-6.test/",
-            failure: failure
+            failure: failure,
+            access: .agents
         )
     }
 

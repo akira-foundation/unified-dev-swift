@@ -10,7 +10,7 @@ public struct BrowserPageOutlineTool: BridgeToolHandling {
     public let tool = BridgeTool(
         name: BrowserPaneToolName.snapshot,
         description: """
-            Write out the page in a browser pane the person has open as a numbered list of the \
+            Write out the page in a browser pane that is open to you as a numbered list of the \
             things a reader could use: buttons, links, fields, boxes, and whatever the page gives \
             a role of its own. Call it before browser_click, browser_fill and browser_press, \
             which take one of the references it hands out.

@@ -28,7 +28,7 @@ extension AppModel {
                 entry,
                 WorkspaceTabReport(
                     number: 0,
-                    title: CenterTabStore.shared.title(of: entry, in: model),
+                    title: titleForAgents(of: entry, in: model),
                     isActive: entry == active,
                     detail: root,
                     panes: panes
@@ -123,7 +123,7 @@ extension AppModel {
     private func pane(
         _ content: PaneContent, in model: WorkspaceModel, numbers: [String: Int]
     ) -> WorkspaceTabPane? {
-        let title = CenterTabStore.shared.title(of: content, in: model)
+        let title = titleForAgents(of: content, in: model)
         switch content {
         case .chat(let sessionID):
             guard model.sessions.contains(where: { $0.id == sessionID }) else { return nil }
