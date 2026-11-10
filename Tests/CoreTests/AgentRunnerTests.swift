@@ -728,6 +728,33 @@ struct AgentRunnerProcessTests {
         #expect(!activity.isRunning(account))
     }
 
+    @Test("a stop pressed while two sends wait for the probe ends both of them")
+    func aStopEndsEverySendWaiting() async throws {
+        let store = try makeTestStore("agent")
+        let session = try await makeSession(store)
+        let recorder = ProcessRecorder()
+        let activity = ClaudeAccountActivity()
+        let account = AgentAccountHome.defaultID(for: .claudeCode)
+        let runner = AgentRunner(
+            workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session),
+            activity: activity, makeProcess: recorder.factory
+        )
+
+        #expect(activity.beginProbe(account))
+        let first = Task { try await runner.send("hello") }
+        await waitUntil("the first send waits for the probe") { activity.isRunning(account) }
+        let second = Task { try await runner.send("and this") }
+        try await Task.sleep(for: .milliseconds(100))
+        runner.cancelNow()
+        try await Task.sleep(for: .milliseconds(50))
+        activity.endProbe(account)
+        let outcomes = [await first.result, await second.result]
+
+        #expect(outcomes.allSatisfy { (try? $0.get()) == nil })
+        #expect(recorder.all.isEmpty)
+        #expect(!activity.isRunning(account))
+    }
+
     @Test("a stop that belongs to an earlier send, arriving late, does not end a turn waiting for the probe")
     func aLateStopOfAnEarlierSendIsIgnored() async throws {
         let store = try makeTestStore("agent")

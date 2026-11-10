@@ -817,7 +817,7 @@ private final class ProcessHandle: Sendable {
         var cancelled = false
         var run = 0
         var admission = 0
-        var stoppedAdmission: Int?
+        var stoppedThrough = 0
     }
 
     private let state = Mutex(State())
@@ -836,7 +836,7 @@ private final class ProcessHandle: Sendable {
     }
 
     func wasStopped(during admission: Int) -> Bool {
-        state.withLock { $0.stoppedAdmission == admission }
+        state.withLock { admission <= $0.stoppedThrough }
     }
 
     func beginRun(_ process: any AgentProcessing) -> Int {
@@ -866,7 +866,7 @@ private final class ProcessHandle: Sendable {
     func requestCancel(_ generation: Int, admission: Int) -> (accepted: Bool, process: (any AgentProcessing)?) {
         state.withLock { state -> (accepted: Bool, process: (any AgentProcessing)?) in
             guard generation == state.run else { return (false, nil) }
-            if admission == state.admission { state.stoppedAdmission = admission }
+            state.stoppedThrough = max(state.stoppedThrough, admission)
             let accepted = !state.cancelled
             state.cancelled = true
             return (accepted, state.process)
