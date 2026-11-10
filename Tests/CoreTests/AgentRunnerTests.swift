@@ -418,6 +418,45 @@ struct AgentRunnerPersistenceTests {
         #expect(stored.agentSessionID == "s-1")
     }
 
+    @Test("the model an alias resolved to is kept under the account that ran it")
+    func theResolvedModelIsKeptForTheAccount() async throws {
+        let store = try makeTestStore("agent")
+        let session = try await makeSession(store)
+        let account = AgentAccountHome(
+            provider: .claudeCode, id: AgentAccountID("work"),
+            directory: URL(filePath: "/accounts/claudeCode/work"), isDefault: false
+        )
+        let runner = AgentRunner(
+            workspacePath: "/tmp/w", session: session, store: store,
+            segmentID: try await activeSegmentID(store, session), account: account
+        )
+
+        let line = """
+        {"type":"system","subtype":"init","session_id":"s-1","cwd":"/tmp/w","model":"claude-opus-5-5"}
+        """
+        await runner.ingest(try #require(AgentEvent.decode(line: line)))
+
+        #expect(await ClaudeResolvedModel.observed(account: account, in: store) == ["opus": "claude-opus-5-5"])
+        #expect(await ClaudeResolvedModel.observed(account: nil, in: store).isEmpty)
+    }
+
+    @Test("a chat with no model of its own is recorded under the alias the CLI was given")
+    func aChatWithNoModelRecordsTheDefaultAlias() async throws {
+        let store = try makeTestStore("agent")
+        let session = try await store.upsert(try await makeSession(store).with { $0.model = "" })
+        let runner = AgentRunner(
+            workspacePath: "/tmp/w", session: session, store: store,
+            segmentID: try await activeSegmentID(store, session)
+        )
+
+        let line = """
+        {"type":"system","subtype":"init","session_id":"s-1","cwd":"/tmp/w","model":"claude-opus-5-5"}
+        """
+        await runner.ingest(try #require(AgentEvent.decode(line: line)))
+
+        #expect(await ClaudeResolvedModel.observed(account: nil, in: store) == ["opus": "claude-opus-5-5"])
+    }
+
     @Test("and the same session goes back to idle when that turn's result arrives")
     func theSelfStartedTurnStillEndsOnItsResult() async throws {
         let store = try makeTestStore("agent")

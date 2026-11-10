@@ -414,6 +414,12 @@ public actor AgentRunner {
 
         switch event {
         case .initialized(let info):
+            await ClaudeResolvedModel.record(
+                requested: ModelAlias.cliValue(for: session.model),
+                reported: info.model,
+                account: account,
+                in: store
+            )
             var moved = session.apply(.turnStarted).moves
             if !info.sessionID.isEmpty, session.agentSessionID != info.sessionID {
                 session = session.with {

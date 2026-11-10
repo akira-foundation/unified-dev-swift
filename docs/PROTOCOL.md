@@ -118,9 +118,13 @@ Both runners treat any failed resume alike: they open a new thread or session, a
 has worked do they reset the cursor and replace the stored id. A server that is down therefore
 changes nothing, and a resume that was really refused has the whole conversation in that same send.
 
-`model` is the string `--model` was given, echoed rather than resolved or checked. A `--model`
-nobody has ever heard of comes back in this field unchanged, so this line says what was asked for
-and never what will answer.
+`model` is an alias resolved, or the string `--model` was given when it names no alias. Measured on
+`claude 2.1.309`, `--model opus` reports `claude-opus-5-5`, and the same alias reported
+`claude-opus-5` on `claude 2.1.261`, so what an alias means belongs to the CLI and its account.
+`ClaudeResolvedModel` keeps the last answer per alias and account, which is how the model picker
+names the version of an alias the account's `additionalModelOptionsCache` does not list. A `--model`
+nobody has ever heard of comes back in this field unchanged, so this line never promises that the
+model exists.
 
 ### Which models it has, and what happens when it does not have one
 

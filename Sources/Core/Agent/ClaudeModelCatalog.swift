@@ -14,12 +14,14 @@ public enum ClaudeModelCatalog {
 
     public static func offered(
         read: [AgentModel] = [],
-        including current: String = ""
+        including current: String = "",
+        observed: [String: String] = [:]
     ) -> [AgentModel] {
         var seen = Set<String>()
         var models: [AgentModel] = []
 
-        for model in builtIn + read + [AgentModel(id: current, displayName: current)] {
+        let aliases = builtIn.map { versioned($0, listed: read, observed: observed) }
+        for model in aliases + read + [AgentModel(id: current, displayName: current)] {
             let id = model.id.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !id.isEmpty, seen.insert(id).inserted else { continue }
             models.append(renamed(model, id: id))
@@ -27,6 +29,17 @@ public enum ClaudeModelCatalog {
 
         let byID = Dictionary(models.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         return ClaudeModelRank.ordered(models.map(\.id)).compactMap { byID[$0] }
+    }
+
+    private static func versioned(
+        _ alias: AgentModel,
+        listed: [AgentModel],
+        observed: [String: String]
+    ) -> AgentModel {
+        guard let version = ClaudeResolvedModel.version(ofAlias: alias.id, listed: listed, observed: observed) else {
+            return alias
+        }
+        return AgentModel(id: alias.id, displayName: "\(alias.displayName) \(version)")
     }
 
     static func renamed(_ model: AgentModel, id: String) -> AgentModel {

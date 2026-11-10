@@ -733,6 +733,9 @@ public actor Store {
             try db.run(SessionSegmentColumns.forgetHistory, [.text(id)])
             try db.run(AgentAccountColumns.release("session_segments"), [.text(id)])
             try db.run(AgentAccountColumns.delete, [.text(id)])
+            for key in ClaudeResolvedModel.settingKeys(account: id) {
+                try db.run("DELETE FROM settings WHERE key = ?", [.text(key)])
+            }
         }
     }
 
