@@ -50,13 +50,13 @@ struct ClaudeAliasRefreshTests {
         let store = try makeTestStore("refresh")
         let launches = ProbeLaunches()
         let clock = ManualClock()
-        let refresh = refresh(launches, version: InstalledVersion("2.1.309"), clock: clock) { alias in
+        let subject = refresh(launches, version: InstalledVersion("2.1.309"), clock: clock) { alias in
             [probeInitLine("claude-\(alias)-5-5")]
         }
 
-        await refresh.refresh(account: work, in: store)
+        await subject.refresh(account: work, in: store)
         clock.advance(by: ClaudeAliasRefresh.recheckInterval)
-        await refresh.refresh(account: work, in: store)
+        await subject.refresh(account: work, in: store)
 
         #expect(launches.launches.count == ClaudeModelCatalog.builtIn.count)
         #expect(await ClaudeResolvedModel.reported(account: work, in: store) == [
@@ -73,15 +73,15 @@ struct ClaudeAliasRefreshTests {
         let clock = ManualClock()
         let version = InstalledVersion("2.1.309")
         let answers = Mutex("5-1")
-        let refresh = refresh(launches, version: version, clock: clock) { alias in
+        let subject = refresh(launches, version: version, clock: clock) { alias in
             [probeInitLine("claude-\(alias)-\(answers.withLock { $0 })")]
         }
 
-        await refresh.refresh(account: work, in: store)
+        await subject.refresh(account: work, in: store)
         version.change(to: "2.1.322")
         answers.withLock { $0 = "5-2" }
         clock.advance(by: ClaudeAliasRefresh.recheckInterval)
-        await refresh.refresh(account: work, in: store)
+        await subject.refresh(account: work, in: store)
 
         #expect(launches.launches.count == 2 * ClaudeModelCatalog.builtIn.count)
         #expect(await ClaudeResolvedModel.reported(account: work, in: store)["fable"] == "claude-fable-5-2")
@@ -92,30 +92,77 @@ struct ClaudeAliasRefreshTests {
         let store = try makeTestStore("refresh")
         let launches = ProbeLaunches()
         let version = InstalledVersion("2.1.309")
-        let refresh = refresh(launches, version: version, clock: ManualClock()) { alias in
+        let subject = refresh(launches, version: version, clock: ManualClock()) { alias in
             [probeInitLine("claude-\(alias)-5-5")]
         }
 
-        await refresh.refresh(account: work, in: store)
+        await subject.refresh(account: work, in: store)
         version.change(to: "2.1.322")
-        await refresh.refresh(account: work, in: store)
+        await subject.refresh(account: work, in: store)
 
         #expect(version.reads == 1)
         #expect(launches.launches.count == ClaudeModelCatalog.builtIn.count)
     }
 
-    @Test("an account whose probe answered nothing is asked again once the interval has passed", .timeLimit(.minutes(1)))
+    @Test("an account whose probe answered nothing is asked again only after the longer wait", .timeLimit(.minutes(1)))
     func retriesAnAccountThatAnsweredNothing() async throws {
         let store = try makeTestStore("refresh")
         let launches = ProbeLaunches()
         let clock = ManualClock()
-        let refresh = refresh(launches, version: InstalledVersion(nil), clock: clock) { _ in [] }
+        let subject = refresh(launches, version: InstalledVersion("2.1.322"), clock: clock) { _ in [] }
 
-        await refresh.refresh(account: work, in: store)
+        await subject.refresh(account: work, in: store)
         clock.advance(by: ClaudeAliasRefresh.recheckInterval)
-        await refresh.refresh(account: work, in: store)
+        await subject.refresh(account: work, in: store)
+        #expect(launches.launches.count == ClaudeModelCatalog.builtIn.count)
 
+        clock.advance(by: ClaudeAliasRefresh.retryInterval)
+        await subject.refresh(account: work, in: store)
         #expect(launches.launches.count == 2 * ClaudeModelCatalog.builtIn.count)
         #expect(await ClaudeResolvedModel.reported(account: work, in: store).isEmpty)
+    }
+
+    @Test("a version that cannot be read keeps the last answer instead of probing again")
+    func anUnreadableVersionKeepsTheAnswer() async throws {
+        let store = try makeTestStore("refresh")
+        let launches = ProbeLaunches()
+        let clock = ManualClock()
+        let version = InstalledVersion("2.1.322")
+        let subject = refresh(launches, version: version, clock: clock) { alias in
+            [probeInitLine("claude-\(alias)-5-5")]
+        }
+
+        await subject.refresh(account: work, in: store)
+        version.change(to: nil)
+        clock.advance(by: ClaudeAliasRefresh.recheckInterval)
+        await subject.refresh(account: work, in: store)
+        version.change(to: "2.1.322")
+        clock.advance(by: ClaudeAliasRefresh.recheckInterval)
+        await subject.refresh(account: work, in: store)
+
+        #expect(launches.launches.count == ClaudeModelCatalog.builtIn.count)
+    }
+
+    @Test("a probe still running is not started a second time for the same account", .timeLimit(.minutes(1)))
+    func neverProbesAnAccountTwiceAtOnce() async throws {
+        let store = try makeTestStore("refresh")
+        let launches = ProbeLaunches()
+        let clock = ManualClock()
+        let subject = ClaudeAliasRefresh(
+            probe: { _ in scriptedProbe(launches, timeout: .seconds(30)) { _ in [] } },
+            installedVersion: { _ in "2.1.322" },
+            now: { clock.now }
+        )
+
+        let first = Task { await subject.refresh(account: work, in: store) }
+        while launches.launches.isEmpty { try await Task.sleep(for: .milliseconds(5)) }
+        clock.advance(by: ClaudeAliasRefresh.retryInterval)
+        await subject.refresh(account: work, in: store)
+        let startedWhileRunning = launches.launches.count
+        launches.processes.forEach { $0.terminate() }
+        first.cancel()
+        await first.value
+
+        #expect(startedWhileRunning == 1)
     }
 }

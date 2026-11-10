@@ -2,12 +2,13 @@ import Foundation
 
 public actor ClaudeAliasRefresh {
     public static let shared = ClaudeAliasRefresh()
-    public static let recheckInterval: Duration = .seconds(60)
+    static let recheckInterval: Duration = .seconds(60)
+    static let retryInterval: Duration = .seconds(600)
 
     private static let unknownVersion = "unknown"
 
     private var answeredVersion: [AgentAccountID: String] = [:]
-    private var checkedAt: [AgentAccountID: ContinuousClock.Instant] = [:]
+    private var nextCheck: [AgentAccountID: ContinuousClock.Instant] = [:]
     private var probing: Set<AgentAccountID> = []
     private let probe: (@Sendable (Store) async -> ClaudeAliasProbe)?
     private let installedVersion: (@Sendable (Store) async -> String?)?
@@ -26,15 +27,20 @@ public actor ClaudeAliasRefresh {
     public func refresh(account: AgentAccountHome?, in store: Store) async {
         let id = ClaudeResolvedModel.accountID(account)
         let moment = now()
-        if let last = checkedAt[id], last.duration(to: moment) < Self.recheckInterval { return }
+        if let next = nextCheck[id], moment < next { return }
         guard probing.insert(id).inserted else { return }
         defer { probing.remove(id) }
-        checkedAt[id] = moment
-        let version = await version(in: store) ?? Self.unknownVersion
-        guard answeredVersion[id] != version else { return }
+        nextCheck[id] = moment + Self.recheckInterval
+        let version = await version(in: store)
+        if let answered = answeredVersion[id] {
+            guard let version, version != answered else { return }
+        }
         let models = await chosenProbe(in: store).resolve(ClaudeModelCatalog.builtIn.map(\.id), account: account)
-        guard !models.isEmpty else { return }
-        answeredVersion[id] = version
+        guard !models.isEmpty else {
+            nextCheck[id] = moment + Self.retryInterval
+            return
+        }
+        answeredVersion[id] = version ?? Self.unknownVersion
         await ClaudeResolvedModel.record(models, account: account, in: store)
     }
 

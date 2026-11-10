@@ -55,11 +55,17 @@ final class ComposerModelCatalog {
         let account = accounts[.claudeCode]
         observationTask = Task { [weak self] in
             var changes = store.changes(of: [.settings]).makeAsyncIterator()
-            Task { await ClaudeAliasRefresh.shared.refresh(account: account, in: store) }
+            self?.refreshClaudeAliases()
             repeat {
                 self?.adoptClaudeReports(await ClaudeResolvedModel.reported(account: account, in: store))
             } while await changes.next() != nil
         }
+    }
+
+    private func refreshClaudeAliases() {
+        guard let store else { return }
+        let account = accounts[.claudeCode]
+        Task { await ClaudeAliasRefresh.shared.refresh(account: account, in: store) }
     }
 
     private func adoptClaudeReports(_ reported: [String: String]) {
@@ -69,10 +75,7 @@ final class ComposerModelCatalog {
 
     func load() {
         guard accountsAreKnown else { return }
-        if let store {
-            let account = accounts[.claudeCode]
-            Task { await ClaudeAliasRefresh.shared.refresh(account: account, in: store) }
-        }
+        refreshClaudeAliases()
         guard loadTask == nil else { return }
         let needed = AgentModelSource.kindsAwaitingModels(sources: sources, loaded: models)
         guard !needed.isEmpty else { return }

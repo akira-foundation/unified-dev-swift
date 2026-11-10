@@ -153,7 +153,8 @@ answered `claude-fable-5-2` for `fable`, so what an alias names moves with the i
 with the account. `ClaudeAliasRefresh` therefore probes each account once per version of the CLI: it
 reads `claude --version` when the catalogue is configured and whenever the composer loads its models,
 at most once a minute per account, and probes again when the version differs from the one that last
-answered, or when nothing answered.
+answered. A version it cannot read keeps the last answer. A probe that answered nothing is tried
+again after ten minutes rather than every minute, because each attempt starts the CLI four times.
 
 The probe and a turn write the same setting per alias and account, so the model picker names the
 version whichever of them answered last, and only with neither falls back to the newest usable entry
