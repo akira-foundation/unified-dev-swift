@@ -22,6 +22,7 @@ final class ComposerModelCatalog {
     private var sources: [AgentKind: AgentModelSource]
     private var accounts: [AgentKind: AgentAccountHome] = [:]
     private var accountsAreKnown = false
+    private var store: Store?
     private var loadTask: Task<Void, Never>?
     private var loadGeneration = UUID()
     private var observationTask: Task<Void, Never>?
@@ -31,6 +32,7 @@ final class ComposerModelCatalog {
     }
 
     func configure(store: Store) {
+        self.store = store
         Task { await ComposerPlanningSupport.shared.refresh(from: store) }
         sources = AgentModelSource.live(store: store, accounts: accounts)
         guard accountsAreKnown else { return }
@@ -42,6 +44,7 @@ final class ComposerModelCatalog {
         guard adopted != accounts || !accountsAreKnown else { return }
         accountsAreKnown = true
         accounts = adopted
+        self.store = store
         sources = AgentModelSource.live(store: store, accounts: adopted)
         followClaudeReports(in: store)
         refresh()
@@ -65,7 +68,12 @@ final class ComposerModelCatalog {
     }
 
     func load() {
-        guard accountsAreKnown, loadTask == nil else { return }
+        guard accountsAreKnown else { return }
+        if let store {
+            let account = accounts[.claudeCode]
+            Task { await ClaudeAliasRefresh.shared.refresh(account: account, in: store) }
+        }
+        guard loadTask == nil else { return }
         let needed = AgentModelSource.kindsAwaitingModels(sources: sources, loaded: models)
         guard !needed.isEmpty else { return }
         isLoading = true

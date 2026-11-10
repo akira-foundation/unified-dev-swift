@@ -1,70 +1,6 @@
 import Foundation
-import Synchronization
 import Testing
 @testable import Core
-
-private final class ScriptedProbe: AgentProcessing, @unchecked Sendable {
-    private let continuation: AsyncThrowingStream<String, Error>.Continuation
-    private let terminations = Mutex(0)
-
-    let lines: AsyncThrowingStream<String, Error>
-    let errorLines = AsyncStream<String> { $0.finish() }
-
-    init(printing output: [String]) {
-        var out: AsyncThrowingStream<String, Error>.Continuation!
-        lines = AsyncThrowingStream(bufferingPolicy: .unbounded) { out = $0 }
-        continuation = out
-        for line in output { continuation.yield(line) }
-    }
-
-    var terminationCount: Int { terminations.withLock { $0 } }
-    var isRunning: Bool { true }
-    var exitStatus: Int32 { get async { 0 } }
-
-    func writeLine(_ text: String) {}
-    func closeStdin() {}
-    func terminate() {
-        terminations.withLock { $0 += 1 }
-        continuation.finish()
-    }
-    func kill() { continuation.finish() }
-}
-
-private final class ProbeLaunches: @unchecked Sendable {
-    private let state = Mutex<[(AgentLaunch, ScriptedProbe)]>([])
-
-    var launches: [AgentLaunch] { state.withLock { $0.map(\.0) } }
-    var processes: [ScriptedProbe] { state.withLock { $0.map(\.1) } }
-
-    func record(_ launch: AgentLaunch, _ process: ScriptedProbe) {
-        state.withLock { $0.append((launch, process)) }
-    }
-}
-
-private func initLine(_ model: String) -> String {
-    #"{"type":"system","subtype":"init","session_id":"s","cwd":"/tmp","model":"\#(model)"}"#
-}
-
-private func alias(of launch: AgentLaunch) -> String {
-    guard let index = launch.arguments.firstIndex(of: "--model") else { return "" }
-    return launch.arguments[index + 1]
-}
-
-private func probe(
-    _ launches: ProbeLaunches,
-    timeout: Duration = .seconds(5),
-    inherited: [String: String] = [:],
-    output: @escaping @Sendable (String) -> [String]
-) -> ClaudeAliasProbe {
-    ClaudeAliasProbe(
-        executable: "claude", cwd: "/tmp", environment: inherited, timeout: timeout,
-        makeProcess: { launch in
-            let process = ScriptedProbe(printing: output(alias(of: launch)))
-            launches.record(launch, process)
-            return process
-        }
-    )
-}
 
 @Suite("Asking the installed Claude Code what each alias resolves to, without a turn", .tags(.agentProtocol), .scratchDirectory)
 struct ClaudeAliasProbeTests {
@@ -80,7 +16,7 @@ struct ClaudeAliasProbeTests {
         #expect(arguments.starts(with: ["-p", "."]))
         let sources = try #require(arguments.firstIndex(of: "--setting-sources"))
         #expect(arguments[sources + 1] == "local")
-        #expect(alias(of: AgentLaunch(executable: "", arguments: arguments, cwd: "", environment: [:])) == "opus")
+        #expect(probedAlias(of: AgentLaunch(executable: "", arguments: arguments, cwd: "", environment: [:])) == "opus")
         #expect(arguments.contains("--strict-mcp-config"))
         #expect(arguments.contains("--no-session-persistence"))
         #expect(arguments.contains("--disable-slash-commands"))
@@ -104,7 +40,7 @@ struct ClaudeAliasProbeTests {
             "http_proxy": "http://proxy.example:8080",
             "PATH": "/usr/bin",
         ]
-        _ = await probe(launches, inherited: inherited) { _ in [initLine("claude-opus-5-5")] }
+        _ = await scriptedProbe(launches, inherited: inherited) { _ in [probeInitLine("claude-opus-5-5")] }
             .resolve(["opus"], account: work)
         let launch = try #require(launches.launches.first)
         let launched = launch.environment
@@ -127,7 +63,7 @@ struct ClaudeAliasProbeTests {
 
     @Test("only the init event names the model the alias resolved to")
     func readsTheInitEvent() {
-        #expect(ClaudeAliasProbe.initModel(in: initLine("claude-opus-5-5")) == "claude-opus-5-5")
+        #expect(ClaudeAliasProbe.initModel(in: probeInitLine("claude-opus-5-5")) == "claude-opus-5-5")
         #expect(ClaudeAliasProbe.initModel(in: #"{"type":"system","subtype":"hook_started"}"#) == nil)
         #expect(ClaudeAliasProbe.initModel(in: #"{"type":"assistant","message":{"model":"<synthetic>"}}"#) == nil)
         #expect(ClaudeAliasProbe.initModel(in: #"{"type":"system","subtype":"init","model":""}"#) == nil)
@@ -137,12 +73,12 @@ struct ClaudeAliasProbeTests {
     @Test("every alias is asked in turn, answered from its init, and each process is ended once it has answered")
     func resolvesEveryAlias() async {
         let launches = ProbeLaunches()
-        let resolved = await probe(launches) { alias in
-            [#"{"type":"system","subtype":"hook_started"}"#, initLine("claude-\(alias)-5-5"), initLine("claude-wrong")]
+        let resolved = await scriptedProbe(launches) { alias in
+            [#"{"type":"system","subtype":"hook_started"}"#, probeInitLine("claude-\(alias)-5-5"), probeInitLine("claude-wrong")]
         }.resolve(["opus", "sonnet"], account: work)
 
         #expect(resolved == ["opus": "claude-opus-5-5", "sonnet": "claude-sonnet-5-5"])
-        #expect(launches.launches.map(alias(of:)) == ["opus", "sonnet"])
+        #expect(launches.launches.map(probedAlias(of:)) == ["opus", "sonnet"])
         #expect(launches.processes.map(\.terminationCount) == [1, 1])
         #expect(Set(launches.launches.map { $0.environment["ANTHROPIC_BASE_URL"] }).count == 1)
     }
@@ -150,7 +86,7 @@ struct ClaudeAliasProbeTests {
     @Test("a CLI that never reports is given up on at the deadline and ended", .timeLimit(.minutes(1)))
     func givesUpAtTheDeadline() async {
         let launches = ProbeLaunches()
-        let resolved = await probe(launches, timeout: .milliseconds(50)) { _ in [] }.resolve(["opus"], account: nil)
+        let resolved = await scriptedProbe(launches, timeout: .milliseconds(50)) { _ in [] }.resolve(["opus"], account: nil)
 
         #expect(resolved.isEmpty)
         #expect(launches.processes.map(\.terminationCount) == [1])
@@ -181,39 +117,6 @@ struct ClaudeAliasProbeTests {
         #expect(received == -1)
     }
 
-    @Test("an account is probed once per launch of the app, and what it answered is kept for it")
-    func probesAnAccountOnce() async throws {
-        let store = try makeTestStore("probe")
-        let launches = ProbeLaunches()
-        let refresh = ClaudeAliasRefresh(probe: { _ in
-            probe(launches) { alias in [initLine("claude-\(alias)-5-5")] }
-        })
-
-        await refresh.refresh(account: work, in: store)
-        await refresh.refresh(account: work, in: store)
-
-        #expect(launches.launches.count == ClaudeModelCatalog.builtIn.count)
-        #expect(await ClaudeResolvedModel.reported(account: work, in: store) == [
-            "fable": "claude-fable-5-5", "opus": "claude-opus-5-5",
-            "sonnet": "claude-sonnet-5-5", "haiku": "claude-haiku-5-5",
-        ])
-        #expect(await ClaudeResolvedModel.reported(account: nil, in: store).isEmpty)
-    }
-
-    @Test("an account whose probe answered nothing is asked again on the next refresh", .timeLimit(.minutes(1)))
-    func retriesAnAccountThatAnsweredNothing() async throws {
-        let store = try makeTestStore("probe")
-        let launches = ProbeLaunches()
-        let refresh = ClaudeAliasRefresh(probe: { _ in
-            probe(launches, timeout: .milliseconds(20)) { _ in [] }
-        })
-
-        await refresh.refresh(account: work, in: store)
-        await refresh.refresh(account: work, in: store)
-
-        #expect(launches.launches.count == 2 * ClaudeModelCatalog.builtIn.count)
-        #expect(await ClaudeResolvedModel.reported(account: work, in: store).isEmpty)
-    }
 }
 
 private let localAgentsEnabled = ProcessInfo.processInfo.environment["UD_LOCAL_AGENTS"] == "1"
