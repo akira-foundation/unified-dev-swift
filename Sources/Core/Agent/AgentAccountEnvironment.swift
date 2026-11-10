@@ -109,7 +109,7 @@ public enum AgentAccountEnvironment {
         return ["\(variable)=\(home.directory.path)"]
     }
 
-    private static func directoryVariable(for provider: AgentKind) -> String? {
+    static func directoryVariable(for provider: AgentKind) -> String? {
         switch provider {
         case .claudeCode: "CLAUDE_CONFIG_DIR"
         case .codex: "CODEX_HOME"

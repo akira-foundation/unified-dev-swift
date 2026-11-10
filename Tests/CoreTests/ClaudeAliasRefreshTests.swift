@@ -27,20 +27,19 @@ private final class InstalledVersion: @unchecked Sendable {
 
 @Suite("When the aliases of Claude Code are asked again", .tags(.agentProtocol), .scratchDirectory)
 struct ClaudeAliasRefreshTests {
-    private let work = AgentAccountHome(
-        provider: .claudeCode, id: AgentAccountID("work"),
-        directory: URL(filePath: "/accounts/claudeCode/work"), isDefault: false
-    )
+    private var work: AgentAccountHome { probeAccount() }
 
     private func refresh(
         _ launches: ProbeLaunches,
         version: InstalledVersion,
         clock: ManualClock,
+        activity: ClaudeAccountActivity = ClaudeAccountActivity(),
         answer: @escaping @Sendable (String) -> [String]
     ) -> ClaudeAliasRefresh {
         ClaudeAliasRefresh(
-            probe: { _ in scriptedProbe(launches, timeout: .milliseconds(20), output: answer) },
+            probe: { _ in scriptedProbe(launches, timeout: .milliseconds(20), activity: activity, output: answer) },
             installedVersion: { _ in version.read() },
+            activity: activity,
             now: { clock.now }
         )
     }
@@ -164,5 +163,84 @@ struct ClaudeAliasRefreshTests {
         await first.value
 
         #expect(startedWhileRunning == 1)
+    }
+
+    @Test("an account with a turn running is not probed, and is asked again at the next check")
+    func skipsAnAccountWithATurnRunning() async throws {
+        let store = try makeTestStore("refresh")
+        let launches = ProbeLaunches()
+        let clock = ManualClock()
+        let activity = ClaudeAccountActivity()
+        let subject = refresh(launches, version: InstalledVersion("2.1.322"), clock: clock, activity: activity) { alias in
+            [probeInitLine("claude-\(alias)-5-5")]
+        }
+
+        let lease = await activity.beginRun(work.id)
+        await subject.refresh(account: work, in: store)
+        let launchedWhileRunning = launches.launches.count
+        lease.end()
+        clock.advance(by: ClaudeAliasRefresh.recheckInterval)
+        await subject.refresh(account: work, in: store)
+
+        #expect(launchedWhileRunning == 0)
+        #expect(launches.launches.count == ClaudeModelCatalog.builtIn.count)
+    }
+
+    @Test("an answer that misses an alias is kept, and the account is asked again after the longer wait")
+    func aPartialAnswerIsAskedAgain() async throws {
+        let store = try makeTestStore("refresh")
+        let launches = ProbeLaunches()
+        let clock = ManualClock()
+        let subject = refresh(launches, version: InstalledVersion("2.1.322"), clock: clock) { alias in
+            alias == "fable" ? [] : [probeInitLine("claude-\(alias)-5-5")]
+        }
+
+        await subject.refresh(account: work, in: store)
+        clock.advance(by: ClaudeAliasRefresh.retryInterval)
+        await subject.refresh(account: work, in: store)
+
+        #expect(await ClaudeResolvedModel.reported(account: work, in: store)["opus"] == "claude-opus-5-5")
+        #expect(launches.launches.count == 2 * ClaudeModelCatalog.builtIn.count)
+    }
+
+    @Test("a pin added to the account's settings is picked up without a new CLI")
+    func aChangedPinIsAskedAgain() async throws {
+        let store = try makeTestStore("refresh")
+        let launches = ProbeLaunches()
+        let clock = ManualClock()
+        let account = work
+        let subject = refresh(launches, version: InstalledVersion("2.1.322"), clock: clock) { alias in
+            [probeInitLine("claude-\(alias)-5-5")]
+        }
+
+        await subject.refresh(account: account, in: store)
+        try #"{"env":{"ANTHROPIC_DEFAULT_OPUS_MODEL":"claude-opus-4-1"}}"#
+            .write(to: account.directory.appending(path: "settings.json"), atomically: true, encoding: .utf8)
+        clock.advance(by: ClaudeAliasRefresh.recheckInterval)
+        await subject.refresh(account: account, in: store)
+
+        #expect(await ClaudeResolvedModel.reported(account: account, in: store)["opus"] == "claude-opus-4-1")
+        #expect(launches.launches.count == 2 * ClaudeModelCatalog.builtIn.count - 1)
+    }
+
+    @Test("a pin added while the CLI version cannot be read is still picked up")
+    func aChangedPinIsAskedAgainWithoutAVersion() async throws {
+        let store = try makeTestStore("refresh")
+        let launches = ProbeLaunches()
+        let clock = ManualClock()
+        let account = work
+        let version = InstalledVersion("2.1.322")
+        let subject = refresh(launches, version: version, clock: clock) { alias in
+            [probeInitLine("claude-\(alias)-5-5")]
+        }
+
+        await subject.refresh(account: account, in: store)
+        version.change(to: nil)
+        try #"{"env":{"ANTHROPIC_DEFAULT_OPUS_MODEL":"claude-opus-4-1"}}"#
+            .write(to: account.directory.appending(path: "settings.json"), atomically: true, encoding: .utf8)
+        clock.advance(by: ClaudeAliasRefresh.recheckInterval)
+        await subject.refresh(account: account, in: store)
+
+        #expect(await ClaudeResolvedModel.reported(account: account, in: store)["opus"] == "claude-opus-4-1")
     }
 }
