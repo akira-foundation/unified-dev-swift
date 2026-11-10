@@ -13,14 +13,17 @@ public actor ClaudeAliasRefresh {
     private let probe: (@Sendable (Store) async -> ClaudeAliasProbe)?
     private let installedVersion: (@Sendable (Store) async -> String?)?
     private let now: @Sendable () -> ContinuousClock.Instant
+    private let activity: ClaudeAccountActivity
 
     init(
         probe: (@Sendable (Store) async -> ClaudeAliasProbe)? = nil,
         installedVersion: (@Sendable (Store) async -> String?)? = nil,
+        activity: ClaudeAccountActivity = .shared,
         now: @escaping @Sendable () -> ContinuousClock.Instant = { ContinuousClock.now }
     ) {
         self.probe = probe
         self.installedVersion = installedVersion
+        self.activity = activity
         self.now = now
     }
 
@@ -35,13 +38,15 @@ public actor ClaudeAliasRefresh {
         if let answered = answeredVersion[id] {
             guard let version, version != answered else { return }
         }
-        let models = await chosenProbe(in: store).resolve(ClaudeModelCatalog.builtIn.map(\.id), account: account)
-        guard !models.isEmpty else {
+        guard !activity.isRunning(id) else { return }
+        let aliases = ClaudeModelCatalog.builtIn.map(\.id)
+        let answers = await chosenProbe(in: store).resolve(aliases, account: account)
+        await ClaudeResolvedModel.record(answers, cliVersion: version, account: account, in: store)
+        guard answers.all.count == aliases.count else {
             nextCheck[id] = moment + Self.retryInterval
             return
         }
         answeredVersion[id] = version ?? Self.unknownVersion
-        await ClaudeResolvedModel.record(models, account: account, in: store)
     }
 
     private func version(in store: Store) async -> String? {

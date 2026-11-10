@@ -62,6 +62,8 @@ public actor AgentRunner {
     private var requestedResume: String?
     private var lastContextWindow: Int?
     private let pending = PendingAsks()
+    private let activity: ClaudeAccountActivity
+    private var runLease: ClaudeRunLease?
 
     private let grants: SessionGrants
     private var alive = false
@@ -85,8 +87,10 @@ public actor AgentRunner {
         account: AgentAccountHome? = nil,
         inheritedEnvironment: [String: String]? = nil,
         shutdownBudget: Duration = AgentRunner.defaultShutdownBudget,
+        activity: ClaudeAccountActivity = .shared,
         makeProcess: @escaping @Sendable (AgentLaunch) -> any AgentProcessing = AgentRunner.spawn
     ) {
+        self.activity = activity
         self.workspacePath = workspacePath
         self.sessionID = session.id
         self.session = session
@@ -245,6 +249,7 @@ public actor AgentRunner {
         orchestrates = await grants.isOrchestrator()
         await LoginShellPath.ready()
         try await waitForCancelledRunToExit()
+        await admitRun()
         start()
 
         let generation = handle.generation
@@ -313,6 +318,13 @@ public actor AgentRunner {
     }
 
     private static let shutdownPollInterval = Duration.milliseconds(25)
+
+    private func admitRun() async {
+        guard handle.current == nil, runLease == nil else { return }
+        let lease = await activity.beginRun(ClaudeResolvedModel.accountID(account))
+        guard runLease == nil, handle.current == nil else { return lease.end() }
+        runLease = lease
+    }
 
     private func start() {
         guard handle.current == nil else { return }
@@ -417,6 +429,7 @@ public actor AgentRunner {
             await ClaudeResolvedModel.record(
                 requested: ModelAlias.cliValue(for: session.model),
                 reported: info.model,
+                cliVersion: info.version,
                 account: account,
                 in: store
             )
@@ -662,6 +675,8 @@ public actor AgentRunner {
 
         alive = false
         handle.endRun(generation)
+        runLease?.end()
+        runLease = nil
         killTask?.cancel()
         killTask = nil
 

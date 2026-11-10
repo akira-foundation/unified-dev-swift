@@ -675,6 +675,34 @@ struct AgentRunnerProcessTests {
         #expect(first.kind == .user)
     }
 
+    @Test("a running process holds its account against the alias probe until it exits, and waits for a launch in flight")
+    func holdsTheAccountWhileItRuns() async throws {
+        let store = try makeTestStore("agent")
+        let session = try await makeSession(store)
+        let recorder = ProcessRecorder()
+        let activity = ClaudeAccountActivity()
+        let account = AgentAccountHome.defaultID(for: .claudeCode)
+        let runner = AgentRunner(
+            workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session),
+            activity: activity, makeProcess: recorder.factory
+        )
+
+        #expect(activity.beginProbe(account))
+        let sending = Task { try await runner.send("hello") }
+        try await Task.sleep(for: .milliseconds(100))
+        let launchedDuringProbe = recorder.all.count
+        activity.endProbe(account)
+        try await sending.value
+        let heldWhileRunning = activity.isRunning(account) && !activity.beginProbe(account)
+        try #require(recorder.last).endOutput()
+        await waitUntil("the runner stopped") { await runner.isRunning == false }
+
+        #expect(launchedDuringProbe == 0)
+        #expect(heldWhileRunning)
+        #expect(!activity.isRunning(account))
+        #expect(activity.beginProbe(account))
+    }
+
     @Test("the stored output style reaches the process the runner spawns")
     func spawnsWithTheStoredOutputStyle() async throws {
         let store = try makeTestStore("agent")

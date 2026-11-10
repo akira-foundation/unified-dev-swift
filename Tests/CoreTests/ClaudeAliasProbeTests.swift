@@ -4,14 +4,11 @@ import Testing
 
 @Suite("Asking the installed Claude Code what each alias resolves to, without a turn", .tags(.agentProtocol), .scratchDirectory)
 struct ClaudeAliasProbeTests {
-    private let work = AgentAccountHome(
-        provider: .claudeCode, id: AgentAccountID("work"),
-        directory: URL(filePath: "/accounts/claudeCode/work"), isDefault: false
-    )
+    private var work: AgentAccountHome { probeAccount() }
 
     @Test("the launch keeps the account's login, reads none of its settings files, and turns off hooks, servers, memory and the saved session")
     func launchesQuietly() throws {
-        let arguments = ClaudeAliasProbe.arguments(alias: "opus", baseURL: "http://127.0.0.1:9")
+        let arguments = ClaudeAliasProbe.arguments(alias: "opus", baseURL: "http://127.0.0.1:9", proxy: "http://127.0.0.1:8")
 
         #expect(arguments.starts(with: ["-p", "."]))
         let sources = try #require(arguments.firstIndex(of: "--setting-sources"))
@@ -27,6 +24,9 @@ struct ClaudeAliasProbeTests {
         #expect(settings["disableAllHooks"]?.boolValue == true)
         #expect(settings["autoMemoryEnabled"]?.boolValue == false)
         #expect(settings["env"]?["ANTHROPIC_BASE_URL"]?.stringValue == "http://127.0.0.1:9")
+        for variable in ClaudeAliasProbe.proxyVariables {
+            #expect(settings["env"]?[variable]?.stringValue == "http://127.0.0.1:8")
+        }
     }
 
     @Test("the address and the provider switches outrank the account's settings file and the inherited environment")
@@ -53,8 +53,13 @@ struct ClaudeAliasProbeTests {
             #expect(launched[variable] == "0")
         }
         #expect(address.hasPrefix("http://127.0.0.1:"))
-        #expect(launched["HTTPS_PROXY"] == nil)
-        #expect(launched["http_proxy"] == nil)
+        let proxy = try #require(launched["HTTPS_PROXY"])
+        #expect(proxy.hasPrefix("http://127.0.0.1:"))
+        #expect(proxy != address)
+        for variable in ClaudeAliasProbe.proxyVariables {
+            #expect(launched[variable] == proxy)
+            #expect(env[variable]?.stringValue == proxy)
+        }
         #expect(launched["NO_PROXY"] == "127.0.0.1,localhost")
         #expect(env["ANTHROPIC_BASE_URL"]?.stringValue == address)
         #expect(launched["CLAUDE_CONFIG_DIR"] == work.directory.path)
@@ -77,7 +82,7 @@ struct ClaudeAliasProbeTests {
             [#"{"type":"system","subtype":"hook_started"}"#, probeInitLine("claude-\(alias)-5-5"), probeInitLine("claude-wrong")]
         }.resolve(["opus", "sonnet"], account: work)
 
-        #expect(resolved == ["opus": "claude-opus-5-5", "sonnet": "claude-sonnet-5-5"])
+        #expect(resolved.probed == ["opus": "claude-opus-5-5", "sonnet": "claude-sonnet-5-5"])
         #expect(launches.launches.map(probedAlias(of:)) == ["opus", "sonnet"])
         #expect(launches.processes.map(\.terminationCount) == [1, 1])
         #expect(Set(launches.launches.map { $0.environment["ANTHROPIC_BASE_URL"] }).count == 1)
@@ -86,9 +91,9 @@ struct ClaudeAliasProbeTests {
     @Test("a CLI that never reports is given up on at the deadline and ended", .timeLimit(.minutes(1)))
     func givesUpAtTheDeadline() async {
         let launches = ProbeLaunches()
-        let resolved = await scriptedProbe(launches, timeout: .milliseconds(50)) { _ in [] }.resolve(["opus"], account: nil)
+        let resolved = await scriptedProbe(launches, timeout: .milliseconds(50)) { _ in [] }.resolve(["opus"], account: work)
 
-        #expect(resolved.isEmpty)
+        #expect(resolved.all.isEmpty)
         #expect(launches.processes.map(\.terminationCount) == [1])
     }
 
@@ -129,7 +134,7 @@ struct ClaudeAliasProbeLocalTests {
         let resolved = await ClaudeAliasProbe.using(executableOverride: nil).resolve(aliases, account: nil)
 
         for alias in aliases {
-            #expect(resolved[alias].flatMap { ClaudeResolvedModel.version(of: $0, alias: alias) } != nil)
+            #expect(resolved.all[alias].flatMap { ClaudeResolvedModel.version(of: $0, alias: alias) } != nil)
         }
     }
 }
