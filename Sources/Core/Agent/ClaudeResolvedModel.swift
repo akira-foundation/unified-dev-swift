@@ -7,11 +7,11 @@ public enum ClaudeResolvedModel {
     public static func version(
         ofAlias alias: String,
         listed: [AgentModel],
-        observed: [String: String]
+        reported: [String: String]
     ) -> String? {
+        if let current = reported[alias].flatMap({ parsed($0, alias: alias) }) { return label(current) }
         let listedVersions = listed.filter { $0.unavailable == nil }.compactMap { parsed($0.id, alias: alias) }
-        let newestListed = listedVersions.max { $1.isAbove($0) }
-        return (newestListed ?? observed[alias].flatMap { parsed($0, alias: alias) }).map(label)
+        return listedVersions.max { $1.isAbove($0) }.map(label)
     }
 
     static func version(of id: String, alias: String) -> String? {
@@ -37,13 +37,19 @@ public enum ClaudeResolvedModel {
         account: AgentAccountHome?,
         in store: Store
     ) async {
-        guard version(of: model, alias: alias) != nil else { return }
-        let key = settingKey(alias: alias, account: accountID(account))
-        guard (try? await store.setting(key)) != model else { return }
-        try? await store.setSetting(key, model)
+        await record([alias: model], account: account, in: store)
     }
 
-    public static func observed(account: AgentAccountHome?, in store: Store) async -> [String: String] {
+    static func record(_ models: [String: String], account: AgentAccountHome?, in store: Store) async {
+        let id = accountID(account)
+        for (alias, model) in models.sorted(by: { $0.key < $1.key }) where version(of: model, alias: alias) != nil {
+            let key = settingKey(alias: alias, account: id)
+            guard (try? await store.setting(key)) != model else { continue }
+            try? await store.setSetting(key, model)
+        }
+    }
+
+    public static func reported(account: AgentAccountHome?, in store: Store) async -> [String: String] {
         let id = accountID(account)
         var models: [String: String] = [:]
         for alias in ClaudeModelCatalog.builtIn.map(\.id) {
@@ -60,7 +66,7 @@ public enum ClaudeResolvedModel {
         "\(settingPrefix).\(account.rawValue).\(alias)"
     }
 
-    private static func accountID(_ account: AgentAccountHome?) -> AgentAccountID {
+    static func accountID(_ account: AgentAccountHome?) -> AgentAccountID {
         account?.id ?? AgentAccountHome.defaultID(for: .claudeCode)
     }
 }
