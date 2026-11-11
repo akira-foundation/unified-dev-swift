@@ -5,6 +5,7 @@ public actor Store {
     private let db: SQLiteDatabase
     public nonisolated let path: String
     let gitHubLoginBook: Mutex<ProfileGitHubLogins>
+    private var gitHubRouteCache: (changes: Int64, routes: GitHubLoginRoutes)?
 
     public static let primaryBundleIdentifier = "io.akira.unifieddev"
     public static let devBundleIdentifier = "io.akira.unifieddev.dev"
@@ -893,6 +894,8 @@ public actor Store {
     }
 
     func gitHubLoginRoutes() throws -> GitHubLoginRoutes {
+        let changes = try db.query("SELECT total_changes() AS changes").first?.int("changes") ?? -1
+        if let cached = gitHubRouteCache, cached.changes == changes { return cached.routes }
         let rows = try db.query(
             """
             SELECT path, profile_id FROM repos
@@ -900,16 +903,23 @@ public actor Store {
             SELECT workspaces.path, repos.profile_id FROM workspaces JOIN repos ON repos.id = workspaces.repo_id
             """
         )
-        return GitHubLoginRoutes(routes: rows.compactMap { row in
-            guard let path = row.string("path"), let profile = row.string("profile_id") else { return nil }
-            return GitHubLoginRoutes.Route(path: path, profile: ProfileID(profile))
+        let routes = GitHubLoginRoutes(routes: rows.flatMap { row -> [GitHubLoginRoutes.Route] in
+            guard let path = row.string("path"), let profile = row.string("profile_id") else { return [] }
+            let resolved = URL(filePath: path).resolvingSymlinksInPath().path
+            return Set([path, resolved]).map { GitHubLoginRoutes.Route(path: $0, profile: ProfileID(profile)) }
         })
+        gitHubRouteCache = (changes, routes)
+        return routes
+    }
+
+    func refreshGitHubLogins() throws {
+        let sources = try ProfileGitHubColumn.sources { try db.query($0) }
+        gitHubLoginBook.withLock { $0 = ProfileGitHubLogins(sources: sources, root: $0.root) }
     }
 
     func writeGitHubSource(_ source: ProfileGitHubSource, for profile: ProfileID) throws {
         try db.run(ProfileGitHubColumn.setSource, [.text(source.rawValue), .text(profile)])
-        let sources = try ProfileGitHubColumn.sources { try db.query($0) }
-        gitHubLoginBook.withLock { $0 = ProfileGitHubLogins(sources: sources, root: $0.root) }
+        try refreshGitHubLogins()
     }
 
     func writeAccountSource(_ source: ProfileAccountSource, for profile: ProfileID) throws -> [RepoID] {

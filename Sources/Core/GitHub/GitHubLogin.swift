@@ -31,6 +31,13 @@ public enum GitHubLogin: Sendable, Hashable {
         return result
     }
 
+    public var acceptsSignIn: Bool {
+        switch self {
+        case .thisMac, .profile: true
+        case .unresolved: false
+        }
+    }
+
     public var signInCommand: String {
         guard let directory else { return "gh auth login" }
         return "\(Self.directoryVariable)=\(BridgeRegistration.shellQuoted(directory.path)) gh auth login"

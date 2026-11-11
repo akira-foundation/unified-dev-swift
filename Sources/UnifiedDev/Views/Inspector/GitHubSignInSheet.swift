@@ -148,6 +148,7 @@ struct GitHubSignInSheet: View {
 
             HStack(spacing: InspectorLayout.gap) {
                 Button("Copy Sign-In Command") { Clipboard.copy(request.login.signInCommand) }
+                    .disabled(!request.login.acceptsSignIn)
                 Button("Check again") { recheck() }
                 Button("GitHub CLI manual") { GitHubBridge.open(Self.manualURL) }
             }
@@ -220,6 +221,10 @@ struct GitHubSignInSheet: View {
 
         let executable = access == .notInstalled ? "brew" : "gh"
         let arguments = access == .notInstalled ? ["install", "gh"] : ["auth", "login"]
+        guard request.login.acceptsSignIn else {
+            phase = .failed("Unified Dev could not tell which profile this belongs to, so it did not sign in.")
+            return
+        }
         do {
             try request.login.prepare()
         } catch {

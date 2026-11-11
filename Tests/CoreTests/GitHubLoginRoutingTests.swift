@@ -69,8 +69,45 @@ struct GitHubLoginRoutingTests {
         let link = TestScratch.unique("linked-alias")
         try FileManager.default.createSymbolicLink(atPath: link, withDestinationPath: real)
         _ = try await store.upsert(Repo(name: "r", path: real, profileID: debtges.id))
+        let elsewhere = URL(filePath: TestScratch.unique("linked-other")).resolvingSymlinksInPath().path
+        try FileManager.default.createDirectory(atPath: elsewhere, withIntermediateDirectories: true)
+        let recordedThroughLink = TestScratch.unique("linked-recorded")
+        try FileManager.default.createSymbolicLink(atPath: recordedThroughLink, withDestinationPath: elsewhere)
+        _ = try await store.upsert(Repo(name: "o", path: recordedThroughLink, profileID: debtges.id))
 
         #expect(await store.gitHubLogin(forDirectory: link) == store.gitHubLogin(for: debtges.id))
+        #expect(await store.gitHubLogin(forDirectory: elsewhere) == store.gitHubLogin(for: debtges.id))
+    }
+
+    @Test func movingAProjectMovesItsLogin() async throws {
+        let store = try makeTestStore("github-login-move")
+        let debtges = try await store.createProfile(name: "Debtges", colour: Accent.all[1], symbol: "star")
+        try await store.setGitHubSource(.own, for: debtges.id)
+        let (repo, workspace) = try await seed(store, in: .initial)
+        #expect(await store.gitHubLogin(forDirectory: workspace.path) == .thisMac)
+
+        try await store.move(repoID: repo.id, to: debtges.id)
+        #expect(await store.gitHubLogin(forDirectory: workspace.path) == store.gitHubLogin(for: debtges.id))
+    }
+
+    @Test func gitFetchAndCloneCarryTheLoginOfTheirProject() async throws {
+        let bin = TestScratch.unique("fake-git")
+        try FileManager.default.createDirectory(atPath: bin, withIntermediateDirectories: true)
+        let record = bin + "/seen"
+        let script = bin + "/git"
+        try "#!/bin/sh\nprintf '%s\\n' \"$GH_CONFIG_DIR\" >> '\(record)'\n"
+            .write(toFile: script, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script)
+        let own = GitHubLogin.profile(ProfileID("debtges"), directory: URL(filePath: "/support/GitHubLogins/debtges"))
+
+        try await Shell.$executableLookup.withValue({ _ in script }) {
+            try await GitHub.$login.withValue(own) {
+                _ = await Git.fetchBranches(from: "origin", in: bin)
+                try await Git.clone("https://github.com/example/site.git", into: bin + "/clone/site")
+            }
+        }
+        let seen = try String(contentsOfFile: record, encoding: .utf8).split(separator: "\n").map(String.init)
+        #expect(seen == ["/support/GitHubLogins/debtges", "/support/GitHubLogins/debtges"])
     }
 
     @Test func aChatRunsUnderTheLoginOfItsWorkspacesProfileOrTheProfileItIsPinnedTo() async throws {

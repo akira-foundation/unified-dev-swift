@@ -13,8 +13,7 @@ public extension Git {
             atPath: parent, withIntermediateDirectories: true
         )
         let arguments = ["clone", "--progress", "--", remote, destination]
-        let login = await GitHub.login(forDirectory: nil)
-        let result = try await run(arguments, in: parent, timeout: timeout, environment: login.variables)
+        let result = try await runAgainstRemote(arguments, in: parent, loginDirectory: destination, timeout: timeout)
         guard result.ok else {
             throw error(arguments, result.status, result.stderr, result.stdout)
         }

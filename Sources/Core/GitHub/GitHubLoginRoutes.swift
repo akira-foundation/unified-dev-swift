@@ -14,16 +14,16 @@ public struct GitHubLoginRoutes: Sendable, Hashable {
     public let routes: [Route]
 
     public init(routes: [Route]) {
-        self.routes = routes.filter { !$0.path.isEmpty }.sorted { $0.path.count > $1.path.count }
+        self.routes = routes.filter { !$0.path.isEmpty }.sorted {
+            $0.path.count == $1.path.count ? $0.path < $1.path : $0.path.count > $1.path.count
+        }
     }
 
     public func profile(forDirectory directory: String) -> ProfileID? {
         guard !directory.isEmpty else { return nil }
         let resolved = URL(filePath: directory).resolvingSymlinksInPath().path
-        for wanted in [Self.normalised(directory), Self.normalised(resolved)] {
-            if let route = routes.first(where: { Self.holds($0.path, wanted) }) { return route.profile }
-        }
-        return nil
+        let candidates = Set([Self.normalised(directory), Self.normalised(resolved)])
+        return routes.first { route in candidates.contains { Self.holds(route.path, $0) } }?.profile
     }
 
     private static func holds(_ route: String, _ wanted: String) -> Bool {
@@ -33,7 +33,6 @@ public struct GitHubLoginRoutes: Sendable, Hashable {
     static func normalised(_ path: String) -> String {
         guard !path.isEmpty else { return "" }
         let standard = (path as NSString).standardizingPath
-        let trimmed = standard.count > 1 && standard.hasSuffix("/") ? String(standard.dropLast()) : standard
-        return trimmed.lowercased()
+        return standard.count > 1 && standard.hasSuffix("/") ? String(standard.dropLast()) : standard
     }
 }

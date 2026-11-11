@@ -2,7 +2,7 @@ import Testing
 import Foundation
 @testable import Core
 
-@Suite("A profile's GitHub login")
+@Suite("A profile's GitHub login", .scratchDirectory)
 struct GitHubLoginTests {
     private let root = URL(filePath: "/support/GitHubLogins", directoryHint: .isDirectory)
     private let debtges = ProfileID("debtges")
@@ -65,7 +65,6 @@ struct GitHubLoginTests {
         #expect(routes.profile(forDirectory: "/code/site-2") == nil)
         #expect(routes.profile(forDirectory: "/elsewhere") == nil)
         #expect(routes.profile(forDirectory: "") == nil)
-        #expect(routes.profile(forDirectory: "/Code/Site/README.md") == debtges)
     }
 
     @Test func anUnreadableRouteRefusesRatherThanUseThisMacsLoginOnceAProfileHasItsOwn() {
@@ -74,6 +73,20 @@ struct GitHubLoginTests {
         let unresolved = ProfileGitHubLogins(sources: [debtges: .own], root: root).unresolved
         #expect(unresolved.directory?.path == "/support/GitHubLogins/.unresolved")
         #expect(unresolved.variables["GH_TOKEN"] == "")
+        #expect(!unresolved.acceptsSignIn)
+        #expect(GitHubLogin.thisMac.acceptsSignIn)
+    }
+
+    @Test func preparingCreatesOnlyAProfilesOwnFolder() throws {
+        let scratch = URL(filePath: TestScratch.unique("github-prepare"), directoryHint: .isDirectory)
+        let unresolved = GitHubLogin.unresolved(directory: scratch.appending(path: ".unresolved"))
+        try unresolved.prepare()
+        #expect(!FileManager.default.fileExists(atPath: scratch.appending(path: ".unresolved").path))
+
+        let own = GitHubLogin.profile(debtges, directory: scratch.appending(path: "debtges"))
+        try own.prepare()
+        let attributes = try FileManager.default.attributesOfItem(atPath: scratch.appending(path: "debtges").path)
+        #expect((attributes[.posixPermissions] as? NSNumber)?.intValue == 0o700)
     }
 
     @Test func theDeepestPathDecidesWhenOneHoldsAnother() {
