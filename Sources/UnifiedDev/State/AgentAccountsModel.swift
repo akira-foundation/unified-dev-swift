@@ -81,6 +81,7 @@ final class AgentAccountsModel {
     }
 
     func confirmSignIn(of account: AgentAccountID, executables: [AgentKind: String], store: Store?) async {
+        if removalNotice?.account == account { removalNotice = nil }
         answers[account] = nil
         lastAskedAt = nil
         await reload(store: store)
@@ -98,6 +99,7 @@ final class AgentAccountsModel {
                 support: support
             )
             failure = nil
+            removalNotice = nil
             creatingDirectory = reservation.plan.directory
             return Creation(reservation: reservation, profile: profile)
         } catch {
