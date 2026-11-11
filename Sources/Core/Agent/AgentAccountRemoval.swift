@@ -99,6 +99,7 @@ public enum AgentAccountRemoval {
         guard running.isEmpty else { throw AgentAccountError.inUse(workspaces: running) }
         if let directory = directory(of: home, support: support) {
             try requireNothingHolds(directory, processes: processes)
+            try await SpendIndexer(store: store).read(account: home)
         }
         try await store.forgetAgentAccount(home.id)
         do {

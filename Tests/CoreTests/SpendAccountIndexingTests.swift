@@ -207,4 +207,20 @@ struct SpendAccountIndexingTests {
         #expect(unknown.first?.name == SpendAccounts.unknown)
         #expect(Set(lines.filter(\.isKnown).map(\.name)) == ["Default account", "Kept"])
     }
+
+    @Test("turns the indexer had not read yet are kept when their account is removed")
+    func removalReadsTheTurnsNotYetIndexed() async throws {
+        let world = try World()
+        let removed = try await world.createAccount(label: "Removed")
+        try world.transcript([claudeLine(40, identity: "msg_read")], in: removed)
+        _ = try await world.refresh()
+        try world.transcript(
+            [claudeLine(40, identity: "msg_read"), claudeLine(60, identity: "msg_unread")], in: removed
+        )
+
+        try await AgentAccountRemoval.remove(removed, support: world.support, store: world.store, keychain: .untouched, processes: { [] })
+
+        #expect(!FileManager.default.fileExists(atPath: removed.directory.path))
+        #expect(try await spendTotals(in: world.store).output == 100)
+    }
 }

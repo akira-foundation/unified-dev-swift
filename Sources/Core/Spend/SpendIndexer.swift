@@ -78,6 +78,19 @@ public actor SpendIndexer {
         return outcome
     }
 
+    public func read(account home: AgentAccountHome, calendar: Calendar = .current) async throws {
+        for source in TranscriptSources.sources(accounts: [home]) {
+            for page in TranscriptCursorSweep.pages(of: TranscriptSources.files(in: source)) {
+                let cursors = try await store.transcriptCursors(forPaths: page.map(\.url.path))
+                for file in page {
+                    let work = TranscriptWork.decide(for: file, cursor: cursors[file.url.path])
+                    guard work != .unchanged else { continue }
+                    _ = try await consume(file, work: work, batch: TranscriptReader.defaultBudget, calendar: calendar)
+                }
+            }
+        }
+    }
+
     private func forgetVanishedCursors() async throws {
         let position = try await store.setting(TranscriptCursorSweep.positionKey) ?? ""
         let paths = try await store.transcriptCursorPaths(after: position, limit: TranscriptCursorSweep.sweepBatch)
