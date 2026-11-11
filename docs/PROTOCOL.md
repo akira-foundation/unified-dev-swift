@@ -180,11 +180,21 @@ alias rather than one it cannot vouch for.
 
 Each start writes the account's `~/.claude.json`. The CLI takes its own lock and writes through a
 temporary file, and twelve probes started at once in one directory left a file that parsed and no
-temporary file behind. The app also keeps the probe and a turn of the same account apart:
-`ClaudeAccountActivity` holds an account from the moment an `AgentRunner` starts its process until
-that process exits, a probe does not start a launch while the account is held, and a turn that
+temporary file behind. Inside the app, the probe is also kept apart from every other start of the
+CLI under the same account: `ClaudeAccountActivity` holds an account while an `AgentRunner` process
+runs, while the usage question of `ClaudeCodeQuotaSource` runs, while `AgentAccountLiveness` asks
+`claude auth status`, and while `WorkspaceNamer` names a workspace, in each case until the process
+has exited or been killed. A probe does not start a launch while the account is held, and a start that
 arrives during a launch waits for it to end, after which the probe asks nothing more. A stop pressed
-during that wait ends the turn before its process starts.
+during that wait ends the turn at once, without waiting for the probe, and so does cancelling the task
+that waits. A send that fails after its process started and before a turn was written to it ends
+that process, so the account is not left held by a process nobody will use.
+
+What the app cannot hold is a start it does not make: a `claude` typed into one of the app's
+terminals, a second copy of the app, or the CLI started anywhere else on this Mac. Those can run
+while the probe does, and two processes can then write `.claude.json` and wait on the account's
+OAuth refresh lock at the same time. The CLI's own lock and its writes through a temporary file are
+what keep that file whole in that case, not the app.
 
 Measured on `claude 2.1.309`, the four built in aliases answered `claude-fable-5-1`, `claude-opus-5-5`,
 `claude-sonnet-5-5` and `claude-haiku-5-5`, under a second for all four. On `claude 2.1.322` the same

@@ -12,6 +12,8 @@ public final class ClaudeAccountActivity: Sendable {
 
     private let state = Mutex(State())
 
+    static let exitGrace: Duration = .seconds(2)
+
     public init() {}
 
     public func beginRun(_ account: AgentAccountID, ticket: ClaudeRunTicket = ClaudeRunTicket()) async -> ClaudeRunLease? {
@@ -35,6 +37,15 @@ public final class ClaudeAccountActivity: Sendable {
         }
         guard admitted else { return nil }
         return ClaudeRunLease { [self] in endRun(account) }
+    }
+
+    func holding<Answer: Sendable>(
+        _ account: AgentAccountHome?,
+        _ work: @Sendable () async -> Answer
+    ) async -> Answer? {
+        guard let lease = await beginRun(ClaudeResolvedModel.accountID(account)) else { return nil }
+        defer { lease.end() }
+        return await work()
     }
 
     public func withdraw(_ ticket: ClaudeRunTicket) {
