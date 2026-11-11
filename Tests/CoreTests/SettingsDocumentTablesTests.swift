@@ -5,7 +5,7 @@ import Foundation
 @Suite("Settings document, a table already written another way")
 struct SettingsDocumentTablesTests {
     @Test("a key added to an inline table opens it into a table instead of defining it twice")
-    func inlineTableIsOpened() throws {
+    func inlineTableIsOpened() {
         var document = SettingsDocument(text: """
         name = "ada"
         git = { archive_on_merge = true }
@@ -37,21 +37,38 @@ struct SettingsDocumentTablesTests {
         """)
     }
 
-    @Test("an inline table holding a nested table keeps its nesting")
-    func nestedInlineTableIsKept() {
-        var document = SettingsDocument(text: #"git = { remote = { name = "origin, upstream" } }"#)
+    @Test("an escaped quote and a comma inside a string stay one value")
+    func escapedQuoteStaysInsideTheString() {
+        var document = SettingsDocument(text: #"git = { note = "say \"hi, there\"", archive_on_merge = true }"#)
 
-        document.set(.boolean(true), at: ["git", "archive_on_merge"])
+        document.set(.boolean(true), at: ["git", "delete_branch_on_archive"])
 
-        #expect(document.text == """
+        #expect(document.text == #"""
         [git]
-        remote = { name = "origin, upstream" }
+        note = "say \"hi, there\""
         archive_on_merge = true
-        """)
+        delete_branch_on_archive = true
+        """#)
     }
 
-    @Test("dotted keys that already define the table move into it rather than meet a second definition")
-    func dottedKeysMoveIntoTheTable() {
+    @Test("an inline table inside an inline table is opened one level at a time")
+    func nestedInlineTablesOpenInTurn() {
+        var document = SettingsDocument(text: #"scripts.run = { dev = { command = "bun dev", "file" = "a, b" } }"#)
+
+        document.set(.string("web"), at: ["scripts", "run", "dev", "name"])
+
+        #expect(document.text == #"""
+        [scripts.run]
+
+        [scripts.run.dev]
+        command = "bun dev"
+        "file" = "a, b"
+        name = "web"
+        """#)
+    }
+
+    @Test("a key beside dotted keys is written dotted beside them, not under a second definition")
+    func dottedKeysGetADottedSibling() {
         var document = SettingsDocument(text: """
         git.archive_on_merge = true
         other = 1
@@ -60,12 +77,76 @@ struct SettingsDocumentTablesTests {
         document.set(.boolean(false), at: ["git", "delete_branch_on_archive"])
 
         #expect(document.text == """
+        git.archive_on_merge = true
+        git.delete_branch_on_archive = false
         other = 1
+        """)
+    }
+
+    @Test("a dotted value over several lines is passed whole before the new key")
+    func dottedMultiLineValueStaysWhole() {
+        var document = SettingsDocument(text: """
+        git.list = [
+          "a",
+        ]
+        """)
+
+        document.set(.boolean(true), at: ["git", "delete_branch_on_archive"])
+
+        #expect(document.text == """
+        git.list = [
+          "a",
+        ]
+        git.delete_branch_on_archive = true
+        """)
+    }
+
+    @Test("lines inside a multi-line script are never read as keys or tables")
+    func scriptLinesStayInTheScript() {
+        let script = """
+        [scripts]
+        setup = '''
+        git.archive_on_merge = true
+        [git]
+        '''
+        """
+        var document = SettingsDocument(text: script)
+
+        document.set(.boolean(true), at: ["git", "delete_branch_on_archive"])
+
+        #expect(document.text == script + "\n\n[git]\ndelete_branch_on_archive = true")
+    }
+
+    @Test("a table header followed by a comment still owns the keys under it")
+    func headerWithACommentKeepsItsKeys() {
+        var document = SettingsDocument(text: """
+        [other] # note
+        git = { a = 1 }
+        """)
+
+        document.set(.boolean(true), at: ["git", "b"])
+
+        #expect(document.text == """
+        [other] # note
+        git = { a = 1 }
 
         [git]
-        archive_on_merge = true
-        delete_branch_on_archive = false
+        b = true
         """)
+    }
+
+    @Test("an inline table in an array of tables is left where it is")
+    func arrayOfTablesIsLeftAlone() {
+        let text = """
+        [[git]]
+        remote = { name = "a" }
+        """
+        var document = SettingsDocument(text: text)
+
+        document.set(.boolean(true), at: ["git", "remote", "x"])
+
+        #expect(document.text.hasPrefix(text))
+        #expect(document.text.contains("remote = { name = \"a\" }"))
     }
 
     @Test("a dotted key that is already the one being set is changed where it stands")
