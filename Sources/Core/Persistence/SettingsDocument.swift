@@ -41,6 +41,7 @@ public struct SettingsDocument: Sendable, Equatable {
         guard !path.isEmpty else { return }
         let rendered = Self.render(value)
 
+        if locate(path) == nil { openTables(along: path) }
         if let found = locate(path) {
             let replacement = "\(found.indent)\(found.writtenKey) = \(rendered)"
             lines.replaceSubrange(found.range, with: replacement.components(separatedBy: "\n"))
@@ -235,7 +236,7 @@ public struct SettingsDocument: Sendable, Equatable {
         lines.append(contentsOf: line.components(separatedBy: "\n"))
     }
 
-    private static func needsQuoting(_ key: String) -> Bool {
+    static func needsQuoting(_ key: String) -> Bool {
         key.isEmpty || key.contains { !($0.isLetter || $0.isNumber || $0 == "_" || $0 == "-") }
     }
 
