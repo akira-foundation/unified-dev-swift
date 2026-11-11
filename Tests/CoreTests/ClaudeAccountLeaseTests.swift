@@ -70,6 +70,25 @@ struct ClaudeAccountLeaseTests {
         #expect(launched.answer == true)
     }
 
+    @Test("auth status keeps the account until a CLI that ignores the request to stop has been killed", .timeLimit(.minutes(1)))
+    func livenessHoldsTheAccountUntilTheCLIIsGone() async {
+        let activity = ClaudeAccountActivity()
+        let account = probeAccount()
+        let started = AwaitedAnswer<ScriptedProbe>()
+        let liveness = AgentAccountLiveness(environment: [:], timeout: .milliseconds(50), activity: activity) { _ in
+            let process = ScriptedProbe(printing: [], ignoresTerminate: true)
+            started.set(process)
+            return process
+        }
+
+        _ = await liveness.report(for: account)
+        let process = started.answer
+
+        #expect(process?.killCount == 1)
+        #expect(process?.isRunning == false)
+        #expect(!activity.isRunning(account.id))
+    }
+
     @Test("another account is not held by a probe")
     func anotherAccountRunsAtOnce() async {
         let activity = ClaudeAccountActivity()

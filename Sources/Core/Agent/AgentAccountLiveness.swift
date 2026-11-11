@@ -116,7 +116,7 @@ public struct AgentAccountLiveness: Sendable {
             process.terminate()
             return first
         }
-        if command == .claudeAuthStatus { _ = await process.exits(within: ClaudeAccountActivity.exitGrace) }
+        if command == .claudeAuthStatus { await process.killUnlessExited(within: ClaudeAccountActivity.exitGrace) }
         guard case .answered(let answer) = outcome else { return .unanswered }
         return answer ?? .unanswered
     }

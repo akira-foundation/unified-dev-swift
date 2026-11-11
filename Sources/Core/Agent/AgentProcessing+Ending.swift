@@ -4,6 +4,10 @@ import Synchronization
 extension AgentProcessing {
     func end(within grace: Duration) async {
         terminate()
+        await killUnlessExited(within: grace)
+    }
+
+    func killUnlessExited(within grace: Duration) async {
         guard await !exits(within: grace) else { return }
         kill()
         _ = await exits(within: grace)

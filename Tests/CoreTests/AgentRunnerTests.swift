@@ -826,8 +826,11 @@ struct AgentRunnerProcessTests {
         let second = Task { try await runner.send("and this") }
         await waitUntil("both sends wait for the probe") { activity.waitingRuns(account) == 2 }
         runner.cancelNow()
-        activity.endProbe(account)
+        let stillWaiting = activity.waitingRuns(account)
         let outcomes = [await first.result, await second.result]
+        activity.endProbe(account)
+
+        #expect(stillWaiting == 0)
 
         #expect(outcomes.allSatisfy { (try? $0.get()) == nil })
         #expect(recorder.all.isEmpty)
