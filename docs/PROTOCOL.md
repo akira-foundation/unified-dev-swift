@@ -198,11 +198,14 @@ left for the next check. A probe that missed any alias is tried again after ten 
 every minute, because each attempt starts the CLI up to four times, and what it did answer is kept.
 
 The probe and a turn write the same setting per alias and account, and a turn writes beside it the
-version of the CLI that ran it, from `claude_code_version` in its `init`. A probe of that same version
-leaves the turn's answer alone, because a turn also sees what the probe cannot, such as a pin in the
-project's own settings, and so does a probe whose CLI version could not be read. A probe of another
+version of the CLI that ran it, from `claude_code_version` in its `init`, or `unversioned` when the
+`init` names none. A probe of that same version leaves the turn's answer alone, because a turn also
+sees what the probe cannot, such as a pin in the project's own settings, and so does a probe whose CLI
+version could not be read, and any probe after a turn that named no version. A probe of another
 version replaces it, and a pin read from the account's
-settings replaces anything. The model picker names the version of what is stored, and only with
+settings replaces anything. Each write is one transaction: a turn writes the model and its version
+together, and a probe reads the turn's version and writes its answer in the same step, so a turn
+recorded while a probe is being recorded can never end up with the probe's model under its version. The model picker names the version of what is stored, and only with
 nothing stored falls back to the newest usable entry of the account's `additionalModelOptionsCache`.
 The list comes last because it lags: it is what the server offered when the CLI last wrote the file,
 and it has been seen naming an older version than the alias runs. The picker is per account, so a pin
