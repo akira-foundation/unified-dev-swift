@@ -15,10 +15,6 @@ public struct InspectorVisibility: Equatable, Sendable {
 
     public var menuTitleIsAlternate: Bool { !isVisible }
 
-    public var menuTitle: String {
-        MenuBarCatalogue[.toggleInspector].title(alternate: menuTitleIsAlternate)
-    }
-
     public var toggleHelp: String {
         BrowserToolbar.help(isVisible ? "Hide the inspector" : "Show the inspector", key: .toggleInspector)
     }

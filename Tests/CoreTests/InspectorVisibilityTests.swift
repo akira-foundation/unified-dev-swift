@@ -21,10 +21,11 @@ struct InspectorVisibilityTests {
 
     @Test("the menu offers to hide a visible inspector and to show a hidden one")
     func menuTitle() {
-        #expect(InspectorVisibility(isVisible: true).menuTitle == "Hide Inspector")
-        #expect(!InspectorVisibility(isVisible: true).menuTitleIsAlternate)
-        #expect(InspectorVisibility(isVisible: false).menuTitle == "Show Inspector")
-        #expect(InspectorVisibility(isVisible: false).menuTitleIsAlternate)
+        let item = MenuBarCatalogue[.toggleInspector]
+        let shown = InspectorVisibility(isVisible: true)
+        let hidden = InspectorVisibility(isVisible: false)
+        #expect(item.title(alternate: shown.menuTitleIsAlternate) == "Hide Inspector")
+        #expect(item.title(alternate: hidden.menuTitleIsAlternate) == "Show Inspector")
     }
 
     @Test("the button names what it will do and the key that does the same")
