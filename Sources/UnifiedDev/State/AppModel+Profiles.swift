@@ -57,6 +57,23 @@ extension AppModel {
         }
     }
 
+    var activeGitHubLogin: GitHubLogin {
+        store?.gitHubLogin(for: activeProfileID) ?? .thisMac
+    }
+
+    func gitHubSource(of id: ProfileID) -> ProfileGitHubSource {
+        store?.gitHubLogins().source(of: id) ?? .inherits
+    }
+
+    func setGitHubSource(_ source: ProfileGitHubSource, for id: ProfileID) async {
+        guard let store else { return }
+        do {
+            try await store.setGitHubSource(source, for: id)
+        } catch {
+            alert = AppAlert(title: "Could not change the profile's GitHub login", message: error.readableMessage)
+        }
+    }
+
     func setAccountSource(_ source: ProfileAccountSource, for id: ProfileID) async {
         guard let store else { return }
         do {

@@ -34,6 +34,7 @@ struct ProfileSheet: View {
                 ProfileAccountSignInSection(profile: editing)
             }
             if let editing {
+                ProfileGitHubSection(profile: editing)
                 ProfileBridgeSection(profile: editing.id)
             }
         }

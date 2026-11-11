@@ -1239,7 +1239,8 @@ final class TranscriptModel {
             store: store,
             segmentID: seat.segmentID,
             bridge: bridge,
-            account: account
+            account: account,
+            gitHub: store.gitHubLogin(for: scope.profileID)
         )
         self.runner = runner
         runnerFingerprint = AgentRunnerFingerprint(
@@ -1558,7 +1559,8 @@ final class TranscriptModel {
         store: Store,
         segmentID: SessionSegmentID,
         bridge: BridgeHandle? = nil,
-        account: AgentAccountHome? = nil
+        account: AgentAccountHome? = nil,
+        gitHub: GitHubLogin = .thisMac
     ) -> any SessionRunner {
         switch session.agentKind {
         case .codex:
@@ -1568,7 +1570,8 @@ final class TranscriptModel {
                 store: store,
                 segmentID: segmentID,
                 bridge: bridge?.attachment,
-                account: account
+                account: account,
+                gitHub: gitHub
             )
         case .grok:
             return GrokRunner(
@@ -1577,7 +1580,8 @@ final class TranscriptModel {
                 store: store,
                 segmentID: segmentID,
                 bridge: bridge?.attachment,
-                account: account
+                account: account,
+                gitHub: gitHub
             )
         case .claudeCode, .cursor, .openCode:
             return AgentRunner(
@@ -1586,7 +1590,8 @@ final class TranscriptModel {
                 store: store,
                 segmentID: segmentID,
                 mcpConfigPath: bridge?.mcpConfigPath,
-                account: account
+                account: account,
+                gitHub: gitHub
             )
         }
     }

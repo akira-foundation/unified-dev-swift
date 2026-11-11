@@ -18,11 +18,12 @@ final class LoginTerminalSession {
         arguments: [String],
         directory: String,
         account: AgentAccountHome?,
+        gitHub: GitHubLogin = .thisMac,
         onExit: @escaping @MainActor (TerminalExit) -> Void
     ) {
         guard let path = Shell.which(executable) else { return nil }
 
-        let variables = AgentAccountEnvironment.login(for: account, inheriting: Shell.environment())
+        let variables = AgentAccountEnvironment.login(for: account, inheriting: gitHub.applied(to: Shell.environment()))
 
         label = ([executable] + arguments).joined(separator: " ")
         launch = TerminalLaunch(

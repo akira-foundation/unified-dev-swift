@@ -147,7 +147,7 @@ struct GitHubSignInSheet: View {
             .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: InspectorLayout.gap) {
-                Button("Copy gh auth login") { Clipboard.copy("gh auth login") }
+                Button("Copy gh auth login") { Clipboard.copy(request.login.signInCommand) }
                 Button("Check again") { recheck() }
                 Button("GitHub CLI manual") { GitHubBridge.open(Self.manualURL) }
             }
@@ -220,12 +220,19 @@ struct GitHubSignInSheet: View {
 
         let executable = access == .notInstalled ? "brew" : "gh"
         let arguments = access == .notInstalled ? ["install", "gh"] : ["auth", "login"]
+        do {
+            try request.login.prepare()
+        } catch {
+            phase = .failed(error.readableMessage)
+            return
+        }
 
         guard let session = LoginTerminalSession(
             executable: executable,
             arguments: arguments,
             directory: request.directory,
             account: nil,
+            gitHub: request.login,
             onExit: { _ in finished() }
         ) else {
             phase = .failed("\(executable) is not on this Mac.")
@@ -239,7 +246,7 @@ struct GitHubSignInSheet: View {
     private func finished() {
         phase = .checking
         Task {
-            let state = await GitHubAvailability.shared.check(force: true)
+            let state = await GitHubAvailability.shared.check(login: request.login, force: true)
             switch state {
             case .ready:
                 phase = .connected
@@ -261,7 +268,7 @@ struct GitHubSignInSheet: View {
     private func recheck() {
         phase = .checking
         Task {
-            guard await GitHubAvailability.shared.check(force: true) == .ready else {
+            guard await GitHubAvailability.shared.check(login: request.login, force: true) == .ready else {
                 phase = .failed("Still no GitHub access.")
                 return
             }

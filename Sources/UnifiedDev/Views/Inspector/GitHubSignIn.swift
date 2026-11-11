@@ -11,6 +11,7 @@ final class GitHubSignIn {
         let id = UUID()
         var access: GitHubAvailability.State
         var directory: String
+        var login: GitHubLogin
 
         static func == (lhs: Request, rhs: Request) -> Bool { lhs.id == rhs.id }
     }
@@ -26,13 +27,14 @@ final class GitHubSignIn {
 
     func run(directory: String, action: @escaping @MainActor () -> Void) {
         Task {
-            let state = await GitHubAvailability.shared.check()
+            let login = await GitHub.login(forDirectory: directory)
+            let state = await GitHubAvailability.shared.check(login: login)
             guard state != .ready else {
                 action()
                 return
             }
             pending = action
-            request = Request(access: state, directory: directory)
+            request = Request(access: state, directory: directory, login: login)
         }
     }
 

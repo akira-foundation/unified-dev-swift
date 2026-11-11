@@ -6,7 +6,11 @@ struct PullRequestBarLine: View {
     var branchActions: BranchActionAvailability
     var worktree: String
 
-    private var github: GitHubAvailability.State { GitHubAvailability.shared.state }
+    @State private var login: GitHubLogin?
+
+    private var github: GitHubAvailability.State {
+        login.map { GitHubAvailability.shared.state(for: $0) } ?? .unknown
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.spacingTight) {
@@ -17,7 +21,11 @@ struct PullRequestBarLine: View {
         .help(helpText)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityText)
-        .task { await GitHubAvailability.shared.check() }
+        .task(id: worktree) {
+            let resolved = await GitHub.login(forDirectory: worktree)
+            login = resolved
+            await GitHubAvailability.shared.check(login: resolved)
+        }
     }
 
     private var headline: some View {

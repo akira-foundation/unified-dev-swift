@@ -185,7 +185,7 @@ struct ChecksView: View {
 
     private func poll() async {
         while !Task.isCancelled {
-            let state = await GitHubAvailability.shared.check()
+            let state = await GitHubAvailability.shared.check(directory: model.workspace.path)
             github = state
 
             if state == .ready {
