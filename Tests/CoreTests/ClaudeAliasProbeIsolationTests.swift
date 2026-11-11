@@ -201,7 +201,7 @@ struct ClaudeAliasProbeRestraintTests {
 
         let held = await probe.resolve(["opus"], account: work)
         let free = await probe.resolve(["opus"], account: client)
-        lease.end()
+        lease?.end()
         let afterwards = await probe.resolve(["opus"], account: work)
 
         #expect(held.all.isEmpty)
@@ -219,19 +219,18 @@ struct ClaudeAliasProbeRestraintTests {
 
         let answers = AwaitedAnswer<ClaudeAliasAnswers>()
         Task { answers.set(await probe.resolve(["opus", "sonnet"], account: work)) }
-        while launches.launches.isEmpty { try await Task.sleep(for: .milliseconds(5)) }
-        let admitted = AwaitedAnswer<Bool>()
-        Task {
-            let lease = await activity.beginRun(work.id)
-            admitted.set(true)
-            withExtendedLifetime(lease) {}
-        }
-        try await Task.sleep(for: .milliseconds(100))
+        await waitUntil("the probe launched") { !launches.launches.isEmpty }
+        let admitted = AwaitedAnswer<ClaudeRunLease>()
+        Task { if let lease = await activity.beginRun(work.id) { admitted.set(lease) } }
+        await waitUntil("the turn waits for the launch") { activity.waitingRuns(work.id) == 1 }
         let admittedDuringLaunch = admitted.answer != nil
         launches.processes.first?.terminate()
+        let lease = await admitted.wait(upTo: .seconds(5))
+        let finished = await answers.wait(upTo: .seconds(5))
+        lease?.end()
 
-        #expect(await admitted.wait(upTo: .seconds(5)) == true)
-        #expect(await answers.wait(upTo: .seconds(5)) != nil)
+        #expect(lease != nil)
+        #expect(finished != nil)
         #expect(!admittedDuringLaunch)
         #expect(launches.launches.count == 1)
     }
@@ -310,10 +309,9 @@ struct ClaudeAliasProbeRestraintTests {
         #expect(activity.beginProbe(account))
         let first = AwaitedAnswer<ClaudeRunLease>()
         let second = AwaitedAnswer<ClaudeRunLease>()
-        Task { first.set(await activity.beginRun(account)) }
-        Task { second.set(await activity.beginRun(account)) }
-        while !activity.isRunning(account) { try await Task.sleep(for: .milliseconds(5)) }
-        try await Task.sleep(for: .milliseconds(50))
+        Task { if let lease = await activity.beginRun(account) { first.set(lease) } }
+        Task { if let lease = await activity.beginRun(account) { second.set(lease) } }
+        await waitUntil("both turns wait for the probe") { activity.waitingRuns(account) == 2 }
 
         activity.endProbe(account)
         let leases = [await first.wait(upTo: .seconds(5)), await second.wait(upTo: .seconds(5))].compactMap(\.self)
@@ -325,6 +323,49 @@ struct ClaudeAliasProbeRestraintTests {
         #expect(leases.count == 2)
         #expect(heldByTheSecond)
         #expect(activity.beginProbe(account))
+    }
+
+    @Test("a turn waiting on a probe gives its place back when its task is cancelled, and the probe is not ended")
+    func aCancelledWaitLeaves() async {
+        let activity = ClaudeAccountActivity()
+        let account = AgentAccountID("work")
+        #expect(activity.beginProbe(account))
+        let answered = AwaitedAnswer<Bool>()
+        let waiting = Task {
+            let lease = await activity.beginRun(account)
+            answered.set(lease != nil)
+        }
+        await waitUntil("the turn waits for the probe") { activity.waitingRuns(account) == 1 }
+
+        waiting.cancel()
+        let admitted = await answered.wait(upTo: .seconds(5))
+        let heldAfterwards = activity.isRunning(account)
+        let probeStillHeld = !activity.beginProbe(account)
+        activity.endProbe(account)
+
+        #expect(admitted == false)
+        #expect(!heldAfterwards)
+        #expect(probeStillHeld)
+    }
+
+    @Test("a ticket withdrawn before it is presented is never admitted, and one withdrawn after admission keeps its lease")
+    func aWithdrawnTicketIsRefused() async {
+        let activity = ClaudeAccountActivity()
+        let account = AgentAccountID("work")
+        let early = ClaudeRunTicket()
+        activity.withdraw(early)
+        let late = ClaudeRunTicket()
+
+        let refused = await activity.beginRun(account, ticket: early)
+        let lease = await activity.beginRun(account, ticket: late)
+        activity.withdraw(late)
+        let heldAfterLateWithdrawal = activity.isRunning(account)
+        lease?.end()
+
+        #expect(refused == nil)
+        #expect(lease != nil)
+        #expect(heldAfterLateWithdrawal)
+        #expect(!activity.isRunning(account))
     }
 
     @Test("a lease dropped without being ended still frees its account")

@@ -322,9 +322,12 @@ public actor AgentRunner {
 
     private func admitRun(_ admission: Int) async throws {
         guard handle.current == nil, runLease == nil else { return }
-        let lease = await activity.beginRun(ClaudeResolvedModel.accountID(account))
-        guard !handle.wasStopped(during: admission) else {
-            lease.end()
+        let ticket = ClaudeRunTicket()
+        guard handle.hold(ticket, for: admission) else { throw CancellationError() }
+        let admitted = await activity.beginRun(ClaudeResolvedModel.accountID(account), ticket: ticket)
+        handle.release(admission)
+        guard let lease = admitted, !handle.wasStopped(during: admission) else {
+            admitted?.end()
             throw CancellationError()
         }
         guard runLease == nil, handle.current == nil else { return lease.end() }
@@ -730,6 +733,7 @@ public actor AgentRunner {
     func cancel(generation: Int, admission: Int? = nil) {
         guard generation == handle.generation else { return }
         let request = handle.requestCancel(generation, admission: admission ?? handle.admission)
+        request.waiting.forEach(activity.withdraw)
 
         let wasCancelled = cancelled
         markCancelled()
@@ -772,6 +776,7 @@ public actor AgentRunner {
         let generation = handle.generation
         let admission = handle.admission
         let request = handle.requestCancel(generation, admission: admission)
+        request.waiting.forEach(activity.withdraw)
         let denied = denyPendingAsks(PermissionDecision.stoppedMessage)
         if request.accepted { request.process?.terminate() }
         Task { [weak self] in
@@ -820,6 +825,7 @@ private final class ProcessHandle: Sendable {
         var run = 0
         var admission = 0
         var stoppedThrough = 0
+        var waiting: [Int: ClaudeRunTicket] = [:]
     }
 
     private let state = Mutex(State())
@@ -839,6 +845,18 @@ private final class ProcessHandle: Sendable {
 
     func wasStopped(during admission: Int) -> Bool {
         state.withLock { admission <= $0.stoppedThrough }
+    }
+
+    func hold(_ ticket: ClaudeRunTicket, for admission: Int) -> Bool {
+        state.withLock { state in
+            guard admission > state.stoppedThrough else { return false }
+            state.waiting[admission] = ticket
+            return true
+        }
+    }
+
+    func release(_ admission: Int) {
+        state.withLock { _ = $0.waiting.removeValue(forKey: admission) }
     }
 
     func beginRun(_ process: any AgentProcessing) -> Int {
@@ -865,14 +883,22 @@ private final class ProcessHandle: Sendable {
         state.withLock { $0.process != nil && $0.cancelled }
     }
 
-    func requestCancel(_ generation: Int, admission: Int) -> (accepted: Bool, process: (any AgentProcessing)?) {
-        state.withLock { state -> (accepted: Bool, process: (any AgentProcessing)?) in
-            guard generation == state.run else { return (false, nil) }
+    func requestCancel(_ generation: Int, admission: Int) -> CancelRequest {
+        state.withLock { state -> CancelRequest in
+            guard generation == state.run else { return CancelRequest(accepted: false, process: nil, waiting: []) }
             state.stoppedThrough = max(state.stoppedThrough, admission)
             let accepted = !state.cancelled
             state.cancelled = true
-            return (accepted, state.process)
+            let stopped = state.waiting.filter { $0.key <= state.stoppedThrough }
+            for key in stopped.keys { state.waiting[key] = nil }
+            return CancelRequest(accepted: accepted, process: state.process, waiting: Array(stopped.values))
         }
+    }
+
+    struct CancelRequest {
+        let accepted: Bool
+        let process: (any AgentProcessing)?
+        let waiting: [ClaudeRunTicket]
     }
 }
 

@@ -178,7 +178,7 @@ struct ClaudeAliasRefreshTests {
         let lease = await activity.beginRun(work.id)
         await subject.refresh(account: work, in: store)
         let launchedWhileRunning = launches.launches.count
-        lease.end()
+        lease?.end()
         clock.advance(by: ClaudeAliasRefresh.recheckInterval)
         await subject.refresh(account: work, in: store)
 
