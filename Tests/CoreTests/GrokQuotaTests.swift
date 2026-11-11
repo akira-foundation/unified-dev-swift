@@ -133,10 +133,10 @@ struct GrokQuotaTests {
             environment: [:], timeout: .milliseconds(200), makeProcess: box.factory, watchdogSleep: watchdogs.sleep
         )
 
-        async let answer = source.read()
+        let reading = Task { await source.read() }
         await watchdogs.expireTheOneLeft(afterAsking: 2)
 
-        #expect(await answer == nil)
+        #expect(await reading.value == nil)
         #expect(watchdogs.asked == [.milliseconds(200), .milliseconds(200)])
         #expect(GrokQuotaSource.timeout < GrokClient.requestTimeout)
     }
@@ -150,10 +150,10 @@ struct GrokQuotaTests {
             environment: [:], timeout: .milliseconds(200), makeProcess: box.factory, watchdogSleep: watchdogs.sleep
         )
 
-        async let answer = source.read()
+        let reading = Task { await source.read() }
         await watchdogs.expireTheOneLeft(afterAsking: 1)
 
-        #expect(await answer == nil)
+        #expect(await reading.value == nil)
         #expect(watchdogs.asked == [.milliseconds(200)])
     }
 
