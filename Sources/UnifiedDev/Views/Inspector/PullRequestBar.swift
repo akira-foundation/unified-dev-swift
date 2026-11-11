@@ -130,9 +130,9 @@ struct PullRequestBar: View {
         ask { await model.requestMarkReadyForReview(pullRequest) }
     }
 
-    private func merge(_ method: GitHub.MergeMethod) {
+    private func merge(_ method: GitHub.MergeMethod, confirmed: InstructionAuthority) {
         guard let pullRequest = model.pullRequest else { return }
-        ask { await model.requestMerge(pullRequest, method: method, from: .pullRequestBar) }
+        ask { await model.requestMerge(pullRequest, method: method, from: .pullRequestBar, confirmed: confirmed) }
     }
 
     private func propose(_ method: GitHub.MergeMethod) {

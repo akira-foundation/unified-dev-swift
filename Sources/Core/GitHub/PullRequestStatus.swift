@@ -168,7 +168,8 @@ public extension PullRequest {
         case .project:
             return "After merging, \(branch) will be deleted on GitHub. Your local branch stays."
         case .appOnly:
-            return "After merging, \(branch) is left on GitHub as it is, and so is your local branch."
+            return "After merging, the agent leaves \(branch) on GitHub, unless the repository deletes merged branches"
+                + " itself. Your local branch stays."
         }
     }
 

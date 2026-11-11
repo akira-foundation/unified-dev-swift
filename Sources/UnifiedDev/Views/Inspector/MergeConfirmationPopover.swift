@@ -41,7 +41,7 @@ private struct MergeConfirmationModifier: ViewModifier {
     let model: WorkspaceModel
     let canConfirm: Bool
     let arrowEdge: Edge
-    let onConfirm: (GitHub.MergeMethod) -> Void
+    let onConfirm: (GitHub.MergeMethod, InstructionAuthority) -> Void
 
     @State private var authority: InstructionAuthority?
 
@@ -62,7 +62,7 @@ private struct MergeConfirmationModifier: ViewModifier {
                         tint: model.pullRequestStanding.tone.pathColour,
                         onConfirm: {
                             pending = nil
-                            onConfirm(method)
+                            onConfirm(method, authority)
                         },
                         onCancel: { pending = nil }
                     )
@@ -90,7 +90,7 @@ extension View {
         model: WorkspaceModel,
         canConfirm: Bool,
         arrowEdge: Edge,
-        onConfirm: @escaping (GitHub.MergeMethod) -> Void
+        onConfirm: @escaping (GitHub.MergeMethod, InstructionAuthority) -> Void
     ) -> some View {
         modifier(MergeConfirmationModifier(
             pending: pending, model: model, canConfirm: canConfirm, arrowEdge: arrowEdge, onConfirm: onConfirm

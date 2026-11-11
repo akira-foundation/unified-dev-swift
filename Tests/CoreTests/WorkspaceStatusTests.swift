@@ -284,7 +284,25 @@ struct WorkspaceStatusTests {
         #expect(!text.contains("deleted on GitHub"))
         #expect(text.contains("agent will merge this pull request in the chat"))
         #expect(try decode(json(state: "OPEN")).mergeBranchDeletionMessage(authority: .appOnly)
-            == "After merging, feature/glyphs is left on GitHub as it is, and so is your local branch.")
+            == "After merging, the agent leaves feature/glyphs on GitHub, unless the repository deletes merged"
+                + " branches itself. Your local branch stays.")
+    }
+
+    @Test("a pull request with no branch is promised nothing about one", arguments: [InstructionAuthority.project, .appOnly])
+    func noBranchNoPromise(authority: InstructionAuthority) throws {
+        var pullRequest = try decode(json(state: "OPEN"))
+        pullRequest.branch = ""
+        #expect(pullRequest.mergeBranchDeletionMessage(authority: authority) == nil)
+    }
+
+    @Test("a merge whose instructions changed after the confirmation is not sent")
+    func changedAuthorityRefusesTheMerge() {
+        #expect(InstructionAuthority.mergeRefusal(confirmed: .appOnly, sending: .project)?
+            .contains("Nothing was sent") == true)
+        #expect(InstructionAuthority.mergeRefusal(confirmed: .project, sending: .appOnly) != nil)
+        #expect(InstructionAuthority.mergeRefusal(confirmed: .project, sending: .project) == nil)
+        #expect(InstructionAuthority.mergeRefusal(confirmed: .appOnly, sending: .appOnly) == nil)
+        #expect(InstructionAuthority.mergeRefusal(confirmed: nil, sending: .project) == nil)
     }
 
     @Test(
@@ -301,7 +319,7 @@ struct WorkspaceStatusTests {
         )
         let text = pullRequest.mergeConfirmation(base: "main", authority: authority)
         #expect(!text.contains("will be deleted"))
-        #expect(text.contains("is left on GitHub as it is"))
+        #expect(text.contains("the agent leaves feature/glyphs on GitHub"))
     }
 
     @Test("the person's own pull request on its checked out head is promised the deletion")
