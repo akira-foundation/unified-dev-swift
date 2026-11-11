@@ -163,6 +163,14 @@ struct CodeBlockRunTests {
         #expect(message.contains("\u{1B}") == false)
     }
 
+    @Test("an operating system command is removed whole, whichever way it ends", arguments: [
+        "\u{1B}]0;title\u{07}kept",
+        "\u{1B}]8;;https://example.com\u{1B}\\kept",
+    ])
+    func operatingSystemCommandsGoWhole(output: String) {
+        #expect(CodeBlockReport.withoutTerminalEscapes(output) == "kept")
+    }
+
     @Test("a separator in the command cannot start an unprefixed line")
     func commandSeparators() throws {
         let run = CodeBlockRun.finished(status: 0, output: "x", duration: .zero)
