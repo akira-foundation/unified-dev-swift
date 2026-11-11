@@ -12,6 +12,7 @@ extension PreviewScenarioSeeder {
                 occupiedFolders: ProfileFolder.occupied(under: manager.workspacesRoot)
             )
             ids[profile.name.lowercased()] = created.id
+            try await manager.store.setGitHubSource(profile.github, for: created.id)
         }
         for name in scenario.reachableProfiles {
             if let id = ids[name.lowercased()] {
