@@ -18,6 +18,7 @@ struct WindowColumnsTests {
         hasInspectorSubject: Bool = false,
         reservesInspectorRoom: Bool = false,
         hidesSidebar: Bool = false,
+        hidesInspector: Bool = false,
         availableWidth: CGFloat = WindowColumnsTests.wide
     ) -> WindowColumns {
         WindowColumns.resolve(
@@ -25,6 +26,7 @@ struct WindowColumnsTests {
             hasInspectorSubject: hasInspectorSubject,
             reservesInspectorRoom: reservesInspectorRoom,
             hidesSidebar: hidesSidebar,
+            hidesInspector: hidesInspector,
             widths: Self.widths,
             availableWidth: availableWidth
         )
@@ -163,5 +165,65 @@ struct WindowColumnsTests {
         #expect(archived.sidebarCeiling == Self.widths.sidebar)
         #expect(!live.drawsSidebar)
         #expect(!live.fitsSidebar)
+    }
+
+    @Test("a hidden inspector is not drawn, and the workspace still offers it")
+    func hidingTheInspector() {
+        let hidden = columns(.workspace(WorkspaceID("live")), hasInspectorSubject: true, hidesInspector: true)
+        #expect(!hidden.drawsInspector)
+        #expect(hidden.offersInspector)
+        #expect(hidden.drawsSidebar)
+    }
+
+    @Test("hiding the inspector gives its room back to the sidebar")
+    func hidingTheInspectorFreesItsRoom() {
+        let shown = columns(
+            .workspace(WorkspaceID("live")), hasInspectorSubject: true,
+            reservesInspectorRoom: true, availableWidth: 1_000
+        )
+        let hidden = columns(
+            .workspace(WorkspaceID("live")), hasInspectorSubject: true,
+            reservesInspectorRoom: true, hidesInspector: true, availableWidth: 1_000
+        )
+        #expect(!shown.fitsSidebar)
+        #expect(hidden.fitsSidebar)
+        #expect(hidden.sidebarCeiling == Self.widths.sidebar)
+    }
+
+    @Test("with nothing to inspect there is no inspector to offer, hidden or not")
+    func nothingToOffer() {
+        for selection in Self.everySelection where selection.workspaceID == nil {
+            for hides in [true, false] {
+                let resolved = columns(selection, hasInspectorSubject: true, hidesInspector: hides)
+                #expect(!resolved.offersInspector, "\(selection)")
+                #expect(resolved.inspectorToggleSection == nil, "\(selection)")
+            }
+        }
+        #expect(columns(.workspace(WorkspaceID("live"))).inspectorToggleSection == nil)
+    }
+
+    @Test("the toggle sits over the inspector while it is drawn and over the centre once it is hidden")
+    func theToggleFollowsTheTrailingSection() {
+        let shown = columns(.workspace(WorkspaceID("live")), hasInspectorSubject: true)
+        let hidden = columns(.workspace(WorkspaceID("live")), hasInspectorSubject: true, hidesInspector: true)
+        #expect(shown.inspectorToggleSection == .inspector)
+        #expect(shown.trailingSection == .inspector)
+        #expect(hidden.inspectorToggleSection == .centre)
+        #expect(hidden.trailingSection == .centre)
+    }
+
+    @Test("the trailing items go over the centre whenever the inspector is not drawn")
+    func theTrailingSectionIsTheCentreWithoutAnInspector() {
+        for selection in Self.everySelection {
+            for hasSubject in [true, false] {
+                for hides in [true, false] {
+                    let resolved = columns(selection, hasInspectorSubject: hasSubject, hidesInspector: hides)
+                    #expect((resolved.trailingSection == .inspector) == resolved.drawsInspector, "\(selection)")
+                    if let section = resolved.inspectorToggleSection {
+                        #expect(section == resolved.trailingSection, "\(selection)")
+                    }
+                }
+            }
+        }
     }
 }
