@@ -4,12 +4,14 @@ import Core
 struct WindowToolbar: ToolbarContent {
     let app: AppModel
     let centreWidth: CGFloat
-    let collapsesProfileSwitcher: Bool
+    let columns: WindowColumns
     let startFreshAskConversation: () -> Void
 
     @FocusedValue(\.homeScopeCounts) private var homeCounts: HomeScopeCounts?
 
     @FocusedValue(\.notesFormatting) private var notesFormatting: NotesFormattingContext?
+
+    private var collapsesProfileSwitcher: Bool { columns.collapsesProfileSwitcher }
 
     var body: some ToolbarContent {
         if collapsesProfileSwitcher {
@@ -64,7 +66,13 @@ struct WindowToolbar: ToolbarContent {
             }
         }
 
-        if app.selectedModel == nil {
+        if columns.inspectorToggleSection == .centre {
+            ToolbarItem(placement: .primaryAction) {
+                WindowPaneToggle(edge: .trailing, isVisible: false) { app.toggleInspector() }
+            }
+        }
+
+        if columns.trailingSection == .centre {
             ToolbarItem(placement: .primaryAction) {
                 NotificationBellButton(inbox: app.notificationInbox, profiles: app.profiles)
             }

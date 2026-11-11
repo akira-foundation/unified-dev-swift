@@ -59,12 +59,12 @@ struct RootView: View {
                         WindowToolbar(
                             app: app,
                             centreWidth: centreWidth,
-                            collapsesProfileSwitcher: columns.collapsesProfileSwitcher,
+                            columns: columns,
                             startFreshAskConversation: { Task { await app.ask.newConversation() } }
                         )
                     }
             } detail: {
-                InspectorColumn()
+                InspectorColumn(isDrawn: columns.drawsInspector)
                     .navigationSplitViewColumnWidth(
                         min: Metrics.inspectorMinimum,
                         ideal: Metrics.inspectorWidth,
@@ -244,6 +244,7 @@ struct RootView: View {
             hasInspectorSubject: app.selectedModel != nil,
             reservesInspectorRoom: app.isInspectorPresented,
             hidesSidebar: app.isSidebarHidden,
+            hidesInspector: !app.isInspectorVisible,
             widths: UnifiedDevApp.widths,
             availableWidth: availableWidth
         )
@@ -271,10 +272,12 @@ extension Notification {
 }
 
 private struct InspectorColumn: View {
+    let isDrawn: Bool
+
     @Environment(AppModel.self) private var app
 
     var body: some View {
-        if let model = app.selectedModel {
+        if isDrawn, let model = app.selectedModel {
             InspectorView(model: model)
         } else {
             Color.clear

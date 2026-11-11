@@ -50,7 +50,7 @@ struct ChatPaneView: View {
                     BackgroundTasksPill(transcript: transcript) {
                         model.showTasks(of: transcript.session.id)
                         model.inspectorTab = .tasks
-                        app.isInspectorVisible = true
+                        app.setInspectorVisible(true)
                     }
                 }
                 ComposerView(transcript: transcript, model: model, room: room)

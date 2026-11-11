@@ -84,6 +84,10 @@ struct InspectorView: View {
                     InspectorToolbar.MergeButton(model: model)
                 }
             }
+
+            ToolbarItem(placement: .primaryAction) {
+                WindowPaneToggle(edge: .trailing, isVisible: true) { app.toggleInspector() }
+            }
         }
         .environment(\.openInRepoID, model.repo?.id)
     }
