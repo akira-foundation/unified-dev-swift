@@ -19,6 +19,7 @@ public struct GrokQuotaSource: AgentQuotaSource {
     private let bundleIdentifier: String?
     private let makeProcess: @Sendable (AgentLaunch) -> any AgentProcessing
     private let watchdogSleep: @Sendable (Duration) async throws -> Void
+    private let loginShellReady: @Sendable () async -> Void
 
     public init(
         executable: String = GrokClient.executable,
@@ -28,7 +29,8 @@ public struct GrokQuotaSource: AgentQuotaSource {
         timeout: Duration = GrokQuotaSource.timeout,
         bundleIdentifier: String? = Bundle.main.bundleIdentifier,
         makeProcess: @escaping @Sendable (AgentLaunch) -> any AgentProcessing = GrokClient.spawn,
-        watchdogSleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+        watchdogSleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
+        loginShellReady: @escaping @Sendable () async -> Void = { await LoginShellPath.ready() }
     ) {
         self.executable = executable
         self.cwd = cwd
@@ -38,16 +40,17 @@ public struct GrokQuotaSource: AgentQuotaSource {
         self.bundleIdentifier = bundleIdentifier
         self.makeProcess = makeProcess
         self.watchdogSleep = watchdogSleep
+        self.loginShellReady = loginShellReady
     }
 
     public func standing() async -> QuotaStanding {
-        await LoginShellPath.ready()
+        await loginShellReady()
         let wouldReadTheOwnersLogin = account == nil && PreviewIdentity.isPreview(bundleIdentifier: bundleIdentifier)
         return QuotaStanding(isInstalled: !wouldReadTheOwnersLogin && Shell.which(executable) != nil)
     }
 
     public func read() async -> Data? {
-        await LoginShellPath.ready()
+        await loginShellReady()
         let configuration = GrokClient.Configuration(
             executable: executable,
             cwd: cwd,

@@ -73,7 +73,7 @@ struct GrokQuotaTests {
         let box = ProcessBox()
         let answer = try #require(JSONValue.parse(Data(Self.billing.utf8)))
         box.reply(to: GrokQuotaSource.method, with: answer)
-        let source = GrokQuotaSource(environment: [:], makeProcess: box.factory)
+        let source = GrokQuotaSource(environment: [:], makeProcess: box.factory, loginShellReady: {})
 
         let payload = try #require(await source.read())
 
@@ -87,7 +87,9 @@ struct GrokQuotaTests {
     func asksUnderTheChosenAccount() async throws {
         let box = ProcessBox()
         let account = LaunchAccountFixture.workGrok
-        let source = GrokQuotaSource(environment: LaunchAccountFixture.inherited, account: account, makeProcess: box.factory)
+        let source = GrokQuotaSource(
+            environment: LaunchAccountFixture.inherited, account: account, makeProcess: box.factory, loginShellReady: {}
+        )
 
         _ = await source.read()
 
@@ -107,7 +109,7 @@ struct GrokQuotaTests {
     func aCLIWithoutBillingReportsNothing() async throws {
         let box = ProcessBox()
         box.fail(GrokQuotaSource.method, code: -32601, message: "Method not found")
-        let source = GrokQuotaSource(environment: [:], makeProcess: box.factory)
+        let source = GrokQuotaSource(environment: [:], makeProcess: box.factory, loginShellReady: {})
 
         let payload = try #require(await source.read())
 
@@ -119,7 +121,7 @@ struct GrokQuotaTests {
     func anotherRefusalIsUnanswered() async {
         let box = ProcessBox()
         box.fail(GrokQuotaSource.method, code: -32000, message: "Not signed in")
-        let source = GrokQuotaSource(environment: [:], makeProcess: box.factory)
+        let source = GrokQuotaSource(environment: [:], makeProcess: box.factory, loginShellReady: {})
 
         #expect(await source.read() == nil)
     }
@@ -130,7 +132,8 @@ struct GrokQuotaTests {
         box.ignore(GrokQuotaSource.method)
         let watchdogs = WatchdogGates()
         let source = GrokQuotaSource(
-            environment: [:], timeout: .milliseconds(200), makeProcess: box.factory, watchdogSleep: watchdogs.sleep
+            environment: [:], timeout: .milliseconds(200), makeProcess: box.factory,
+            watchdogSleep: watchdogs.sleep, loginShellReady: {}
         )
 
         let reading = Task { await source.read() }
@@ -147,7 +150,8 @@ struct GrokQuotaTests {
         box.ignore("initialize")
         let watchdogs = WatchdogGates()
         let source = GrokQuotaSource(
-            environment: [:], timeout: .milliseconds(200), makeProcess: box.factory, watchdogSleep: watchdogs.sleep
+            environment: [:], timeout: .milliseconds(200), makeProcess: box.factory,
+            watchdogSleep: watchdogs.sleep, loginShellReady: {}
         )
 
         let reading = Task { await source.read() }
@@ -161,7 +165,7 @@ struct GrokQuotaTests {
     func aRefusedHandshakeIsUnanswered() async {
         let box = ProcessBox()
         box.fail("initialize", code: -32601, message: "Method not found")
-        let source = GrokQuotaSource(environment: [:], makeProcess: box.factory)
+        let source = GrokQuotaSource(environment: [:], makeProcess: box.factory, loginShellReady: {})
 
         #expect(await source.read() == nil)
     }
@@ -169,7 +173,7 @@ struct GrokQuotaTests {
     @Test("the process is stopped once the source has its answer", .timeLimit(.minutes(1)))
     func stopsTheProcessAfterReading() async throws {
         let box = ProcessBox()
-        let source = GrokQuotaSource(environment: [:], makeProcess: box.factory)
+        let source = GrokQuotaSource(environment: [:], makeProcess: box.factory, loginShellReady: {})
 
         _ = await source.read()
 
