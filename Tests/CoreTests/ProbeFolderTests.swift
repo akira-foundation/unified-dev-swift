@@ -48,4 +48,31 @@ struct ProbeFolderTests {
         #expect(throws: ProbeFolderError.notMadeByAProbe(link.path)) { try ProbeFolder.renew(link) }
         #expect(ProbeFolder.isMadeByAProbe(target))
     }
+
+    @Test func aLinkToNothingIsLeftAlone() throws {
+        let link = folder("dangling")
+        try FileManager.default.createDirectory(at: link.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: folder("nowhere"))
+
+        #expect(throws: ProbeFolderError.notMadeByAProbe(link.path)) { try ProbeFolder.renew(link) }
+        #expect((try? FileManager.default.destinationOfSymbolicLink(atPath: link.path)) != nil)
+    }
+
+    @Test func discardingKeepsAFolderNoProbeMade() throws {
+        let root = folder("kept")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+
+        ProbeFolder.discard(root)
+
+        #expect(FileManager.default.fileExists(atPath: root.path))
+    }
+
+    @Test func discardingRemovesAFolderAProbeMade() throws {
+        let root = folder("made")
+        try ProbeFolder.renew(root)
+
+        ProbeFolder.discard(root)
+
+        #expect(!FileManager.default.fileExists(atPath: root.path))
+    }
 }

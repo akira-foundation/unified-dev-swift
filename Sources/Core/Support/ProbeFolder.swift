@@ -24,6 +24,11 @@ public enum ProbeFolder {
         try Data().write(to: root.appending(path: markerName))
     }
 
+    public static func discard(_ root: URL) {
+        guard isMadeByAProbe(root) else { return }
+        try? FileManager.default.removeItem(at: root)
+    }
+
     static func isMadeByAProbe(_ root: URL) -> Bool {
         guard !isLink(root) else { return false }
         var isDirectory: ObjCBool = false
