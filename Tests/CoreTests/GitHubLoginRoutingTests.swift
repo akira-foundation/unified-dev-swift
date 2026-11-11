@@ -54,10 +54,72 @@ struct GitHubLoginRoutingTests {
         let (repo, workspace) = try await seed(store, in: debtges.id)
         let (unifiedRepo, _) = try await seed(store, in: .initial)
 
-        #expect(try await store.gitHubLogin(forDirectory: workspace.path) == store.gitHubLogin(for: debtges.id))
-        #expect(try await store.gitHubLogin(forDirectory: repo.path + "/Sources") == store.gitHubLogin(for: debtges.id))
-        #expect(try await store.gitHubLogin(forDirectory: unifiedRepo.path) == .thisMac)
-        #expect(try await store.gitHubLogin(forDirectory: "/nowhere") == .thisMac)
+        #expect(await store.gitHubLogin(forDirectory: workspace.path) == store.gitHubLogin(for: debtges.id))
+        #expect(await store.gitHubLogin(forDirectory: repo.path + "/Sources") == store.gitHubLogin(for: debtges.id))
+        #expect(await store.gitHubLogin(forDirectory: unifiedRepo.path) == .thisMac)
+        #expect(await store.gitHubLogin(forDirectory: "/nowhere") == .thisMac)
+    }
+
+    @Test func aDirectoryReachedThroughALinkStillFindsItsProfile() async throws {
+        let store = try makeTestStore("github-login-link")
+        let debtges = try await store.createProfile(name: "Debtges", colour: Accent.all[1], symbol: "star")
+        try await store.setGitHubSource(.own, for: debtges.id)
+        let real = URL(filePath: TestScratch.unique("linked-real")).resolvingSymlinksInPath().path
+        try FileManager.default.createDirectory(atPath: real, withIntermediateDirectories: true)
+        let link = TestScratch.unique("linked-alias")
+        try FileManager.default.createSymbolicLink(atPath: link, withDestinationPath: real)
+        _ = try await store.upsert(Repo(name: "r", path: real, profileID: debtges.id))
+
+        #expect(await store.gitHubLogin(forDirectory: link) == store.gitHubLogin(for: debtges.id))
+    }
+
+    @Test func aChatRunsUnderTheLoginOfItsWorkspacesProfileOrTheProfileItIsPinnedTo() async throws {
+        let store = try makeTestStore("github-login-scope")
+        let debtges = try await store.createProfile(name: "Debtges", colour: Accent.all[1], symbol: "star")
+        try await store.setGitHubSource(.own, for: debtges.id)
+        let (_, workspace) = try await seed(store, in: debtges.id)
+        let own = store.gitHubLogin(for: debtges.id)
+
+        let workspaceChat = AccountScope.chat(workspace: workspace, activeProfile: .initial, pinnedProfile: nil)
+        #expect(await store.gitHubLogin(for: workspaceChat) == own)
+
+        let askChat = AccountScope.chat(workspace: nil, activeProfile: .initial, pinnedProfile: debtges.id)
+        #expect(await store.gitHubLogin(for: askChat) == own)
+        #expect(await store.gitHubLogin(for: AccountScope.none) == .thisMac)
+    }
+
+    @Test func aChangedLoginRetiresTheRunnerAndKeepsItsOwnRateLimit() async throws {
+        let (_, made) = try await LaunchAccountFixture.session(kind: .claudeCode)
+        let own = GitHubLogin.profile(ProfileID("debtges"), directory: URL(filePath: "/support/GitHubLogins/debtges"))
+        let segment = SessionSegmentID("segment")
+        let before = AgentRunnerFingerprint(session: made, account: nil, orchestrates: false, segment: segment)
+        let after = AgentRunnerFingerprint(session: made, account: nil, orchestrates: false, segment: segment, gitHub: own)
+        #expect(before != after)
+
+        let mac = GitHubRequests.Key(host: "github.com", directory: nil, arguments: [])
+        let profile = GitHubRequests.Key(host: "github.com", directory: nil, arguments: [], login: own)
+        #expect(mac.limitedHost == "github.com")
+        #expect(profile.limitedHost != mac.limitedHost)
+    }
+
+    @Test func ghAndGitAreStartedWithTheLoginsEnvironment() async throws {
+        let bin = TestScratch.unique("fake-gh")
+        try FileManager.default.createDirectory(atPath: bin, withIntermediateDirectories: true)
+        let script = bin + "/echo-login"
+        try "#!/bin/sh\nprintf '%s|%s' \"$GH_CONFIG_DIR\" \"${GH_TOKEN-unset}\"\n"
+            .write(toFile: script, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script)
+        let own = GitHubLogin.profile(ProfileID("debtges"), directory: URL(filePath: "/support/GitHubLogins/debtges"))
+
+        let answers = try await Shell.$executableLookup.withValue({ _ in script }) {
+            try await GitHub.$login.withValue(own) {
+                [
+                    try await GitHub.run("gh", ["api", "user"]).stdout,
+                    try await GitHub.run("git", ["push"]).stdout,
+                ]
+            }
+        }
+        #expect(answers == ["/support/GitHubLogins/debtges|", "/support/GitHubLogins/debtges|"])
     }
 
     @Test func ghRunsUnderTheLoginOfTheDirectoryItRunsIn() async throws {

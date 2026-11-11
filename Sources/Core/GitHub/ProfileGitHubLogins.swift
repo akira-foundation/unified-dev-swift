@@ -30,4 +30,9 @@ public struct ProfileGitHubLogins: Sendable, Hashable {
     public func login(forDirectory directory: String, routes: GitHubLoginRoutes) -> GitHubLogin {
         login(for: routes.profile(forDirectory: directory))
     }
+
+    public var unresolved: GitHubLogin {
+        guard sources.values.contains(.own) else { return .thisMac }
+        return .unresolved(directory: root.appending(path: ".unresolved", directoryHint: .isDirectory))
+    }
 }

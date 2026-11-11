@@ -1176,8 +1176,9 @@ final class TranscriptModel {
         let account = resolved
         guard !usesInteractiveTerminal else { return nil }
         let orchestrates = await readOrchestratorRole(from: store)
+        let gitHub = await store.gitHubLogin(for: scope)
         let fingerprint = AgentRunnerFingerprint(
-            session: session, account: account, orchestrates: orchestrates, segment: seat.segmentID
+            session: session, account: account, orchestrates: orchestrates, segment: seat.segmentID, gitHub: gitHub
         )
         let setup = AgentRunnerSetup.decide(
             gate: AgentDeliveryGate.decide(
@@ -1240,11 +1241,11 @@ final class TranscriptModel {
             segmentID: seat.segmentID,
             bridge: bridge,
             account: account,
-            gitHub: store.gitHubLogin(for: scope.profileID)
+            gitHub: gitHub
         )
         self.runner = runner
         runnerFingerprint = AgentRunnerFingerprint(
-            session: session, account: account, orchestrates: orchestrates, segment: seat.segmentID
+            session: session, account: account, orchestrates: orchestrates, segment: seat.segmentID, gitHub: gitHub
         )
         startIdleEviction()
         startPump(on: runner)

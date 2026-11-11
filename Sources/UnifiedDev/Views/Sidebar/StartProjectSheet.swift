@@ -23,7 +23,10 @@ struct StartProjectSheet: View {
         .frame(width: Self.width)
         .presentationBackground(Palette.surface)
         .overlay(alignment: .topLeading) { closeButton }
-        .task { await model.load(projectPaths: app.repos.map(\.path), store: app.store) }
+        .task {
+            model.gitHubLogin = app.activeGitHubLogin
+            await model.load(projectPaths: app.repos.map(\.path), store: app.store)
+        }
         .task(id: Draft(typed: model.typed, location: model.defaultLocation)) {
             try? await Task.sleep(for: StartProjectModel.inspectionDelay)
             guard !Task.isCancelled else { return }

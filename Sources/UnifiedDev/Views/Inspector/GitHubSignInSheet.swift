@@ -147,7 +147,7 @@ struct GitHubSignInSheet: View {
             .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: InspectorLayout.gap) {
-                Button("Copy gh auth login") { Clipboard.copy(request.login.signInCommand) }
+                Button("Copy Sign-In Command") { Clipboard.copy(request.login.signInCommand) }
                 Button("Check again") { recheck() }
                 Button("GitHub CLI manual") { GitHubBridge.open(Self.manualURL) }
             }

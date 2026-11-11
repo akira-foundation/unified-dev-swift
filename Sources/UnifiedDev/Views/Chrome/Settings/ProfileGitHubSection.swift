@@ -9,6 +9,8 @@ struct ProfileGitHubSection: View {
     @State private var source: ProfileGitHubSource = .inherits
     @State private var user: String?
     @State private var isChecking = true
+    @State private var isSaving = false
+    @State private var failure: String?
     @State private var signIn: GitHubSignIn.Request?
     @State private var refresh = 0
 
@@ -21,14 +23,15 @@ struct ProfileGitHubSection: View {
             source: binding,
             choosesSource: !profile.isInitial,
             user: user,
-            isChecking: isChecking,
+            isChecking: isChecking || isSaving,
+            failure: failure,
             footnote: ProfileGitHubWording.footnote(
                 source: source, isInitial: profile.isInitial, profileName: profile.name, user: user
             ),
             canSignIn: source == .own && !profile.isInitial,
             onSignIn: startSignIn
         )
-        .task(id: "\(profile.id.rawValue).\(source.rawValue).\(refresh)") {
+        .task(id: "\(profile.id.rawValue).\(refresh)") {
             source = app.gitHubSource(of: profile.id)
             isChecking = true
             user = await GitHub.signedInUser(login: login)
@@ -46,13 +49,21 @@ struct ProfileGitHubSection: View {
         Binding(
             get: { source },
             set: { chosen in
-                source = chosen
-                Task { await app.setGitHubSource(chosen, for: profile.id) }
+                guard chosen != source, !isSaving else { return }
+                isSaving = true
+                failure = nil
+                Task {
+                    let saved = await app.setGitHubSource(chosen, for: profile.id)
+                    if !saved { failure = ProfileGitHubWording.saveFailure }
+                    isSaving = false
+                    refresh += 1
+                }
             }
         )
     }
 
     private func startSignIn() {
+        guard case .profile = login else { return }
         let login = login
         Task {
             let state = await GitHubAvailability.shared.check(login: login, force: true)
@@ -70,6 +81,7 @@ struct ProfileGitHubRows: View {
     var choosesSource: Bool
     var user: String?
     var isChecking: Bool
+    var failure: String?
     var footnote: String
     var canSignIn: Bool
     var onSignIn: () -> Void
@@ -82,6 +94,7 @@ struct ProfileGitHubRows: View {
                         Text(ProfileGitHubWording.label(source)).tag(source)
                     }
                 }
+                .disabled(isChecking)
             }
             LabeledContent(ProfileGitHubWording.accountTitle) {
                 if isChecking {
@@ -99,8 +112,15 @@ struct ProfileGitHubRows: View {
         } header: {
             Text(ProfileGitHubWording.sectionTitle)
         } footer: {
-            Text(footnote)
-                .settingsFootnote()
+            VStack(alignment: .leading, spacing: Metrics.spacingSmall) {
+                Text(footnote)
+                    .settingsFootnote()
+                if let failure {
+                    Text(failure)
+                        .font(Typo.caption)
+                        .foregroundStyle(Palette.negative)
+                }
+            }
         }
     }
 }

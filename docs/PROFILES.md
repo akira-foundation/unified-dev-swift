@@ -125,17 +125,21 @@ and for this Mac's own login when that is the same user too. Unified Dev never s
 A profile with its own login and nobody signed in does not fall back to this Mac's login. Its pull
 requests, checks and agents stop at GitHub and ask for a sign in, so the work of one organisation cannot
 run under the identity of another. Switching back to Unified's login keeps the folder, and switching to
-its own again finds the same login.
+its own again finds the same login. Deleting a profile leaves its folder and its Keychain entry where they are.
 
 `GitHubLoginRoutes` decides which profile a directory belongs to, from the projects and workspaces that hold
-it, and `ProfileGitHubLogins` decides which login that profile uses. A directory no project holds runs under
-this Mac's login. The app sets `GH_CONFIG_DIR` for the profile's login and clears `GH_TOKEN`, `GITHUB_TOKEN`,
+it, following a symbolic link and ignoring case as the disk does, and `ProfileGitHubLogins` decides which login
+that profile uses. A directory no project holds runs under this Mac's login. When the database cannot be read
+to tell, and some profile has a login of its own, the call runs signed out rather than under this Mac's login.
+A workspace chat's agent runs under the login of its project's profile, and an Ask chat's under that of the
+profile its turn is pinned to. The app sets `GH_CONFIG_DIR` for the profile's login and clears `GH_TOKEN`, `GITHUB_TOKEN`,
 `GH_ENTERPRISE_TOKEN` and `GITHUB_ENTERPRISE_TOKEN`, which `gh` would otherwise prefer to the folder.
 Agents get them when their process starts, and terminals when their shell or tmux session starts, so a
 running one keeps the login it started with. Creating a repository from Add Project runs under the active
 profile's login, and filing feedback about Unified Dev itself runs under this Mac's.
 
-An agent's `git push` uses the profile's login only when git asks `gh` for credentials, which is what
+The `git` commands Unified Dev runs against GitHub, a push among them, get the same variables. A `git push`,
+by Unified Dev or by an agent, uses the profile's login only when git asks `gh` for credentials, which is what
 `gh auth setup-git` configures. With the macOS Keychain helper, or an SSH remote, git pushes with whatever
 those hold, whichever profile the project is in. The default branch prefix taken from the GitHub user name
 is read from this Mac's login.

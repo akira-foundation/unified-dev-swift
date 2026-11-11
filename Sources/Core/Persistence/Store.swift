@@ -892,6 +892,20 @@ public actor Store {
         try db.transaction { try writeAccountSource(source, for: profile) }
     }
 
+    func gitHubLoginRoutes() throws -> GitHubLoginRoutes {
+        let rows = try db.query(
+            """
+            SELECT path, profile_id FROM repos
+            UNION ALL
+            SELECT workspaces.path, repos.profile_id FROM workspaces JOIN repos ON repos.id = workspaces.repo_id
+            """
+        )
+        return GitHubLoginRoutes(routes: rows.compactMap { row in
+            guard let path = row.string("path"), let profile = row.string("profile_id") else { return nil }
+            return GitHubLoginRoutes.Route(path: path, profile: ProfileID(profile))
+        })
+    }
+
     func writeGitHubSource(_ source: ProfileGitHubSource, for profile: ProfileID) throws {
         try db.run(ProfileGitHubColumn.setSource, [.text(source.rawValue), .text(profile)])
         let sources = try ProfileGitHubColumn.sources { try db.query($0) }

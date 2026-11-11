@@ -35,10 +35,6 @@ final class GitHubAvailability {
         states[login] ?? .unknown
     }
 
-    func isReady(directory: String? = nil) async -> Bool {
-        await check(directory: directory) == .ready
-    }
-
     @discardableResult
     func check(directory: String?, force: Bool = false) async -> State {
         await check(login: await GitHub.login(forDirectory: directory), force: force)

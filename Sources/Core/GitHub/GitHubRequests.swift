@@ -7,6 +7,10 @@ actor GitHubRequests {
         let directory: String?
         let arguments: [String]
         var login: GitHubLogin = .thisMac
+
+        var limitedHost: String {
+            login.directory.map { host + "\n" + $0.path } ?? host
+        }
     }
     private struct Flight {
         let id: UUID
@@ -24,7 +28,7 @@ actor GitHubRequests {
         if !interactive, let flight = flights[key] {
             return try await wait(for: flight.task)
         }
-        let lease = try await limits.check(host: key.host, interactive: interactive)
+        let lease = try await limits.check(host: key.limitedHost, interactive: interactive)
         try Task.checkCancellation()
         if !interactive, let flight = flights[key] {
             return try await wait(for: flight.task)
@@ -34,7 +38,7 @@ actor GitHubRequests {
             let result = try await execute()
             if !result.ok && GitHubReadFailure.isRateLimit(result.stderr + result.stdout) {
                 let retryAt = await limits.limited(
-                    host: key.host, lease: lease,
+                    host: key.limitedHost, lease: lease,
                     retryAt: GitHubReadFailure.retryDate(from: result.stderr, now: Date())
                 )
                 throw GitHubReadFailure(
@@ -42,7 +46,7 @@ actor GitHubRequests {
                     retryAt: retryAt
                 )
             }
-            if result.ok { await limits.succeeded(host: key.host, lease: lease) }
+            if result.ok { await limits.succeeded(host: key.limitedHost, lease: lease) }
             return result
         }
         if !interactive {
@@ -90,7 +94,8 @@ extension GitHub {
         timeout: Duration = .seconds(20), repositoryContext: GitRepositoryContext? = nil
     ) async throws -> ShellResult {
         guard executable == "gh" else {
-            return try await Shell.run(executable, arguments, cwd: cwd, timeout: timeout)
+            let login = await login(forDirectory: cwd)
+            return try await Shell.run(executable, arguments, cwd: cwd, env: login.variables, timeout: timeout)
         }
         let context: GitRepositoryContext?
         if let repositoryContext { context = repositoryContext } else {

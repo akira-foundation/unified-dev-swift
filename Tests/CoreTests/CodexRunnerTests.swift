@@ -25,14 +25,18 @@ private func makeCodexSession(
 private func makeRunner(
     store: Store,
     session: Session,
-    box: ProcessBox
+    box: ProcessBox,
+    gitHub: GitHubLogin = .thisMac,
+    seen: SeenEnvironment? = nil
 ) async throws -> CodexRunner {
     CodexRunner(
         workspacePath: "/tmp/w",
         session: session,
         store: store, segmentID: try await activeSegmentID(store, session),
+        gitHub: gitHub,
         makeClient: { configuration in
-            CodexClient(configuration: configuration, makeProcess: box.factory)
+            seen?.value.withLock { $0 = configuration.environment }
+            return CodexClient(configuration: configuration, makeProcess: box.factory)
         }
     )
 }
@@ -68,6 +72,21 @@ private func eventually(
 }
 
 @Suite(.scratchDirectory) struct CodexRunnerTests {
+    @Test func theServerStartsUnderTheProfilesGitHubLogin() async throws {
+        let store = try makeTestStore("codex-github-login")
+        let (session, _) = try await makeCodexSession(store)
+        let seen = SeenEnvironment()
+        let runner = try await makeRunner(
+            store: store, session: session, box: scriptedBox(),
+            gitHub: GitHubLogin.profile(ProfileID("debtges"), directory: URL(filePath: "/support/GitHubLogins/debtges")), seen: seen
+        )
+        defer { runner.terminateNow() }
+        try await runner.send("first turn")
+        let environment = seen.value.withLock { $0 }
+        #expect(environment["GH_CONFIG_DIR"] == "/support/GitHubLogins/debtges")
+        #expect(environment["GH_TOKEN"] == nil)
+    }
+
     @Test(arguments: [false, true])
     func lateStoppedCompletionCannotEndTheNextIntentionalTurn(delayStart: Bool) async throws {
         let store = try makeTestStore("codex-late-stop")

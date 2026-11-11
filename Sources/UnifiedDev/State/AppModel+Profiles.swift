@@ -65,12 +65,13 @@ extension AppModel {
         store?.gitHubLogins().source(of: id) ?? .inherits
     }
 
-    func setGitHubSource(_ source: ProfileGitHubSource, for id: ProfileID) async {
-        guard let store else { return }
+    func setGitHubSource(_ source: ProfileGitHubSource, for id: ProfileID) async -> Bool {
+        guard let store else { return false }
         do {
             try await store.setGitHubSource(source, for: id)
+            return true
         } catch {
-            alert = AppAlert(title: "Could not change the profile's GitHub login", message: error.readableMessage)
+            return false
         }
     }
 

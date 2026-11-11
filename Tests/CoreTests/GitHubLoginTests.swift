@@ -52,12 +52,11 @@ struct GitHubLoginTests {
     }
 
     @Test func aDirectoryBelongsToTheProfileOfTheWorkspaceOrProjectHoldingIt() {
-        let site = Repo(name: "site", path: "/code/site", profileID: debtges)
-        let app = Repo(name: "app", path: "/code/app", profileID: .initial)
-        let worktree = Workspace(
-            repoID: site.id, name: "w", branch: "feature/w", path: "/worktrees/debtges/site/w", baseBranch: "main"
-        )
-        let routes = GitHubLoginRoutes(repos: [site, app], workspaces: [worktree])
+        let routes = GitHubLoginRoutes(routes: [
+            .init(path: "/code/site", profile: debtges),
+            .init(path: "/code/app", profile: .initial),
+            .init(path: "/worktrees/debtges/site/w", profile: debtges),
+        ])
 
         #expect(routes.profile(forDirectory: "/code/site") == debtges)
         #expect(routes.profile(forDirectory: "/code/site/Sources/") == debtges)
@@ -66,6 +65,15 @@ struct GitHubLoginTests {
         #expect(routes.profile(forDirectory: "/code/site-2") == nil)
         #expect(routes.profile(forDirectory: "/elsewhere") == nil)
         #expect(routes.profile(forDirectory: "") == nil)
+        #expect(routes.profile(forDirectory: "/Code/Site/README.md") == debtges)
+    }
+
+    @Test func anUnreadableRouteRefusesRatherThanUseThisMacsLoginOnceAProfileHasItsOwn() {
+        #expect(ProfileGitHubLogins(sources: [debtges: .inherits], root: root).unresolved == .thisMac)
+
+        let unresolved = ProfileGitHubLogins(sources: [debtges: .own], root: root).unresolved
+        #expect(unresolved.directory?.path == "/support/GitHubLogins/.unresolved")
+        #expect(unresolved.variables["GH_TOKEN"] == "")
     }
 
     @Test func theDeepestPathDecidesWhenOneHoldsAnother() {
@@ -78,6 +86,9 @@ struct GitHubLoginTests {
     }
 
     @Test func theFootnoteSaysWhichLoginAProfileUses() {
+        let unified = ProfileGitHubWording.footnote(source: .inherits, isInitial: true, profileName: "Unified", user: nil)
+        #expect(unified.contains("this Mac's GitHub CLI login") && unified.contains("signed out"))
+
         let inherits = ProfileGitHubWording.footnote(source: .inherits, isInitial: false, profileName: "Debtges", user: "octo")
         #expect(inherits.contains("Unified's GitHub login") && inherits.contains("octo"))
 

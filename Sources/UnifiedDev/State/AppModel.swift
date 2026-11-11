@@ -224,7 +224,7 @@ final class AppModel {
             }.value
             Log.launchStep("store open")
             self.store = store
-            GitHub.adoptLoginResolver { [store] directory in try? await store.gitHubLogin(forDirectory: directory) }
+            GitHub.adoptLoginResolver { [store] directory in await store.gitHubLogin(forDirectory: directory) }
             ComposerModelCatalog.shared.configure(store: store)
             let manager = WorkspaceManager(store: store)
             self.manager = manager
