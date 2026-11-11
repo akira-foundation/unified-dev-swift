@@ -762,6 +762,52 @@ struct AgentRunnerProcessTests {
         #expect(recorder.all.isEmpty)
     }
 
+    @Test("a send that fails after its process started ends that process and gives the account back")
+    func aFailedSendFreesTheAccount() async throws {
+        let store = try makeTestStore("agent")
+        let session = try await makeSession(store)
+        let recorder = ProcessRecorder()
+        let activity = ClaudeAccountActivity()
+        let account = AgentAccountHome.defaultID(for: .claudeCode)
+        let runner = AgentRunner(
+            workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session),
+            activity: activity, makeProcess: recorder.factory
+        )
+        let unclaimed = try await store.enqueueDelivery(Delivery(targetSessionID: session.id, body: "hello"))
+
+        await #expect(throws: DeliveryDispatchError.notClaimed) { try await runner.sendDelivery(unclaimed) }
+        let process = try #require(recorder.last)
+
+        #expect(process.wasTerminated)
+        #expect(process.stdin.isEmpty)
+        await waitUntil("the account is free again") { !activity.isRunning(account) }
+        #expect(activity.beginProbe(account))
+    }
+
+    @Test("a failed send leaves a process alone once a turn has been written to it")
+    func aFailedSendKeepsAPromptedProcess() async throws {
+        let store = try makeTestStore("agent")
+        let session = try await makeSession(store)
+        let recorder = ProcessRecorder()
+        let activity = ClaudeAccountActivity()
+        let account = AgentAccountHome.defaultID(for: .claudeCode)
+        let runner = AgentRunner(
+            workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session),
+            activity: activity, makeProcess: recorder.factory
+        )
+        try await runner.send("hello")
+        let unclaimed = try await store.enqueueDelivery(Delivery(targetSessionID: session.id, body: "and this"))
+
+        await #expect(throws: DeliveryDispatchError.notClaimed) { try await runner.sendDelivery(unclaimed) }
+        let process = try #require(recorder.last)
+
+        #expect(recorder.all.count == 1)
+        #expect(!process.wasTerminated)
+        #expect(activity.isRunning(account))
+        process.endOutput()
+        await waitUntil("the runner stopped") { await runner.isRunning == false }
+    }
+
     @Test("a stop pressed while two sends wait for the probe ends both of them")
     func aStopEndsEverySendWaiting() async throws {
         let store = try makeTestStore("agent")
