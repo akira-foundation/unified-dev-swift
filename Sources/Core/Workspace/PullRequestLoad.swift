@@ -28,7 +28,7 @@ public enum PullRequestLoad: Sendable, Equatable {
 
     public static func read(repoPath: String, offered: Bool) async -> Self {
         guard offered else { return .listed([]) }
-        let access = await GitHub.access()
+        let access = await GitHub.access(directory: repoPath)
         guard access == .ready else { return from(access: access, failure: nil, requests: []) }
         do {
             return .listed(try await GitHub.openPullRequests(repoPath: repoPath))

@@ -4,6 +4,7 @@ import Synchronization
 public actor Store {
     private let db: SQLiteDatabase
     public nonisolated let path: String
+    let gitHubLoginBook: Mutex<ProfileGitHubLogins>
 
     public static let primaryBundleIdentifier = "io.akira.unifieddev"
     public static let devBundleIdentifier = "io.akira.unifieddev.dev"
@@ -39,10 +40,14 @@ public actor Store {
     }
 
     public init(path: String) throws {
+        let database = try SQLiteDatabase(path: path)
+        try Self.migrate(database)
+        try database.transaction { try Self.seedOceans(database) }
+        let sources = try ProfileGitHubColumn.sources { try database.query($0) }
+        let support = URL(filePath: path).deletingLastPathComponent()
         self.path = path
-        self.db = try SQLiteDatabase(path: path)
-        try Self.migrate(db)
-        try db.transaction { try Self.seedOceans(db) }
+        self.db = database
+        self.gitHubLoginBook = Mutex(ProfileGitHubLogins(sources: sources, root: ProfileGitHubLogins.root(support: support)))
     }
 
     private nonisolated static func seedOceans(_ db: SQLiteDatabase) throws {
@@ -687,6 +692,7 @@ public actor Store {
             { try PreAccountChatOwners.record($0, predatingAccounts: current <= beforeAccounts.count) },
             sql(InboxNotificationColumns.createTable),
             { try UndatedArchives.stamp($0) },
+            ProfileGitHubColumn.migrate,
         ]
 
         guard current >= 0, current <= migrations.count else {
@@ -884,6 +890,12 @@ public actor Store {
     @discardableResult
     public func setAccountSource(_ source: ProfileAccountSource, for profile: ProfileID) throws -> [RepoID] {
         try db.transaction { try writeAccountSource(source, for: profile) }
+    }
+
+    func writeGitHubSource(_ source: ProfileGitHubSource, for profile: ProfileID) throws {
+        try db.run(ProfileGitHubColumn.setSource, [.text(source.rawValue), .text(profile)])
+        let sources = try ProfileGitHubColumn.sources { try db.query($0) }
+        gitHubLoginBook.withLock { $0 = ProfileGitHubLogins(sources: sources, root: $0.root) }
     }
 
     func writeAccountSource(_ source: ProfileAccountSource, for profile: ProfileID) throws -> [RepoID] {

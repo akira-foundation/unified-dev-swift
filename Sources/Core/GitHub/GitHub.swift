@@ -202,21 +202,32 @@ public enum GitHub {
 
     public static let checksUnavailableSummary = "Checks unavailable"
 
-    public static func isAvailable() async -> Bool {
-        await access() == .ready
+    public static func isAvailable(directory: String? = nil) async -> Bool {
+        await access(directory: directory) == .ready
     }
 
-    public static func access() async -> GitHubAccess {
+    public static func access(directory: String? = nil) async -> GitHubAccess {
+        await access(login: await login(forDirectory: directory))
+    }
+
+    public static func access(login: GitHubLogin) async -> GitHubAccess {
         await LoginShellPath.ready()
         guard Shell.which("gh") != nil else { return .notInstalled }
-        guard let result = try? await authStatus() else { return .signedOut }
+        guard let result = try? await authStatus(login: login) else { return .signedOut }
         return result.ok ? .ready : .signedOut
     }
 
-    private static func authStatus() async throws -> ShellResult {
+    public static func signedInUser(login: GitHubLogin) async -> String? {
+        guard let result = try? await $login.withValue(login, operation: {
+            try await run("gh", ["api", "user", "--jq", ".login"], timeout: .seconds(15))
+        }), result.ok, isPlausibleLogin(result.trimmed) else { return nil }
+        return result.trimmed
+    }
+
+    private static func authStatus(login: GitHubLogin) async throws -> ShellResult {
         let arguments = ["auth", "status"]
-        if let commandOverride { return try await commandOverride(arguments, nil) }
-        return try await Shell.run("gh", arguments, timeout: .seconds(20))
+        if let commandOverride { return try await $login.withValue(login) { try await commandOverride(arguments, nil) } }
+        return try await Shell.run("gh", arguments, env: login.variables, timeout: .seconds(20))
     }
 
     public static func pullRequest(

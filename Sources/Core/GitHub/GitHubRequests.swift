@@ -1,10 +1,12 @@
 import Foundation
+import Synchronization
 
 actor GitHubRequests {
     struct Key: Hashable, Sendable {
         let host: String
         let directory: String?
         let arguments: [String]
+        var login: GitHubLogin = .thisMac
     }
     private struct Flight {
         let id: UUID
@@ -67,6 +69,21 @@ actor GitHubRequests {
 extension GitHub {
     private static let requests = GitHubRequests()
     @TaskLocal static var commandOverride: (@Sendable ([String], String?) async throws -> ShellResult)?
+    @TaskLocal public static var login: GitHubLogin?
+    @TaskLocal static var loginResolverOverride: (@Sendable (String) async -> GitHubLogin?)?
+    private static let loginResolver = Mutex<(@Sendable (String) async -> GitHubLogin?)?>(nil)
+
+    public static func adoptLoginResolver(_ resolve: @escaping @Sendable (String) async -> GitHubLogin?) {
+        loginResolver.withLock { $0 = resolve }
+    }
+
+    public static func login(forDirectory directory: String?) async -> GitHubLogin {
+        if let login { return login }
+        guard let directory, let resolve = loginResolverOverride ?? loginResolver.withLock({ $0 }) else {
+            return .thisMac
+        }
+        return await resolve(directory) ?? .thisMac
+    }
 
     static func run(
         _ executable: String, _ arguments: [String] = [], cwd: String? = nil,
@@ -84,11 +101,12 @@ extension GitHub {
         let resolved = repositoryArguments(arguments, context: context)
         let host = requestHost(arguments: resolved, context: context)
         let command = commandOverride
+        let login = await login(forDirectory: cwd)
         return try await requests.run(
-            key: .init(host: host, directory: cwd, arguments: resolved), interactive: interactive
+            key: .init(host: host, directory: cwd, arguments: resolved, login: login), interactive: interactive
         ) {
-            if let command { return try await command(resolved, cwd) }
-            return try await Shell.run(executable, resolved, cwd: cwd, timeout: timeout)
+            if let command { return try await $login.withValue(login) { try await command(resolved, cwd) } }
+            return try await Shell.run(executable, resolved, cwd: cwd, env: login.variables, timeout: timeout)
         }
     }
 

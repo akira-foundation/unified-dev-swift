@@ -37,6 +37,7 @@ public actor GrokRunner: SessionRunner {
     private var trouble = PersistenceTrouble()
     private let bridge: BridgeAttachment?
     private let account: AgentAccountHome?
+    private let gitHub: GitHubLogin
 
     public init(
         workspacePath: String,
@@ -45,6 +46,7 @@ public actor GrokRunner: SessionRunner {
         segmentID: SessionSegmentID,
         bridge: BridgeAttachment? = nil,
         account: AgentAccountHome? = nil,
+        gitHub: GitHubLogin = .thisMac,
         makeClient: @escaping @Sendable (GrokClient.Configuration) -> GrokClient = GrokRunner.spawn
     ) {
         self.workspacePath = workspacePath
@@ -53,6 +55,7 @@ public actor GrokRunner: SessionRunner {
         self.store = store
         self.bridge = bridge
         self.account = account
+        self.gitHub = gitHub
         self.segment = RunnerSegment(sessionID: session.id, store: store, id: segmentID)
         self.makeClient = makeClient
         self.grants = SessionGrants(store: store, workspaceID: session.workspaceID)
@@ -236,6 +239,7 @@ public actor GrokRunner: SessionRunner {
             account: account,
             clientName: "Unified Dev",
             clientVersion: Self.clientVersion,
+            environment: gitHub.applied(to: Shell.environment()),
             model: wireModel,
             effort: session.effort,
             alwaysApprove: permissionMode == .bypassPermissions,

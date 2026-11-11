@@ -269,13 +269,13 @@ public struct WorkspaceMergeTool: BridgeToolHandling {
             guard let pullRequest = try await GitHub.pullRequest(
                 forBranch: workspace.branch, worktree: workspace.path
             ) else {
-                let access = await GitHub.access()
+                let access = await GitHub.access(directory: workspace.path)
                 return access == .ready ? .noPullRequest : .unavailable(access)
             }
             let local = try? await Git.localWork(worktree: workspace.path)
             return .found(pullRequest, local: local)
         } catch {
-            let access = await GitHub.access()
+            let access = await GitHub.access(directory: workspace.path)
             return access == .ready ? .failed(plainly(error)) : .unavailable(access)
         }
     }

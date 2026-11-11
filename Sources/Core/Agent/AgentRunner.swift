@@ -52,6 +52,7 @@ public actor AgentRunner {
     private var launchedCommand = ""
     private let mcpConfigPath: String?
     private let account: AgentAccountHome?
+    private let gitHub: GitHubLogin
     private let inheritedEnvironment: [String: String]?
     private var isFastMode = false
     private var configuredExecutable = AgentKind.claudeCode.executableName
@@ -85,6 +86,7 @@ public actor AgentRunner {
         segmentID: SessionSegmentID,
         mcpConfigPath: String? = nil,
         account: AgentAccountHome? = nil,
+        gitHub: GitHubLogin = .thisMac,
         inheritedEnvironment: [String: String]? = nil,
         shutdownBudget: Duration = AgentRunner.defaultShutdownBudget,
         activity: ClaudeAccountActivity = .shared,
@@ -98,6 +100,7 @@ public actor AgentRunner {
         self.mcpConfigPath = mcpConfigPath
         self.account = account
         self.segment = RunnerSegment(sessionID: session.id, store: store, id: segmentID)
+        self.gitHub = gitHub
         self.inheritedEnvironment = inheritedEnvironment
         self.shutdownBudget = shutdownBudget
         self.makeProcess = makeProcess
@@ -188,7 +191,9 @@ public actor AgentRunner {
                 orchestrates: orchestrates
             ),
             cwd: workspacePath,
-            environment: AgentAccountEnvironment.apply(account, to: inheritedEnvironment ?? Shell.environment())
+            environment: AgentAccountEnvironment.apply(
+                account, to: gitHub.applied(to: inheritedEnvironment ?? Shell.environment())
+            )
         )
     }
 
