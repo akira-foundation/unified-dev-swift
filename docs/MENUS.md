@@ -80,7 +80,7 @@ contribute for free.
 | Go Back in Files / Go Forward in Files, worded Go Back / Go Forward on a browser pane | `⌘[` `⌘]` | the focused review or browser pane has somewhere to go |
 | Reload Page, worded Stop Loading while a page loads | `⌘R` | a browser pane with a page is focused and no review is open |
 | Responsive Preview | `⌥⌘R` | a browser pane is focused and no review is open |
-| Restore Full Browser Size | `⇧⌥⌘0` | a browser pane at a set size is focused and no review is open |
+| Restore Full Browser Size | `⌥⇧⌘0` | a browser pane at a set size is focused and no review is open |
 | Send a Screenshot to the Agent | `⌥⌘S` | a browser pane with a page is focused and nothing is being captured |
 | Comment on an Area, worded Finish Reviewing Page during a review | `⌥⌘C` | a browser pane with a page is focused, and no review is being saved and no comment is being typed |
 | Open in Default Browser | `⌥⌘O` | a browser pane with a web address is focused |
@@ -247,7 +247,7 @@ loud somewhere a user can read it.
 | Jump back or forward several pages | right click on an arrow | **no** | none |
 | Reload / Stop | toolbar | yes, View | `⌘R` |
 | Responsive Preview | toolbar, and the page menu | yes, View | `⌥⌘R` |
-| Restore Full Browser Size | toolbar, and the page menu | yes, View | `⇧⌥⌘0` |
+| Restore Full Browser Size | toolbar, and the page menu | yes, View | `⌥⇧⌘0` |
 | Send a Screenshot to the Agent | toolbar, and the page menu | yes, View | `⌥⌘S` |
 | Comment on an Area | labelled Comment button in the toolbar, and the page menu | yes, View | `⌥⌘C` |
 | Add selected area and comment to the draft | inline review-comment editor | **no** | `Return` or `⌘Return` |

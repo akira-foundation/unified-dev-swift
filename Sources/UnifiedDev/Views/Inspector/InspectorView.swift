@@ -86,7 +86,7 @@ struct InspectorView: View {
             }
 
             ToolbarItem(placement: .primaryAction) {
-                WindowPaneToggle(edge: .trailing, isVisible: true) { app.toggleInspector() }
+                InspectorToggle(visibility: app.inspectorVisibility) { app.toggleInspector() }
             }
         }
         .environment(\.openInRepoID, model.repo?.id)

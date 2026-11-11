@@ -242,7 +242,7 @@ struct AppCommands: Commands {
                 NotificationCenter.default.post(name: .unifieddevToggleSidebar, object: nil)
             }
 
-            MenuCommand(.toggleInspector, alternate: !model.isInspectorVisible) {
+            MenuCommand(.toggleInspector, alternate: model.inspectorVisibility.menuTitleIsAlternate) {
                 model.toggleInspector()
             }
 

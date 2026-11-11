@@ -78,7 +78,14 @@ final class AppModel {
         if profiles != loaded { profiles = loaded }
     }
 
-    var isInspectorVisible = FrameProbe.wantsInspector && !InspectorDefaults.isHidden
+    var inspectorVisibility = InspectorVisibility(
+        isVisible: FrameProbe.wantsInspector && InspectorDefaults.stored.isVisible
+    )
+
+    var isInspectorVisible: Bool {
+        get { inspectorVisibility.isVisible }
+        set { inspectorVisibility.isVisible = newValue }
+    }
 
     var isSidebarHidden = false
 
@@ -669,16 +676,20 @@ final class AppModel {
     }
 
     var isInspectorPresented: Bool {
-        isInspectorVisible && selectedWorkspace != nil
+        inspectorVisibility.isPresented(hasWorkspace: selectedWorkspace != nil)
     }
 
     func setInspectorVisible(_ isVisible: Bool) {
-        isInspectorVisible = isVisible
-        InspectorDefaults.remember(isVisible: isVisible)
+        remember(InspectorVisibility(isVisible: isVisible))
     }
 
     func toggleInspector() {
-        setInspectorVisible(!isInspectorVisible)
+        remember(inspectorVisibility.toggled())
+    }
+
+    private func remember(_ visibility: InspectorVisibility) {
+        inspectorVisibility = visibility
+        InspectorDefaults.remember(visibility)
     }
 
     var selectedArchivedWorkspace: Workspace? {

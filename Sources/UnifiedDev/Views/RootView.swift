@@ -242,9 +242,9 @@ struct RootView: View {
         WindowColumns.resolve(
             selection: app.selection,
             hasInspectorSubject: app.selectedModel != nil,
-            reservesInspectorRoom: app.isInspectorPresented,
+            reservesInspectorRoom: app.selectedWorkspace != nil,
             hidesSidebar: app.isSidebarHidden,
-            hidesInspector: !app.isInspectorVisible,
+            hidesInspector: app.inspectorVisibility.hidesInspector,
             widths: UnifiedDevApp.widths,
             availableWidth: availableWidth
         )

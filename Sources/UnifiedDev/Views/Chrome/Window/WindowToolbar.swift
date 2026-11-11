@@ -68,7 +68,7 @@ struct WindowToolbar: ToolbarContent {
 
         if columns.inspectorToggleSection == .centre {
             ToolbarItem(placement: .primaryAction) {
-                WindowPaneToggle(edge: .trailing, isVisible: false) { app.toggleInspector() }
+                InspectorToggle(visibility: app.inspectorVisibility) { app.toggleInspector() }
             }
         }
 

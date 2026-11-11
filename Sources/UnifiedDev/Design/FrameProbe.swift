@@ -246,7 +246,7 @@ enum FrameProbe {
             "pane": .string(requestedPane?.rawValue ?? "whatever was open"),
             "selection": .string(selection ?? "home"),
             "drawnRows": .integer(TranscriptDrawn.rows),
-            "inspector": .bool(wantsInspector),
+            "inspector": .bool(ProbeHarness.appModel?.isInspectorVisible ?? wantsInspector),
             "restoredWorkspace": .string(
                 UserDefaults.standard.string(forKey: "sidebar.lastWorkspaceID") ?? "none"
             ),
