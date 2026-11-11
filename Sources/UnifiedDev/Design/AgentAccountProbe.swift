@@ -166,7 +166,7 @@ enum AgentAccountProbe {
 
     private static func shoot(_ scene: Scene, scheme: ColorScheme) async -> Bool {
         guard let drawn = await OffscreenSnapshot.png(
-            of: scene.view.background(Palette.surface), size: scene.size, scheme: scheme
+            of: scene.view, size: scene.size, scheme: scheme, background: Palette.surface
         ) else { return false }
         let name = "\(scene.name)-\(scheme)"
         do {

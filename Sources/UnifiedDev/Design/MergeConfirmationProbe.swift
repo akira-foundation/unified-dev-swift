@@ -50,7 +50,7 @@ enum MergeConfirmationProbe {
             authority: authority, canMerge: true, tint: Palette.positive, onConfirm: {}, onCancel: {}
         )
         guard let drawn = await OffscreenSnapshot.png(
-            of: view.background(Palette.surfaceRaised), size: size, scheme: scheme
+            of: view, size: size, scheme: scheme, background: Palette.surfaceRaised
         ) else { return false }
         return (try? drawn.write(to: URL(filePath: directory + "/\(name)-\(scheme).png"))) != nil
     }

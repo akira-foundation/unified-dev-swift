@@ -4,11 +4,12 @@ import SwiftUI
 #if DEBUG
 @MainActor
 enum OffscreenSnapshot {
-    static func png(of view: some View, size: CGSize, scheme: ColorScheme) async -> Data? {
+    static func png(of view: some View, size: CGSize, scheme: ColorScheme, background: Color) async -> Data? {
         let host = NSHostingController(rootView: view
-            .environment(\.colorScheme, scheme)
+            .frame(width: size.width, height: size.height)
+            .background(background)
             .transaction { $0.disablesAnimations = true }
-            .frame(width: size.width, height: size.height))
+            .environment(\.colorScheme, scheme))
         host.sizingOptions = []
         let window = NSWindow(
             contentRect: CGRect(origin: .zero, size: size), styleMask: [.borderless], backing: .buffered, defer: false
