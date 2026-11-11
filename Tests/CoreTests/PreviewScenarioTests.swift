@@ -59,6 +59,8 @@ struct PreviewScenarioTests {
         #"{"projects":[]}"#,
         #"{"projects":[{"name":"../escape"}]}"#,
         #"{"projects":[{"name":".hidden"}]}"#,
+        #"{"projects":[{"name":"--bare"}]}"#,
+        #"{"projects":[{"name":"-q"}]}"#,
         #"{"projects":[{"name":"a"},{"name":"A"}]}"#,
         #"{"projects":[{"name":"a","files":{"/etc/hosts":"x"}}]}"#,
         #"{"projects":[{"name":"a","files":{"src/../../x":"x"}}]}"#,
