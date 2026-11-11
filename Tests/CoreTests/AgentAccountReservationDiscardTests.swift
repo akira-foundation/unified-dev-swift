@@ -70,4 +70,27 @@ struct AgentAccountReservationDiscardTests {
         #expect(!stray.discard(processes: { [] }))
         #expect(FileManager.default.fileExists(atPath: elsewhere.path))
     }
+
+    @Test func aReservationTheGateRefusesIsNotRetried() async throws {
+        let support = URL(filePath: TestScratch.unique("support"), directoryHint: .isDirectory)
+        let made = try AgentAccountCreation.reserve(
+            provider: .claudeCode, label: "Client", existing: [], support: support
+        ).plan
+        let elsewhere = URL(filePath: TestScratch.unique("elsewhere"), directoryHint: .isDirectory)
+            .appending(path: made.id.rawValue, directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: elsewhere, withIntermediateDirectories: true)
+        let stray = AgentAccountReservation(
+            plan: AgentAccountCreation(provider: made.provider, label: made.label, id: made.id, directory: elsewhere),
+            support: support
+        )
+        let reads = Reads()
+
+        let discarded = await stray.discardOnceReleased(attempts: 3, pause: .zero, processes: {
+            _ = reads.next()
+            return []
+        })
+
+        #expect(!discarded)
+        #expect(reads.next() == 0)
+    }
 }

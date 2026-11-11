@@ -23,6 +23,7 @@ public struct AgentAccountReservation: Sendable, Hashable {
         pause: Duration = .milliseconds(250),
         processes: @Sendable () -> [ProcessVector]? = ProcessVectors.ofOtherProcesses
     ) async -> Bool {
+        guard AgentAccountRemoval.directory(of: plan.home, support: support) != nil else { return false }
         for attempt in 0..<attempts {
             if attempt > 0 { try? await Task.sleep(for: pause) }
             guard plan.directoryExists else { return false }
