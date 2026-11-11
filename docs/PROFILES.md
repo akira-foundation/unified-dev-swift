@@ -128,7 +128,7 @@ run under the identity of another. Switching back to Unified's login keeps the f
 its own again finds the same login. Deleting a profile leaves its folder and its Keychain entry where they are.
 
 `GitHubLoginRoutes` decides which profile a directory belongs to, from the projects and workspaces that hold
-it, following a symbolic link on either side, and `ProfileGitHubLogins` decides which login
+it, as written first and then through any symbolic link, ignoring case on a disk that ignores it, and `ProfileGitHubLogins` decides which login
 that profile uses. A directory no project holds runs under this Mac's login. When the database cannot be read
 to tell, and some profile has a login of its own, the call runs signed out rather than under this Mac's login.
 A workspace chat's agent runs under the login of its project's profile, and an Ask chat's under that of the

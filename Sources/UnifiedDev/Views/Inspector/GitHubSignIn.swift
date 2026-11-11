@@ -33,7 +33,6 @@ final class GitHubSignIn {
                 action()
                 return
             }
-            guard login.acceptsSignIn else { return }
             pending = action
             request = Request(access: state, directory: directory, login: login)
         }

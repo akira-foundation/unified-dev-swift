@@ -5,7 +5,7 @@ public actor Store {
     private let db: SQLiteDatabase
     public nonisolated let path: String
     let gitHubLoginBook: Mutex<ProfileGitHubLogins>
-    private var gitHubRouteCache: (changes: Int64, routes: GitHubLoginRoutes)?
+    private var gitHubRouteCache: (signature: String, routes: GitHubLoginRoutes)?
 
     public static let primaryBundleIdentifier = "io.akira.unifieddev"
     public static let devBundleIdentifier = "io.akira.unifieddev.dev"
@@ -894,8 +894,14 @@ public actor Store {
     }
 
     func gitHubLoginRoutes() throws -> GitHubLoginRoutes {
-        let changes = try db.query("SELECT total_changes() AS changes").first?.int("changes") ?? -1
-        if let cached = gitHubRouteCache, cached.changes == changes { return cached.routes }
+        let signature = try db.query(
+            """
+            SELECT (SELECT COUNT(*) || ':' || IFNULL(SUM(LENGTH(path)), 0) || ':' || IFNULL(GROUP_CONCAT(profile_id), '')
+                    FROM repos)
+                || '|' || (SELECT COUNT(*) || ':' || IFNULL(SUM(LENGTH(path)), 0) FROM workspaces) AS signature
+            """
+        ).first?.string("signature") ?? ""
+        if let cached = gitHubRouteCache, cached.signature == signature { return cached.routes }
         let rows = try db.query(
             """
             SELECT path, profile_id FROM repos
@@ -908,7 +914,7 @@ public actor Store {
             let resolved = URL(filePath: path).resolvingSymlinksInPath().path
             return Set([path, resolved]).map { GitHubLoginRoutes.Route(path: $0, profile: ProfileID(profile)) }
         })
-        gitHubRouteCache = (changes, routes)
+        gitHubRouteCache = (signature, routes)
         return routes
     }
 

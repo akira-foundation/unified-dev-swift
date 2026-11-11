@@ -19,6 +19,8 @@ struct GitHubSignInSheet: View {
     }
 
     private static let successPause = Duration.milliseconds(700)
+    private static let unresolvedRefusal =
+        "Unified Dev could not tell which profile this belongs to, so it did not sign in. Try again in a moment."
     private static let manualURL = "https://cli.github.com/manual/gh_auth_login"
     private static let downloadURL = "https://cli.github.com"
 
@@ -26,6 +28,7 @@ struct GitHubSignInSheet: View {
         self.request = request
         self.onFinish = onFinish
         _access = State(initialValue: request.access)
+        if !request.login.acceptsSignIn { _phase = State(initialValue: .failed(Self.unresolvedRefusal)) }
     }
 
     var body: some View {
@@ -222,7 +225,7 @@ struct GitHubSignInSheet: View {
         let executable = access == .notInstalled ? "brew" : "gh"
         let arguments = access == .notInstalled ? ["install", "gh"] : ["auth", "login"]
         guard request.login.acceptsSignIn else {
-            phase = .failed("Unified Dev could not tell which profile this belongs to, so it did not sign in.")
+            phase = .failed(Self.unresolvedRefusal)
             return
         }
         do {

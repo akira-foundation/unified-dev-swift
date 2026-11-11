@@ -21,13 +21,21 @@ public struct GitHubLoginRoutes: Sendable, Hashable {
 
     public func profile(forDirectory directory: String) -> ProfileID? {
         guard !directory.isEmpty else { return nil }
-        let resolved = URL(filePath: directory).resolvingSymlinksInPath().path
-        let candidates = Set([Self.normalised(directory), Self.normalised(resolved)])
-        return routes.first { route in candidates.contains { Self.holds(route.path, $0) } }?.profile
+        let url = URL(filePath: directory)
+        let ignoresCase = (try? url.resourceValues(forKeys: [.volumeSupportsCaseSensitiveNamesKey]))?
+            .volumeSupportsCaseSensitiveNames == false
+        for wanted in [Self.normalised(directory), Self.normalised(url.resolvingSymlinksInPath().path)] {
+            if let route = routes.first(where: { Self.holds($0.path, wanted, ignoringCase: ignoresCase) }) {
+                return route.profile
+            }
+        }
+        return nil
     }
 
-    private static func holds(_ route: String, _ wanted: String) -> Bool {
-        wanted == route || wanted.hasPrefix(route == "/" ? "/" : route + "/")
+    private static func holds(_ route: String, _ wanted: String, ignoringCase: Bool) -> Bool {
+        let route = ignoringCase ? route.lowercased() : route
+        let wanted = ignoringCase ? wanted.lowercased() : wanted
+        return wanted == route || wanted.hasPrefix(route == "/" ? "/" : route + "/")
     }
 
     static func normalised(_ path: String) -> String {

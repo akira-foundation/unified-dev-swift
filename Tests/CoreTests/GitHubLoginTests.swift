@@ -89,6 +89,16 @@ struct GitHubLoginTests {
         #expect((attributes[.posixPermissions] as? NSNumber)?.intValue == 0o700)
     }
 
+    @Test func aPathSpelledInAnotherCaseFindsItsProjectOnADiskThatIgnoresCase() throws {
+        let real = URL(filePath: TestScratch.unique("Cased-Site")).resolvingSymlinksInPath().path
+        try FileManager.default.createDirectory(atPath: real + "/Sources", withIntermediateDirectories: true)
+        let ignoresCase = (try URL(filePath: real).resourceValues(forKeys: [.volumeSupportsCaseSensitiveNamesKey]))
+            .volumeSupportsCaseSensitiveNames == false
+        let routes = GitHubLoginRoutes(routes: [.init(path: real, profile: debtges)])
+        let respelled = real.lowercased() + "/sources"
+        #expect(routes.profile(forDirectory: respelled) == (ignoresCase ? debtges : nil))
+    }
+
     @Test func theDeepestPathDecidesWhenOneHoldsAnother() {
         let routes = GitHubLoginRoutes(routes: [
             .init(path: "/code", profile: .initial),
