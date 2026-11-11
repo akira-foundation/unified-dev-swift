@@ -187,8 +187,9 @@ runs, while the usage question of `ClaudeCodeQuotaSource` runs, while `AgentAcco
 has exited or been killed. A probe does not start a launch while the account is held, and a start that
 arrives during a launch waits for it to end, after which the probe asks nothing more. A stop pressed
 during that wait ends the turn at once, without waiting for the probe, and so does cancelling the task
-that waits. A send that fails after its process started and before a turn was written to it ends
-that process, so the account is not left held by a process nobody will use.
+that waits. A process that a failed send started and never wrote a turn to is kept, because a delivery retried
+a moment later uses it, but idle eviction ends it even though it has no agent session id yet: with no
+turn there is nothing to resume, and ending it is what gives the account back.
 
 What the app cannot hold is a start it does not make: a `claude` typed into one of the app's
 terminals, a second copy of the app, or the CLI started anywhere else on this Mac. Those can run

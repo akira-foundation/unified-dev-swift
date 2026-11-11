@@ -217,7 +217,8 @@ public actor AgentRunner {
 
     public func evictIfIdle(for duration: Duration) async -> Bool {
         guard !wasEvicted, sendsInFlight == 0, !session.state.isMidTurn,
-              session.agentSessionID != nil, pending.isEmpty, !sink.hasBackgroundWork else { return false }
+              session.agentSessionID != nil || promptedGeneration != handle.generation,
+              pending.isEmpty, !sink.hasBackgroundWork else { return false }
         let lastActivity = sink.lastActivity
         guard lastActivity.duration(to: .now) >= duration,
               let waiting = try? await store.pendingDeliveries(sessionID: session.id), waiting.isEmpty else { return false }
@@ -254,17 +255,6 @@ public actor AgentRunner {
         start()
 
         let generation = handle.generation
-        do {
-            try await deliver(text, sidePrompt: sidePrompt, recording: recording, deliveryID: deliveryID,
-                              deliveredSeq: deliveredSeq, generation: generation)
-        } catch {
-            endUnpromptedRun(generation)
-            throw error
-        }
-    }
-
-    private func deliver(_ text: String, sidePrompt: String, recording: Data?, deliveryID: DeliveryID?,
-                         deliveredSeq: Int?, generation: Int) async throws {
         let isMidTurn = promptedGeneration == generation && session.state.isMidTurn
         if !isMidTurn { await segment.confirmWhatIsOwed() }
         let prompt = isMidTurn ? sidePrompt : try await store.handoffPrompt(
@@ -288,12 +278,6 @@ public actor AgentRunner {
 
         session.apply(.turnStarted)
         await save(session)
-    }
-
-    private func endUnpromptedRun(_ generation: Int) {
-        guard sendsInFlight == 1, promptedGeneration != generation,
-              handle.generation == generation, handle.current != nil else { return }
-        cancel(generation: generation)
     }
 
     private func refreshFastMode() async {

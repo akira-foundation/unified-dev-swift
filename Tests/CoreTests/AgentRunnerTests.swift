@@ -762,8 +762,8 @@ struct AgentRunnerProcessTests {
         #expect(recorder.all.isEmpty)
     }
 
-    @Test("a send that fails after its process started ends that process and gives the account back")
-    func aFailedSendFreesTheAccount() async throws {
+    @Test("a process left without a turn by a failed send is ended once idle, and gives the account back")
+    func anUnpromptedProcessIsEvictedOnceIdle() async throws {
         let store = try makeTestStore("agent")
         let session = try await makeSession(store)
         let recorder = ProcessRecorder()
@@ -777,7 +777,12 @@ struct AgentRunnerProcessTests {
 
         await #expect(throws: DeliveryDispatchError.notClaimed) { try await runner.sendDelivery(unclaimed) }
         let process = try #require(recorder.last)
+        let heldAfterTheFailure = activity.isRunning(account)
+        #expect(try await store.cancelDelivery(id: unclaimed.id))
+        let evicted = await runner.evictIfIdle(for: .zero)
 
+        #expect(heldAfterTheFailure)
+        #expect(evicted)
         #expect(process.wasTerminated)
         #expect(process.stdin.isEmpty)
         await waitUntil("the account is free again") { !activity.isRunning(account) }
