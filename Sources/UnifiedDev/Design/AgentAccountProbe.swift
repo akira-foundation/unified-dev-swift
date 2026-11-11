@@ -165,32 +165,9 @@ enum AgentAccountProbe {
     }
 
     private static func shoot(_ scene: Scene, scheme: ColorScheme) async -> Bool {
-        let host = NSHostingController(rootView: scene.view
-            .environment(\.colorScheme, scheme)
-            .background(Palette.surface)
-            .transaction { $0.disablesAnimations = true }
-            .frame(width: scene.size.width, height: scene.size.height))
-        host.sizingOptions = []
-        let window = NSWindow(
-            contentRect: CGRect(origin: .zero, size: scene.size),
-            styleMask: [.borderless], backing: .buffered, defer: false
-        )
-        window.appearance = NSAppearance(named: scheme == .dark ? .darkAqua : .aqua)
-        window.contentViewController = host
-        host.view.frame = CGRect(origin: .zero, size: scene.size)
-        host.view.layoutSubtreeIfNeeded()
-        try? await Task.sleep(for: .milliseconds(400))
-        host.view.displayIfNeeded()
-        guard let bitmap = host.view.bitmapImageRepForCachingDisplay(in: host.view.bounds),
-              let context = NSGraphicsContext(bitmapImageRep: bitmap)
-        else { return false }
-        if host.view.isFlipped {
-            context.cgContext.translateBy(x: 0, y: scene.size.height)
-            context.cgContext.scaleBy(x: 1, y: -1)
-        }
-        host.view.layer?.render(in: context.cgContext)
-        context.flushGraphics()
-        guard let drawn = bitmap.representation(using: .png, properties: [:]) else { return false }
+        guard let drawn = await OffscreenSnapshot.png(
+            of: scene.view.background(Palette.surface), size: scene.size, scheme: scheme
+        ) else { return false }
         let name = "\(scene.name)-\(scheme)"
         do {
             try drawn.write(to: URL(filePath: directory + "/" + name + ".png"))
