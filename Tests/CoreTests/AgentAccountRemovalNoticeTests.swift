@@ -71,4 +71,50 @@ struct AgentAccountRemovalNoticeTests {
 
         #expect(!notice.isShown(among: codexRows))
     }
+
+    @Test func aRemovalWhoseRowIsGoneIsShownAboveOnlyOnItsOwnAgent() throws {
+        let clicked = try row(AccountFixture.work, in: rows([AccountFixture.defaultClaude, AccountFixture.work]))
+        let notice = AgentAccountRemovalNotice.after(
+            AgentAccountError.keychainEntriesLeft(["Claude Code-credentials-abc"]), removing: clicked
+        )
+        let claude = AgentAccountPanel.make(
+            provider: .claudeCode, standings: [AccountFixture.standing(AccountFixture.defaultClaude)], codexStorageMode: .file
+        )
+        let codex = AgentAccountPanel.make(
+            provider: .codex, standings: [AccountFixture.standing(AccountFixture.defaultCodex)], codexStorageMode: .file
+        )
+
+        #expect(notice.isShownAbove(claude))
+        #expect(!notice.isShownAbove(codex))
+    }
+
+    @Test func aNoticeBesideItsRowIsNotAlsoShownAbove() throws {
+        let panel = AgentAccountPanel.make(
+            provider: .claudeCode, standings: [AccountFixture.standing(AccountFixture.work)], codexStorageMode: .file
+        )
+        let notice = AgentAccountRemovalNotice.after(
+            AgentAccountError.folderInUse("/f"), removing: try row(AccountFixture.work, in: panel.rows)
+        )
+
+        #expect(!notice.isShownAbove(panel))
+    }
+
+    @Test func eachRefusalSaysWhatHappenedToTheAccount() throws {
+        let account = try row(AccountFixture.work, in: rows([AccountFixture.work]))
+        let unfinished = try row(AccountFixture.work, in: rows([], orphans: [AccountFixture.work]))
+
+        let misplaced = AgentAccountRemovalNotice.after(AgentAccountError.folderLeftAlone("/f"), removing: account)
+        let misplacedSignIn = AgentAccountRemovalNotice.after(AgentAccountError.folderLeftAlone("/f"), removing: unfinished)
+        let kept = AgentAccountRemovalNotice.after(AgentAccountError.forgottenWithFolderKept("/f"), removing: account)
+        let running = AgentAccountRemovalNotice.after(AgentAccountError.inUse(workspaces: ["glyphs"]), removing: account)
+
+        #expect(misplaced.message.hasPrefix("\(account.title) was forgotten, but its folder is not where"))
+        #expect(misplaced.forgotTheAccount)
+        #expect(misplacedSignIn.message.hasPrefix("Could not remove \(unfinished.title): its folder is not where"))
+        #expect(!misplacedSignIn.forgotTheAccount)
+        #expect(kept.message.contains("may still be in use") && kept.message.contains("unfinished sign-in"))
+        #expect(kept.forgotTheAccount)
+        #expect(running.message.hasPrefix("Could not remove \(account.title): An agent is running under this account in glyphs"))
+        #expect(!running.forgotTheAccount)
+    }
 }

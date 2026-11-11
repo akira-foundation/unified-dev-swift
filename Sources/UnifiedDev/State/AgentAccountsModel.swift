@@ -150,6 +150,7 @@ final class AgentAccountsModel {
         guard let store else { return }
         let support = Self.support(of: store)
         removalNotice = nil
+        failure = nil
         do {
             try await AgentAccountRemoval.remove(row, support: support, store: store, keychain: .login)
             if !row.isUnfinished { answers[row.id] = nil }

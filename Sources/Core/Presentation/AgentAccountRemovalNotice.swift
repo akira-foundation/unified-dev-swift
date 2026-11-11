@@ -21,6 +21,10 @@ public struct AgentAccountRemovalNotice: Sendable, Equatable {
         rows.contains(where: belongs)
     }
 
+    public func isShownAbove(_ panel: AgentAccountPanel) -> Bool {
+        panel.provider == provider && !isShown(among: panel.rows)
+    }
+
     private static func describe(_ error: any Error, removing row: AgentAccountPanel.Row) -> (String, Bool) {
         let forgets = !row.isUnfinished
         switch error as? AgentAccountError {

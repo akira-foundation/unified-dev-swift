@@ -60,7 +60,7 @@ struct AgentsSettingsView: View {
                 }
             }
 
-            if let notice = accounts.removalNotice, !notice.isShown(among: accountPanel.rows) {
+            if let notice = accounts.removalNotice, notice.isShownAbove(accountPanel) {
                 Section {
                     ErrorBanner(title: "Accounts", message: notice.message) {
                         accounts.dismissRemovalNotice()
