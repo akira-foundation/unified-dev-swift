@@ -21,6 +21,10 @@ struct AgentsSettingsView: View {
 
     private var accounts: AgentAccountsModel { app.agentAccounts }
 
+    private var accountPanel: AgentAccountPanel {
+        accounts.panel(for: selection, in: app.activeProfileID, profiles: app.profiles, repos: app.repos)
+    }
+
     private var executables: [AgentKind: String] { statuses.compactMapValues(\.executablePath) }
 
     var body: some View {
@@ -56,6 +60,14 @@ struct AgentsSettingsView: View {
                 }
             }
 
+            if let notice = accounts.removalNotice, notice.isShownAbove(accountPanel) {
+                Section {
+                    ErrorBanner(title: "Accounts", message: notice.message) {
+                        accounts.dismissRemovalNotice()
+                    }
+                }
+            }
+
             if isLoading {
                 Section {
                     LoadingView("Looking for agent CLIs")
@@ -69,8 +81,10 @@ struct AgentsSettingsView: View {
                 capabilitySection
 
                 AgentAccountsSection(
-                    panel: accounts.panel(for: selection, in: app.activeProfileID, profiles: app.profiles, repos: app.repos),
+                    panel: accountPanel,
                     activity: accounts.activity,
+                    removalNotice: accounts.removalNotice,
+                    onDismissRemovalNotice: { accounts.dismissRemovalNotice() },
                     canSignIn: status.executablePath != nil,
                     onAdd: { accountsFlow.isNamingAccount = true },
                     onRemove: { accountsFlow.removing = $0 },
