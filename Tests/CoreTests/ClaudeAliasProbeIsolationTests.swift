@@ -66,14 +66,13 @@ struct ClaudeAliasProbeIsolationTests {
         #expect(!stillAlive)
     }
 
-    @Test("the address gets no answer and every proxied request is refused, as the CLI would see them")
+    @Test("the address the CLI is given gets no answer and every proxy it is given refuses, while the CLI runs")
     func nothingTheCLISendsGetsAnAnswer() async throws {
         let record = TestScratch.path("record")
         try FileManager.default.createDirectory(atPath: record, withIntermediateDirectories: true)
         let cli = try fakeCLI("""
-        /usr/bin/curl -s -o /dev/null -m 1 "$ANTHROPIC_BASE_URL/v1/messages"; echo $? > "$PROBE_RECORD/base"
-        /usr/bin/curl -s -o /dev/null -m 2 https://192.0.2.1/; echo $? > "$PROBE_RECORD/https"
-        /usr/bin/curl -s -o /dev/null -m 2 http://192.0.2.1/; echo $? > "$PROBE_RECORD/http"
+        env > "$PROBE_RECORD/env.partial" && mv "$PROBE_RECORD/env.partial" "$PROBE_RECORD/env"
+        while [ ! -e "$PROBE_RECORD/go" ]; do /bin/sleep 0.05; done
         echo '{"type":"system","subtype":"init","model":"claude-opus-5-5"}'
         exec /bin/sleep 30
         """)
@@ -83,16 +82,32 @@ struct ClaudeAliasProbeIsolationTests {
             "HTTPS_PROXY": "http://proxy.example:8080",
         ]
 
-        let answers = await resolve(realProbe(cli, inherited: inherited), ["opus"], account: probeAccount(), upTo: .seconds(45))
-        func code(_ name: String) -> Int? {
-            (try? String(contentsOfFile: (record as NSString).appendingPathComponent(name), encoding: .utf8))
-                .flatMap { Int($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+        let answers = AwaitedAnswer<ClaudeAliasAnswers>()
+        let probe = realProbe(cli, inherited: inherited)
+        Task { answers.set(await probe.resolve(["opus"], account: probeAccount())) }
+        await waitUntil("the CLI wrote what it was given") { FileManager.default.fileExists(atPath: record + "/env") }
+        let environment = try String(contentsOfFile: record + "/env", encoding: .utf8)
+            .split(separator: "\n")
+            .reduce(into: [String: String]()) { found, line in
+                guard let equals = line.firstIndex(of: "=") else { return }
+                found[String(line[..<equals])] = String(line[line.index(after: equals)...])
+            }
+        let base = try #require(environment["ANTHROPIC_BASE_URL"].flatMap(LoopbackExchange.port(of:)))
+        let proxies = ClaudeAliasProbe.proxyVariables.sorted().map { environment[$0].flatMap(LoopbackExchange.port(of:)) }
+        let modelRequest = LoopbackExchange.send(
+            "POST /v1/messages HTTP/1.1\r\nHost: api.anthropic.com\r\n\r\n", to: base, waiting: .milliseconds(300)
+        )
+        let proxied = proxies.compactMap(\.self).map {
+            LoopbackExchange.send("CONNECT api.anthropic.com:443 HTTP/1.1\r\n\r\n", to: $0, waiting: .seconds(5))
         }
+        try "".write(toFile: record + "/go", atomically: true, encoding: .utf8)
+        let resolved = await answers.wait(upTo: .seconds(20))
 
-        #expect(answers?.probed == ["opus": "claude-opus-5-5"])
-        #expect(code("base") == 28)
-        #expect([52, 55, 56].contains(code("https") ?? 28))
-        #expect([52, 55, 56].contains(code("http") ?? 28))
+        #expect(resolved?.probed == ["opus": "claude-opus-5-5"])
+        #expect(modelRequest?.isStillWaiting == true)
+        #expect(proxies.allSatisfy { $0 != nil && $0 != base })
+        #expect(proxied.count == ClaudeAliasProbe.proxyVariables.count)
+        #expect(proxied.allSatisfy { $0 != nil && $0?.wasAnswered == false && $0?.isStillWaiting == false })
     }
 
     @Test("each probe runs in a directory of its own, found empty and removed afterwards")
