@@ -9,6 +9,7 @@ public enum AgentAccountError: Error, Equatable, LocalizedError {
     case folderUseUnknown(String)
     case forgottenWithFolderKept(String)
     case keychainEntriesLeft([String])
+    case spendUnread(String)
 
     public var errorDescription: String? {
         switch self {
@@ -26,6 +27,8 @@ public enum AgentAccountError: Error, Equatable, LocalizedError {
             "Unified Dev could not tell whether anything is still using this account's folder, so it left it alone: \(path)"
         case .forgottenWithFolderKept(let path):
             "The account was forgotten, but its folder may still be in use, so Unified Dev left it alone. It is listed as an unfinished sign-in: \(path)"
+        case .spendUnread(let path):
+            "Unified Dev could not read the spend in one of this account's transcripts, so the account and its folder were kept: \(path)"
         case .keychainEntriesLeft(let services):
             "Its sign-in is still in your keychain, because Unified Dev could not delete it. Delete \(services.joined(separator: " and ")) in Keychain Access."
         }
@@ -99,7 +102,8 @@ public enum AgentAccountRemoval {
         guard running.isEmpty else { throw AgentAccountError.inUse(workspaces: running) }
         if let directory = directory(of: home, support: support) {
             try requireNothingHolds(directory, processes: processes)
-            try await SpendIndexer(store: store).read(account: home)
+            let unread = try await SpendIndexer(store: store).read(account: home)
+            if let first = unread.first { throw AgentAccountError.spendUnread(first) }
         }
         try await store.forgetAgentAccount(home.id)
         do {

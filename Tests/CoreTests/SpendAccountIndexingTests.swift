@@ -223,4 +223,30 @@ struct SpendAccountIndexingTests {
         #expect(!FileManager.default.fileExists(atPath: removed.directory.path))
         #expect(try await spendTotals(in: world.store).output == 100)
     }
+
+    @Test("an account whose transcripts cannot be read is kept, folder and all")
+    func unreadableTranscriptKeepsTheAccount() async throws {
+        let world = try World()
+        let held = try await world.createAccount(label: "Held")
+        try world.transcript([claudeLine(60, identity: "msg_held")], in: held)
+        let file = held.directory.appending(path: "projects/-Users-ada-work/s.jsonl")
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: file.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: file.path) }
+
+        var refusal: AgentAccountError?
+        do {
+            try await AgentAccountRemoval.remove(held, support: world.support, store: world.store, keychain: .untouched, processes: { [] })
+        } catch let error as AgentAccountError {
+            refusal = error
+        }
+
+        guard case .spendUnread(let path) = refusal else {
+            Issue.record("the removal went ahead: \(String(describing: refusal))")
+            return
+        }
+        #expect(path.hasSuffix("/projects/-Users-ada-work/s.jsonl"))
+
+        #expect(FileManager.default.fileExists(atPath: held.directory.path))
+        #expect(try await world.store.agentAccounts().map(\.id) == [held.id])
+    }
 }
