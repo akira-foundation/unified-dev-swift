@@ -372,6 +372,7 @@ final class AppModel {
 
     func reload() async {
         guard let store else { return }
+        ActivityTally.reloads += 1
         let known = Set(workspaces.map(\.id))
         do {
             try await reloadProfiles()
@@ -550,12 +551,16 @@ final class AppModel {
                 guard DiffRefreshSchedule.isDue(activity: activity, lastRun: lastRun, now: now)
                 else { continue }
                 lastRun = now
-                await self.noteMissingWorktrees(exempt: self.archivingWorkspaceIDs.union(self.restoring))
-                let refreshed = await self.refreshDiffStats(activity: activity)
-                if let selected = self.selection.workspaceID, refreshed.contains(selected) {
-                    await self.refreshSelectedChangedFiles(activity: activity)
-                }
+                await self.runDiffRefreshTick(activity: activity)
             }
+        }
+    }
+
+    func runDiffRefreshTick(activity: DiffRefreshSchedule.Activity) async {
+        await noteMissingWorktrees(exempt: archivingWorkspaceIDs.union(restoring))
+        let refreshed = await refreshDiffStats(activity: activity)
+        if let selected = selection.workspaceID, refreshed.contains(selected) {
+            await refreshSelectedChangedFiles(activity: activity)
         }
     }
 

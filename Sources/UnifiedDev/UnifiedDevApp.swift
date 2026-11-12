@@ -76,6 +76,7 @@ struct UnifiedDevApp: App {
         if WelcomeRestartProbe.isRequested { WelcomeRestartProbe.schedule() }
 
         if IdleProbe.isRequested { IdleProbe.schedule() }
+        if BusyProbe.isRequested { BusyProbe.schedule() }
         if BrowserToolbarProbe.isRequested { BrowserToolbarProbe.schedule() }
 
         TranscriptStateDump.listen()

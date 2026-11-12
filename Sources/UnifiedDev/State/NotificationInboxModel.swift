@@ -33,6 +33,7 @@ final class NotificationInboxModel {
 
     func reload() async {
         guard let store = app?.store else { return }
+        ActivityTally.inboxReloads += 1
         let loaded = NotificationInbox.ordered((try? await store.inboxNotifications()) ?? [])
         if rows != loaded { rows = loaded }
         noteOnScreen()
