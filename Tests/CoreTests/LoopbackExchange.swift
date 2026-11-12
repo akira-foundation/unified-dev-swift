@@ -8,7 +8,7 @@ struct LoopbackExchange: Sendable {
 
     var wasAnswered: Bool { received > 0 }
     var isStillWaiting: Bool { connected && received < 0 && (failure == EAGAIN || failure == EWOULDBLOCK) }
-    var wasClosedUnanswered: Bool { connected && (received == 0 || (received < 0 && failure == ECONNRESET)) }
+    var wasClosedUnanswered: Bool { failure == ECONNRESET || (connected && received == 0) }
 
     static func port(of url: String) -> UInt16? {
         guard let components = URLComponents(string: url), components.scheme == "http",
