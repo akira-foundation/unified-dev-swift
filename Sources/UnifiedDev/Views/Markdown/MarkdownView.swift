@@ -62,6 +62,7 @@ public struct MarkdownView: View {
 
     private var parsed: (blocks: [MarkdownBlock], addresses: [String]) {
         guard isStreaming else {
+            streamSlot.forgetStream()
             let box = MarkdownParseCache.parsed(for: text)
             return (box.blocks, box.addresses)
         }

@@ -38,6 +38,12 @@ final class MarkdownStreamSlot {
         Self.probeTap?(text, blocks, ProcessInfo.processInfo.systemUptime - started)
         return blocks
     }
+
+    func forgetStream() {
+        guard parsed != nil else { return }
+        parse = MarkdownStreamParse()
+        parsed = nil
+    }
 }
 
 @MainActor
