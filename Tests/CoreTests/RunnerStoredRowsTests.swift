@@ -20,8 +20,8 @@ private func decidedRowsBox() -> ProcessBox {
 }
 
 @Suite(.scratchDirectory)
-struct RunnerDecidedRowsTests {
-    @Test("the row an event announces is handed over decided, equal to the stored one")
+struct RunnerStoredRowsTests {
+    @Test("the row an event announces is handed over, equal to the stored one")
     func theAnnouncedRowArrivesWithTheEvent() async throws {
         let store = try makeTestStore("decided-rows")
         let session = try await decidedRowsSession(store)
@@ -33,7 +33,7 @@ struct RunnerDecidedRowsTests {
         )
         defer { runner.terminateNow() }
         let feed = try #require(runner.presentationFeed)
-        let relay = try #require(runner.decidedMessages)
+        let relay = try #require(runner.storedMessages)
 
         try await runner.send("hello")
         box.process.emit(GrokOutgoing.notification(method: "session/update", params: .object([
@@ -53,9 +53,9 @@ struct RunnerDecidedRowsTests {
 
         let handed = try #require(relay.take(after: seq - 1, through: seq))
 
-        #expect(handed.map(\.message.id) == [stored.id])
-        #expect(handed.map(\.message.kind) == [stored.kind])
-        #expect(handed.map(\.message.payload) == [stored.payload])
-        #expect(handed.map(\.message.refID) == [stored.refID])
+        #expect(handed.map(\.id) == [stored.id])
+        #expect(handed.map(\.kind) == [stored.kind])
+        #expect(handed.map(\.payload) == [stored.payload])
+        #expect(handed.map(\.refID) == [stored.refID])
     }
 }

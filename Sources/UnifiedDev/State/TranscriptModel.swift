@@ -199,7 +199,7 @@ final class TranscriptModel {
     private var isReconcilingPresentation = false
     private var isReplayingPastTurn = false
     private var presentationMessageSeq: Int?
-    @ObservationIgnored private var probeRelay: DecidedMessageRelay?
+    @ObservationIgnored private var probeRelay: StoredMessageRelay?
     private var dispatchingDeliveryID: DeliveryID?
     private var activeInteractionMode: InteractionMode?
     private var runner: (any SessionRunner)?
@@ -280,6 +280,7 @@ final class TranscriptModel {
 
     func reloadAfterRewind() async {
         guard let store else { return }
+        runner?.storedMessages?.clear()
         chatStop = chatStop.afterRewind
         sending = nil
         steering = nil
@@ -1799,7 +1800,7 @@ final class TranscriptModel {
         await handle(event)
     }
 
-    func acceptForProbe(_ event: AgentEvent, messageSeq: Int, relayedBy relay: DecidedMessageRelay? = nil) async {
+    func acceptForProbe(_ event: AgentEvent, messageSeq: Int, relayedBy relay: StoredMessageRelay? = nil) async {
         presentationMessageSeq = messageSeq
         probeRelay = relay
         await handle(event)
@@ -2029,10 +2030,10 @@ final class TranscriptModel {
     }
 
     private func latestDecided(from store: Store) async -> [DecidedMessage] {
-        if let last = presentationMessageSeq,
-           let relayed = (probeRelay ?? runner?.decidedMessages)?.take(after: highestSeenMessageSeq, through: last) {
-            return relayed
+        let relayed = presentationMessageSeq.flatMap {
+            (probeRelay ?? runner?.storedMessages)?.take(after: highestSeenMessageSeq, through: $0)
         }
+        if let relayed { return await DecidedMessage.deciding(relayed) }
         let fresh = (try? await store.messages(sessionID: session.id, afterSeq: highestSeenMessageSeq)) ?? []
         return await DecidedMessage.deciding(fresh)
     }

@@ -40,7 +40,7 @@ public actor AgentRunner {
     private let shutdownBudget: Duration
     private let makeProcess: @Sendable (AgentLaunch) -> any AgentProcessing
     private let sink = AgentPresentationFeed()
-    private let decided = DecidedMessageRelay()
+    private let announced = StoredMessageRelay()
     private var sendsInFlight = 0
     private var wasEvicted = false
     private let handle = ProcessHandle()
@@ -216,7 +216,7 @@ public actor AgentRunner {
 
     public nonisolated var events: AsyncStream<AgentEvent> { sink.stream() }
     public nonisolated var presentationFeed: AgentPresentationFeed? { sink }
-    public nonisolated var decidedMessages: DecidedMessageRelay? { decided }
+    public nonisolated var storedMessages: StoredMessageRelay? { announced }
 
     public func setPersistsStreamDeltas(_ value: Bool) {
         persistsStreamDeltas = value
@@ -505,7 +505,7 @@ public actor AgentRunner {
             break
         }
 
-        if let storedMessage { decided.deposit(DecidedMessage(storedMessage)) }
+        if let storedMessage { announced.deposit(storedMessage) }
         sink.yield(event, messageSeq: storedMessage?.seq)
 
         if case .permissionAsk(let ask) = event {

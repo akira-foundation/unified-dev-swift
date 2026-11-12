@@ -4,7 +4,9 @@ import Core
 
 @MainActor
 enum StreamToolResultsProbe {
-    static var isRequested: Bool { ProbeHarness.isPresent("--stream-tools") }
+    static var isRequested: Bool {
+        ProbeHarness.isPresent("--stream-tools") && PreviewIdentity.isPreview(bundleIdentifier: Bundle.main.bundleIdentifier)
+    }
 
     private struct ToolPair {
         let call: String
@@ -23,7 +25,7 @@ enum StreamToolResultsProbe {
             return ToolPair(call: id, use: toolUse(id: id), result: toolResult(id: id, body: body, isError: isError), isError: isError)
         }
         let rowsBefore = transcript.rows.count
-        let relay = DecidedMessageRelay()
+        let relay = StoredMessageRelay()
 
         var acceptCpu = 0.0
         let cpuBefore = ProbeHarness.mainThreadCPUSeconds()
@@ -32,7 +34,7 @@ enum StreamToolResultsProbe {
             guard let use = try? await store.appendNext(
                 sessionID: transcript.session.id, kind: .toolUse, payload: pair.use, refID: pair.call
             ) else { continue }
-            await relayed(use, into: relay)
+            relay.deposit(use)
             acceptCpu += await accept(
                 .toolUse(AgentToolUse(id: pair.call, name: "Read", input: .object([:]), raw: pair.use)),
                 seq: use.seq, relay: relay, transcript: transcript
@@ -40,7 +42,7 @@ enum StreamToolResultsProbe {
             guard let result = try? await store.appendNext(
                 sessionID: transcript.session.id, kind: .toolResult, payload: pair.result, refID: pair.call
             ) else { continue }
-            await relayed(result, into: relay)
+            relay.deposit(result)
             acceptCpu += await accept(
                 .toolResult(AgentToolResult(toolUseID: pair.call, text: "", isError: pair.isError, raw: pair.result)),
                 seq: result.seq, relay: relay, transcript: transcript
@@ -66,15 +68,11 @@ enum StreamToolResultsProbe {
     }
 
     private static func accept(
-        _ event: AgentEvent, seq: Int, relay: DecidedMessageRelay, transcript: TranscriptModel
+        _ event: AgentEvent, seq: Int, relay: StoredMessageRelay, transcript: TranscriptModel
     ) async -> Double {
         let before = ProbeHarness.mainThreadCPUSeconds()
         await transcript.acceptForProbe(event, messageSeq: seq, relayedBy: relay)
         return ProbeHarness.mainThreadCPUSeconds() - before
-    }
-
-    private static func relayed(_ message: Message, into relay: DecidedMessageRelay) async {
-        for decided in await DecidedMessage.deciding([message]) { relay.deposit(decided) }
     }
 
     private static func toolUse(id: String) -> Data {
