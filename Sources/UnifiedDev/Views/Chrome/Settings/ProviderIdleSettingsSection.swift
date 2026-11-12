@@ -3,7 +3,7 @@ import Core
 
 struct ProviderIdleSettingsSection: View {
     @Environment(AppModel.self) private var app
-    @State private var minutes = 0
+    @State private var minutes = ProviderIdlePolicy.defaultMinutes
     @State private var loaded = false
     @State private var failure: String?
 
@@ -22,8 +22,7 @@ struct ProviderIdleSettingsSection: View {
         }
         .task {
             let stored = try? await app.store?.setting(ProviderIdlePolicy.settingKey)
-            let value = stored.flatMap(Int.init) ?? 0
-            minutes = ProviderIdlePolicy.choices.contains(value) ? value : 0
+            minutes = ProviderIdlePolicy.minutes(stored: stored)
             loaded = true
         }
         .onChange(of: minutes) { _, value in
