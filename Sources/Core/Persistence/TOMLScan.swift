@@ -80,23 +80,17 @@ enum TOMLScan {
         var parts: [String] = []
         var current = ""
         var depth = 0
-        var quote: Character?
-        var escaped = false
         var close: String.Index?
-        for index in text.indices {
+        var index = text.startIndex
+        while index < text.endIndex {
             let character = text[index]
-            if let active = quote {
-                current.append(character)
-                switch (escaped, character) {
-                case (true, _): escaped = false
-                case (false, "\\") where active == "\"": escaped = true
-                case (false, active): quote = nil
-                default: break
-                }
+            guard character != "\"", character != "'" else {
+                let end = stringEnd(in: text, from: index)
+                current += text[index..<end]
+                index = end
                 continue
             }
             switch character {
-            case "\"", "'": quote = character
             case "#": return (parts + [current], depth, close, index)
             case "{", "[": depth += 1
             case "}", "]":
@@ -104,6 +98,7 @@ enum TOMLScan {
                 if depth == 0, close == nil, character == "}" { close = index }
             default: break
             }
+            index = text.index(after: index)
             guard character == separator, depth == 0 else {
                 current.append(character)
                 continue
@@ -112,5 +107,21 @@ enum TOMLScan {
             current = ""
         }
         return (parts + [current], depth, close, nil)
+    }
+
+    private static func stringEnd(in text: String, from start: String.Index) -> String.Index {
+        let quote = text[start]
+        let triple = String(repeating: quote, count: 3)
+        let delimiter = text[start...].hasPrefix(triple) ? triple : String(quote)
+        var cursor = text.index(start, offsetBy: delimiter.count)
+        while cursor < text.endIndex {
+            guard quote != "\"" || text[cursor] != "\\" else {
+                cursor = text.index(cursor, offsetBy: 2, limitedBy: text.endIndex) ?? text.endIndex
+                continue
+            }
+            if text[cursor...].hasPrefix(delimiter) { return text.index(cursor, offsetBy: delimiter.count) }
+            cursor = text.index(after: cursor)
+        }
+        return text.endIndex
     }
 }

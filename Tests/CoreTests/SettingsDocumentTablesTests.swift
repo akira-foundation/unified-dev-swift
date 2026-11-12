@@ -135,6 +135,81 @@ struct SettingsDocumentTablesTests {
         """)
     }
 
+    @Test("a dotted key inside a table gets its sibling written relative to that table")
+    func dottedSiblingInsideATable() {
+        var document = SettingsDocument(text: """
+        [scripts]
+          run.dev.command = "bun dev"
+          run.dev.file = "a"
+        setup = "bun install"
+        """)
+
+        document.set(.string("web"), at: ["scripts", "run", "dev", "name"])
+
+        #expect(document.text == """
+        [scripts]
+          run.dev.command = "bun dev"
+          run.dev.file = "a"
+          run.dev.name = "web"
+        setup = "bun install"
+        """)
+    }
+
+    @Test("a header written inside a script is neither listed nor where a removed table stops")
+    func headerInsideAScriptIsNotATable() {
+        var document = SettingsDocument(text: """
+        [scripts.run.dev]
+        command = '''
+        echo
+        [scripts.run.fake]
+        '''
+
+        [scripts.run.web]
+        command = "bun web"
+        """)
+
+        #expect(document.tables(under: ["scripts", "run"]) == [["scripts", "run", "dev"], ["scripts", "run", "web"]])
+
+        document.removeTable(at: ["scripts", "run", "dev"])
+
+        #expect(document.text == """
+        [scripts.run.web]
+        command = "bun web"
+        """)
+    }
+
+    @Test("a one-line triple-quoted string inside an array does not hide the tables after it")
+    func tripleQuotedInsideAnArray() {
+        var document = SettingsDocument(text: """
+        globs = ['''it's''', "b"]
+
+        [git]
+        archive_on_merge = false
+        """)
+
+        document.set(.boolean(true), at: ["git", "archive_on_merge"])
+
+        #expect(document.text == """
+        globs = ['''it's''', "b"]
+
+        [git]
+        archive_on_merge = true
+        """)
+    }
+
+    @Test("removing a key opens the inline table that holds it")
+    func removeOpensInlineTable() {
+        var document = SettingsDocument(text: """
+        [scripts.run]
+        dev = { command = "bun dev", name = "web" }
+        """)
+
+        document.remove(at: ["scripts", "run", "dev", "command"])
+
+        #expect(document.text.contains("command") == false)
+        #expect(document.text.contains("name = \"web\""))
+    }
+
     @Test("an inline table in an array of tables is left where it is")
     func arrayOfTablesIsLeftAlone() {
         let text = """
