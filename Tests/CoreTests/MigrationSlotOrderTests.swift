@@ -2,7 +2,7 @@ import Testing
 import Foundation
 @testable import Core
 
-@Suite("The order of the last two migrations", .tags(.persistence), .scratchDirectory)
+@Suite("The slot of the inbox migration among the last ones", .tags(.persistence), .scratchDirectory)
 struct MigrationSlotOrderTests {
     private func inboxTableExists(at path: String) throws -> Bool {
         let rows = try SQLiteDatabase(path: path).query(
@@ -21,8 +21,8 @@ struct MigrationSlotOrderTests {
         return (path, current)
     }
 
-    @Test func theSecondToLastMigrationCreatesTheInboxTable() throws {
-        let seeded = try storeWithoutInboxTable(rewoundBy: 2)
+    @Test func theThirdToLastMigrationCreatesTheInboxTable() throws {
+        let seeded = try storeWithoutInboxTable(rewoundBy: 3)
 
         _ = try Store(path: seeded.path)
 
@@ -30,8 +30,8 @@ struct MigrationSlotOrderTests {
         #expect(try SQLiteDatabase(path: seeded.path).readUserVersion() == seeded.current)
     }
 
-    @Test func theLastMigrationDoesNotCreateTheInboxTable() throws {
-        let seeded = try storeWithoutInboxTable(rewoundBy: 1)
+    @Test func theLastTwoMigrationsDoNotCreateTheInboxTable() throws {
+        let seeded = try storeWithoutInboxTable(rewoundBy: 2)
 
         _ = try Store(path: seeded.path)
 
