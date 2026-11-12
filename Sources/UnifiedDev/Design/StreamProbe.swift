@@ -59,6 +59,17 @@ enum StreamProbe {
             exit(0)
         }
 
+        if StreamMarkdownProbe.isRequested {
+            let markdown = await StreamMarkdownProbe.measure(
+                transcript: transcript, recorder: recorder, chunk: chunk, rate: rate
+            )
+            harness.write(.object([
+                "workspace": .string(workspaceID.rawValue),
+                "markdown": .object(markdown),
+            ].merging(harness.conditions(window: window)) { mine, _ in mine }))
+            exit(0)
+        }
+
         let typing = await measureTyping(editor: editor, transcript: transcript, recorder: recorder)
         let streaming = await measureStreaming(transcript: transcript, recorder: recorder)
 
