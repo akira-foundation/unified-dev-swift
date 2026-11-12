@@ -34,10 +34,10 @@ struct SideConversationView: View {
                 conversation(child)
             } else {
                 VStack(spacing: 12) {
-                    if state.isOpening { ProgressView().controlSize(.small) }
-                    Text(state.isOpening ? "Opening side conversation…" : "Could not open side conversation")
+                    if state.isBusy { ProgressView().controlSize(.small) }
+                    Text(state.isBusy ? "Opening side conversation…" : "Could not open side conversation")
                         .font(.callout)
-                    if !state.isOpening {
+                    if !state.isBusy {
                         Button("Try again") { model.openSideConversation(from: parent) }
                     }
                 }
@@ -71,17 +71,17 @@ struct SideConversationView: View {
             }
             .menuStyle(.borderlessButton)
             .fixedSize()
-            .disabled(state.isOpening || state.transcript == nil)
+            .disabled(state.isBusy || state.transcript == nil)
             .help("Start a new side conversation with the latest context")
             .accessibilityLabel("Side conversation options")
             Button {
-                model.dismissSideConversation(from: parent)
+                model.closeSideConversation(from: parent)
             } label: {
                 Image(systemName: "xmark")
             }
             .buttonStyle(.glass)
-            .help("Dismiss side conversation (Escape)")
-            .accessibilityLabel("Dismiss side conversation")
+            .help("Close side conversation")
+            .accessibilityLabel("Close side conversation")
         }
         .padding(14)
     }
@@ -124,7 +124,7 @@ struct SideConversationView: View {
             }
             .buttonStyle(.glass)
             .foregroundStyle(Palette.accent)
-            .disabled(state.isOpening || state.transcript == nil)
+            .disabled(state.isBusy || state.transcript == nil)
         }
         .font(.caption)
         .padding(.horizontal, 14)

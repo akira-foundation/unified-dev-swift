@@ -111,6 +111,32 @@ struct SideConversationTests {
         #expect(next.id != kept.id)
     }
 
+    @Test func aStartAfterACloseCarriesNothingOfTheClosedOne() async throws {
+        let (store, parent) = try await fixture()
+        try await store.append(user("First topic", sessionID: parent.id))
+        let closed = try await store.openSideConversation(parentID: parent.id)
+        try await store.add(try #require(ReplyQuote(selection: "old quote")), sessionID: closed.id)
+        try await store.append(user("Side question", sessionID: closed.id))
+        try await store.append(user("Later topic", sessionID: parent.id, seq: 1))
+        #expect(try await store.closeSideConversation(sessionID: closed.id))
+        let next = try await store.openSideConversation(parentID: parent.id)
+        let snapshot = try #require(try await store.sideConversationSnapshot(sessionID: next.id))
+        #expect(next.id != closed.id)
+        #expect(try await store.replyQuotes(sessionID: next.id).isEmpty)
+        #expect(try await store.messages(sessionID: next.id).isEmpty)
+        #expect(snapshot.context.contains("Later topic"))
+        #expect(try await store.session(id: closed.id)?.archivedAt != nil)
+    }
+
+    @Test func closeLeavesAKeptChatAlone() async throws {
+        let (store, parent) = try await fixture()
+        let child = try await store.openSideConversation(parentID: parent.id)
+        _ = try await store.keepSideConversation(sessionID: child.id)
+        #expect(try await store.closeSideConversation(sessionID: child.id) == false)
+        #expect(try await store.closeSideConversation(sessionID: parent.id) == false)
+        #expect(try await store.session(id: child.id)?.archivedAt == nil)
+    }
+
     @Test func closingParentMakesItsChildReachable() async throws {
         let (store, parent) = try await fixture()
         let child = try await store.openSideConversation(parentID: parent.id)

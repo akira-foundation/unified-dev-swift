@@ -1654,6 +1654,14 @@ public actor Store {
         }
     }
 
+    @discardableResult
+    public func closeSideConversation(sessionID: SessionID) throws -> Bool {
+        guard let row = try session(id: sessionID), row.sideConversationParentID != nil,
+              row.archivedAt == nil else { return false }
+        _ = try update(sessionID: sessionID) { $0.archivedAt = Date() }
+        return true
+    }
+
     public func sessions(workspaceID: WorkspaceID) throws -> [Session] {
         try db.query(
             "SELECT * FROM sessions WHERE workspace_id = ? AND archived_at IS NULL ORDER BY sort_order, created_at",

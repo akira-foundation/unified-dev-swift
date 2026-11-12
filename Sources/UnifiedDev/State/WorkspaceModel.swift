@@ -354,6 +354,22 @@ final class WorkspaceModel {
         }
     }
 
+    func endSideConversation(_ id: SessionID) {
+        transcripts.removeValue(forKey: id)?.teardown()
+        app.bridge?.retire(sessionID: id)
+        Task { [weak self] in
+            guard let self, let store else { return }
+            do {
+                try await store.closeSideConversation(sessionID: id)
+            } catch {
+                app.notice = Notice(
+                    message: "Could not close the side conversation: \(error.readableMessage)", tone: .error
+                )
+            }
+            await reloadSessions()
+        }
+    }
+
     func closeSession(_ session: Session) async {
         guard let store else { return }
         guard !HistoryWorkspaceGate.shared.holds(workspace.id) else {

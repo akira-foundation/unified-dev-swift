@@ -10,77 +10,100 @@ extension WorkspaceModel {
         let parentID = parent.session.id
         let state = sideConversations[parentID] ?? SideConversationState()
         sideConversations[parentID] = state
-        state.isVisible = true
-        if !quoting.isEmpty { state.pendingQuotes.append(quoting) }
-        guard !state.isOpening else { return false }
-        if !quoting.isEmpty, question.isEmpty, !fresh, let open = state.transcript {
-            applyPendingQuotes(state, to: open)
+        guard !state.isKeeping else { return false }
+        switch state.lifecycle.start(question: question, quoting: quoting, fresh: fresh) {
+        case .wait:
+            return true
+        case .resume(let id, let arrival):
+            guard let child = state.transcript, child.session.id == id else { return false }
+            deliver(arrival, to: child)
+            return true
+        case .open(let opening):
+            begin(opening, from: parent, state: state)
             return true
         }
-        state.isOpening = true
+    }
+
+    private func begin(
+        _ opening: SideConversationLifecycle.Opening, from parent: TranscriptModel, state: SideConversationState
+    ) {
+        let parentID = parent.session.id
         state.error = nil
-        if !question.isEmpty { state.pendingQuestion = question }
+        state.task?.cancel()
         state.task = Task { [weak self] in
-            defer { state.isOpening = false; state.task = nil }
             guard let self, let store else { return }
             do {
-                if fresh, let previous = state.transcript {
-                    _ = try await store.keepSideConversation(sessionID: previous.session.id)
+                if let previous = opening.keeping {
+                    _ = try await store.keepSideConversation(sessionID: previous)
                     state.transcript = nil
+                    state.snapshot = nil
                 }
                 try Task.checkCancellation()
                 let session = try await store.openSideConversation(
                     parentID: parentID, streamingText: parent.streamingText
                 )
-                try Task.checkCancellation()
+                let snapshot = try await store.sideConversationSnapshot(sessionID: session.id)
+                guard let arrival = state.lifecycle.opened(session.id, generation: opening.generation) else {
+                    try await store.closeSideConversation(sessionID: session.id)
+                    return
+                }
                 await reloadSessions()
+                guard state.lifecycle.sessionID == session.id else { return }
                 let child = transcript(for: session)
                 state.transcript = child
-                state.snapshot = try await store.sideConversationSnapshot(sessionID: session.id)
+                state.snapshot = snapshot
                 await child.load()
-                try Task.checkCancellation()
-                self.applyPendingQuotes(state, to: child)
-                if !state.pendingQuestion.isEmpty {
-                    let question = state.pendingQuestion
-                    state.pendingQuestion = ""
-                    await child.submit(question)
-                }
+                guard state.lifecycle.sessionID == session.id else { return }
+                deliver(arrival, to: child)
                 if state.isVisible { child.focusComposer() }
             } catch is CancellationError {
-                state.pendingQuotes = []
+                state.lifecycle.failed(generation: opening.generation)
             } catch {
-                state.pendingQuotes = []
+                state.lifecycle.failed(generation: opening.generation)
                 state.error = error.readableMessage
             }
         }
-        return true
     }
 
-    private func applyPendingQuotes(_ state: SideConversationState, to child: TranscriptModel) {
-        let quotes = state.pendingQuotes
-        state.pendingQuotes = []
-        quotes.forEach { child.reply(with: $0) }
+    private func deliver(_ arrival: SideConversationLifecycle.Arrival, to child: TranscriptModel) {
+        arrival.quotes.forEach { child.reply(with: $0) }
+        guard !arrival.question.isEmpty else { return }
+        Task { await child.submit(arrival.question) }
     }
 
     func dismissSideConversation(from parent: TranscriptModel) {
-        sideConversations[parent.session.id]?.isVisible = false
+        sideConversations[parent.session.id]?.lifecycle.hide()
         parent.focusComposer()
+    }
+
+    func closeSideConversation(from parent: TranscriptModel) {
+        guard let state = sideConversations[parent.session.id], !state.isKeeping else { return }
+        state.task?.cancel()
+        state.task = nil
+        let ending = state.lifecycle.close()
+        let child = state.transcript
+        state.transcript = nil
+        state.snapshot = nil
+        state.error = nil
+        parent.focusComposer()
+        guard let id = ending ?? child?.session.id else { return }
+        endSideConversation(id)
     }
 
     func keepSideConversation(from parent: TranscriptModel) {
         guard let state = sideConversations[parent.session.id], let child = state.transcript,
-              !state.isOpening, let store else { return }
-        state.isOpening = true
+              !state.isKeeping, state.lifecycle.sessionID == child.session.id, let store else { return }
+        state.isKeeping = true
         state.task = Task { [weak self] in
-            defer { state.isOpening = false; state.task = nil }
+            defer { state.isKeeping = false; state.task = nil }
             guard let self else { return }
             do {
                 guard let kept = try await store.keepSideConversation(sessionID: child.session.id) else { return }
                 try Task.checkCancellation()
                 child.session = kept
-                state.pendingQuotes = []
-                state.isVisible = false
+                _ = state.lifecycle.keep()
                 state.transcript = nil
+                state.snapshot = nil
                 await reloadSessions()
                 WorkspaceTabsStore.shared.reveal(.chat(kept.id), in: self)
             } catch is CancellationError {

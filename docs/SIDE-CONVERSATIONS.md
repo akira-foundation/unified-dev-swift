@@ -2,7 +2,10 @@
 
 Use `/btw` or the side-question button beside the composer to open a floating conversation.
 `/btw Why this approach?` opens it and sends the question. Follow-ups go to its own agent while
-work in the original chat continues. Escape dismisses the overlay; `/btw` resumes the same one.
+work in the original chat continues. Escape hides the overlay, and `/btw` or Reply brings back the
+same one. The close button ends it: its agent stops, its session is archived, and the next `/btw` or
+Reply starts a fresh one with only the new quote, an empty transcript and context taken from the
+main chat at that moment.
 The child inherits the parent's provider, model, reasoning, permissions and composer settings.
 
 **Keep as chat** gives the same conversation a regular tab. It preserves the provider session,
@@ -34,6 +37,8 @@ the session settings for provenance. A database trigger promotes children when t
 archived, including replacement through `/clear` or `/close`.
 
 The workspace owns the overlay state and the ordinary `TranscriptModel` owns the child runner.
-Dismissing the view stops neither agent. Workspace teardown cancels pending opening tasks and
+`SideConversationLifecycle` in Core decides what a start, a close and a keep do, including an
+opening that is closed before it arrives, which is archived as soon as it lands. Hiding the view
+stops neither agent; closing stops the side conversation's. Workspace teardown cancels pending opening tasks and
 stops all its runners. The floating composer excludes workspace review comments, and the native
 Stop Agent command follows composer focus.
