@@ -80,6 +80,7 @@ final class TranscriptModel {
     private var storedIsAwaitingPermission = false
     private(set) var isLoaded = false
     @ObservationIgnored private var rowsReleased = false
+    @ObservationIgnored private var releasedNotes: [Int: String] = [:]
     @ObservationIgnored private var viewers = 0
     @ObservationIgnored private var lastShown = 0
     @ObservationIgnored private static var showings = 0
@@ -399,6 +400,9 @@ final class TranscriptModel {
 
     func releaseRows() {
         guard isLoaded, !rowsReleased else { return }
+        releasedNotes = Dictionary(
+            rows.filter { !$0.permissionNote.isEmpty }.map { ($0.seq, $0.permissionNote) }
+        ) { first, _ in first }
         rows = []
         indexByRefID = [:]
         foldCache.reset()
@@ -411,10 +415,15 @@ final class TranscriptModel {
     private func restoreRows(from store: Store) async {
         guard rowsReleased else { return }
         let ceiling = highestSeenMessageSeq
-        let messages = ((try? await store.messages(sessionID: session.id)) ?? []).filter { $0.seq <= ceiling }
-        let built = await builtRows(from: messages, store: store)
+        guard let stored = try? await store.messages(sessionID: session.id) else { return }
+        let built = await builtRows(from: stored.filter { $0.seq <= ceiling }, store: store)
         guard rowsReleased else { return }
-        adopt((rows: built.rows, index: built.index, highestMessageSeq: max(ceiling, built.highestMessageSeq)))
+        var restored = built.rows
+        for index in restored.indices {
+            if let note = releasedNotes[restored[index].seq] { restored[index].permissionNote = note }
+        }
+        releasedNotes = [:]
+        adopt((rows: restored, index: built.index, highestMessageSeq: max(ceiling, built.highestMessageSeq)))
     }
 
     nonisolated private static func absorb(
@@ -2071,9 +2080,10 @@ final class TranscriptModel {
     private func appendLatestMessages(announced: Int? = nil) async {
         guard let store else { return }
         await loader.wait()
-        if rowsReleased { await loader.run { [self] in await restoreRows(from: store) } }
         let fresh = await latestDecided(from: store, announced: announced)
         guard !fresh.isEmpty else { return }
+        if rowsReleased { await loader.run { [self] in await restoreRows(from: store) } }
+        guard !rowsReleased else { return }
         let appendedFrom = rows.count
         var calls: [String] = []
         for decided in fresh where decided.message.seq > highestSeenMessageSeq {

@@ -17,7 +17,7 @@ extension AppModel {
         let models = Array(workspaceModels.values)
         let transcripts = models.flatMap(\.openTranscripts)
         let chats = transcripts.map(\.retention)
-        let released = Set(TranscriptRetention.chatsToRelease(chats))
+        let released = Set(TranscriptRetention.chatsToRelease(chats, selected: selection.workspaceID))
         for transcript in transcripts where released.contains(transcript.session.id) {
             transcript.releaseRows()
         }

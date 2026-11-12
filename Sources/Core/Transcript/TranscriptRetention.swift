@@ -31,8 +31,8 @@ public enum TranscriptRetention {
         var isHeld: Bool { isShown || isBusy }
     }
 
-    public static func chatsToRelease(_ chats: [Chat]) -> [SessionID] {
-        let idle = chats.filter { $0.holdsRows && !$0.isHeld }
+    public static func chatsToRelease(_ chats: [Chat], selected: WorkspaceID?) -> [SessionID] {
+        let idle = chats.filter { $0.holdsRows && !$0.isHeld && ($0.workspace == nil || $0.workspace != selected) }
         let kept = Set(idle.sorted { $0.lastShown > $1.lastShown }.prefix(keptIdleChats).map(\.session))
         return idle.filter { !kept.contains($0.session) }.map(\.session)
     }
