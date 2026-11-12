@@ -199,6 +199,8 @@ final class AppModel {
     var seaDiscoveries = SeaDiscoveries()
     private var workSuggestionObservationTask: Task<Void, Never>?
     private var quotaPollTask: Task<Void, Never>?
+    private var quotaActivationTask: Task<Void, Never>?
+    @ObservationIgnored var isMenuBarPanelOpen: @MainActor () -> Bool = { false }
     private(set) var lastQuotaAskAt: Date?
     @ObservationIgnored var accountSyncKey: AccountFingerprint?
     private(set) var accountChoices = AgentAccountChoiceBook()
@@ -353,6 +355,8 @@ final class AppModel {
         notificationInbox.stop()
         quotaPollTask?.cancel()
         quotaPollTask = nil
+        quotaActivationTask?.cancel()
+        quotaActivationTask = nil
         identityTask?.cancel()
         identityTask = nil
         iconSearchTask?.cancel()
@@ -473,12 +477,24 @@ final class AppModel {
         if quotalessProviders != declining { quotalessProviders = declining }
     }
 
+    private func refreshQuotasIfDue() async {
+        let gap = QuotaPollSchedule.gap(isAppActive: NSApp?.isActive ?? true, isPanelOpen: isMenuBarPanelOpen())
+        await refreshQuotas(after: gap)
+    }
+
     private func startPollingQuotas() {
         quotaPollTask?.cancel()
         quotaPollTask = Task { [weak self] in
             while !Task.isCancelled {
-                await self?.refreshQuotas()
-                try? await Task.sleep(for: .seconds(QuotaPollSchedule.interval))
+                await self?.refreshQuotasIfDue()
+                try? await Task.sleep(for: .seconds(QuotaPollSchedule.tick))
+            }
+        }
+        quotaActivationTask?.cancel()
+        quotaActivationTask = Task { [weak self] in
+            for await _ in NotificationCenter.default.notifications(named: NSApplication.didBecomeActiveNotification) {
+                guard let self else { return }
+                await self.refreshQuotas(after: QuotaPollSchedule.interval)
             }
         }
     }

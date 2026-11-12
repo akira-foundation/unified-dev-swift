@@ -165,6 +165,50 @@ struct QuotaPollScheduleTests {
         #expect(QuotaPollSchedule.onDemandFloor > 0)
     }
 
+    @Test func asksEveryMinuteWhileTheAppIsInFront() {
+        #expect(QuotaPollSchedule.gap(isAppActive: true, isPanelOpen: false) == 60)
+    }
+
+    @Test func asksEveryMinuteWhileThePanelIsOpenWithTheAppBehind() {
+        #expect(QuotaPollSchedule.gap(isAppActive: false, isPanelOpen: true) == 60)
+    }
+
+    @Test func asksNoMoreThanEveryFiveMinutesInTheBackground() {
+        #expect(QuotaPollSchedule.gap(isAppActive: false, isPanelOpen: false) >= 300)
+    }
+
+    @Test("an hour of ticks asks as often as the attention allows", arguments: [
+        (false, false, 12), (true, false, 60), (false, true, 60),
+    ])
+    func anHourOfTicks(isAppActive: Bool, isPanelOpen: Bool, expected: Int) {
+        let gap = QuotaPollSchedule.gap(isAppActive: isAppActive, isPanelOpen: isPanelOpen)
+        var lastAskedAt: Date?
+        var asks = 0
+        for second in stride(from: 0, to: 3_600, by: QuotaPollSchedule.tick) {
+            let at = now + second
+            guard QuotaPollSchedule.isDue(lastAskedAt: lastAskedAt, at: at, after: gap) else { continue }
+            lastAskedAt = at
+            asks += 1
+        }
+        #expect(asks == expected)
+    }
+
+    @Test func comingForwardAsksAtOnceWhenTheBackgroundAnswerIsOlderThanAMinute() {
+        let backgroundAsk = now - 90
+        #expect(!QuotaPollSchedule.isDue(
+            lastAskedAt: backgroundAsk, at: now,
+            after: QuotaPollSchedule.gap(isAppActive: false, isPanelOpen: false)
+        ))
+        #expect(QuotaPollSchedule.isDue(
+            lastAskedAt: backgroundAsk, at: now,
+            after: QuotaPollSchedule.gap(isAppActive: true, isPanelOpen: false)
+        ))
+    }
+
+    @Test func theTickNeverOutrunsTheOnDemandFloor() {
+        #expect(QuotaPollSchedule.tick <= QuotaPollSchedule.onDemandFloor)
+    }
+
     @Test func staysWellInsideTheShortestWindowEitherProviderPublishes() {
         #expect(QuotaPollSchedule.interval / 18_000 < 0.05)
     }

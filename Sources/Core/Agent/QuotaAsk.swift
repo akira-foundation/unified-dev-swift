@@ -3,7 +3,15 @@ import Foundation
 public enum QuotaPollSchedule {
     public static let interval: TimeInterval = 60
 
+    public static let backgroundInterval: TimeInterval = 300
+
     public static let onDemandFloor: TimeInterval = 30
+
+    public static let tick: TimeInterval = 15
+
+    public static func gap(isAppActive: Bool, isPanelOpen: Bool) -> TimeInterval {
+        isAppActive || isPanelOpen ? interval : backgroundInterval
+    }
 
     public static func isDue(lastAskedAt: Date?, at now: Date, after gap: TimeInterval) -> Bool {
         guard let lastAskedAt else { return true }
