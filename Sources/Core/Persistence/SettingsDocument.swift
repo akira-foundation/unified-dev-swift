@@ -56,9 +56,11 @@ public struct SettingsDocument: Sendable, Equatable {
     }
 
     public mutating func remove(at path: [String]) {
-        if locate(path) == nil { openInlineTables(along: path) }
-        guard let found = locate(path) else { return }
-        lines.removeSubrange(found.range)
+        var opened = self
+        if opened.locate(path) == nil { opened.openInlineTables(along: path) }
+        guard let found = opened.locate(path) else { return }
+        opened.lines.removeSubrange(found.range)
+        self = opened
     }
 
     public mutating func removeTable(at path: [String]) {

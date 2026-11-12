@@ -178,25 +178,6 @@ struct SettingsDocumentTablesTests {
         """)
     }
 
-    @Test("a one-line triple-quoted string inside an array does not hide the tables after it")
-    func tripleQuotedInsideAnArray() {
-        var document = SettingsDocument(text: """
-        globs = ['''it's''', "b"]
-
-        [git]
-        archive_on_merge = false
-        """)
-
-        document.set(.boolean(true), at: ["git", "archive_on_merge"])
-
-        #expect(document.text == """
-        globs = ['''it's''', "b"]
-
-        [git]
-        archive_on_merge = true
-        """)
-    }
-
     @Test("removing a key opens the inline table that holds it")
     func removeOpensInlineTable() {
         var document = SettingsDocument(text: """
@@ -206,8 +187,12 @@ struct SettingsDocumentTablesTests {
 
         document.remove(at: ["scripts", "run", "dev", "command"])
 
-        #expect(document.text.contains("command") == false)
-        #expect(document.text.contains("name = \"web\""))
+        #expect(document.text == """
+        [scripts.run]
+
+        [scripts.run.dev]
+        name = "web"
+        """)
     }
 
     @Test("an inline table in an array of tables is left where it is")

@@ -51,12 +51,12 @@ enum TOMLScan {
         }
 
         guard value.hasPrefix("[") || value.hasPrefix("{") else { return index + 1 }
-        var depth = scan(value).depth
+        var text = value
         var cursor = index
-        while depth > 0 {
+        while scan(text).depth > 0 {
             cursor += 1
             guard cursor < lines.count else { return lines.count }
-            depth += scan(lines[cursor]).depth
+            text += "\n" + lines[cursor]
         }
         return cursor + 1
     }
@@ -90,8 +90,14 @@ enum TOMLScan {
                 index = end
                 continue
             }
+            if character == "#" {
+                guard let newline = text[index...].firstIndex(of: "\n") else {
+                    return (parts + [current], depth, close, index)
+                }
+                index = newline
+                continue
+            }
             switch character {
-            case "#": return (parts + [current], depth, close, index)
             case "{", "[": depth += 1
             case "}", "]":
                 depth -= 1
