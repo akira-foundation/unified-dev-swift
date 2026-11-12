@@ -14,9 +14,9 @@ extension WorkspaceModel {
         switch state.lifecycle.start(question: question, quoting: quoting, fresh: fresh) {
         case .wait:
             return true
-        case .resume(let id, let arrival):
-            guard let child = state.transcript, child.session.id == id else { return false }
-            deliver(arrival, to: child)
+        case .resume(_, let arrival):
+            guard let child = state.transcript else { return false }
+            state.task = Task { await deliver(arrival, to: child, state: state) }
             return true
         case .open(let opening):
             begin(opening, from: parent, state: state)
@@ -27,35 +27,45 @@ extension WorkspaceModel {
     private func begin(
         _ opening: SideConversationLifecycle.Opening, from parent: TranscriptModel, state: SideConversationState
     ) {
+        guard let store else { return }
         let parentID = parent.session.id
+        let previous = state.transcript
+        state.transcript = nil
+        state.snapshot = nil
         state.error = nil
         state.task?.cancel()
         state.task = Task { [weak self] in
-            guard let self, let store else { return }
-            do {
-                if let previous = opening.keeping {
-                    _ = try await store.keepSideConversation(sessionID: previous)
-                    state.transcript = nil
-                    state.snapshot = nil
+            guard let self else { return }
+            if let kept = opening.keeping {
+                do {
+                    _ = try await store.keepSideConversation(sessionID: kept)
+                    await reloadSessions()
+                } catch {
+                    guard state.lifecycle.keepFailed(generation: opening.generation, restoring: kept) else { return }
+                    state.transcript = previous
+                    state.error = error.readableMessage
+                    return
                 }
+            }
+            do {
                 try Task.checkCancellation()
                 let session = try await store.openSideConversation(
                     parentID: parentID, streamingText: parent.streamingText
                 )
-                let snapshot = try await store.sideConversationSnapshot(sessionID: session.id)
-                guard let arrival = state.lifecycle.opened(session.id, generation: opening.generation) else {
+                guard state.lifecycle.opened(session.id, generation: opening.generation) else {
                     try await store.closeSideConversation(sessionID: session.id)
                     return
                 }
+                let snapshot = try await store.sideConversationSnapshot(sessionID: session.id)
                 await reloadSessions()
-                guard state.lifecycle.sessionID == session.id else { return }
+                guard state.lifecycle.isOpening(session.id, generation: opening.generation) else { return }
                 let child = transcript(for: session)
                 state.transcript = child
                 state.snapshot = snapshot
                 await child.load()
-                guard state.lifecycle.sessionID == session.id else { return }
-                deliver(arrival, to: child)
+                guard let arrival = state.lifecycle.ready(generation: opening.generation) else { return }
                 if state.isVisible { child.focusComposer() }
+                await deliver(arrival, to: child, state: state)
             } catch is CancellationError {
                 state.lifecycle.failed(generation: opening.generation)
             } catch {
@@ -65,10 +75,14 @@ extension WorkspaceModel {
         }
     }
 
-    private func deliver(_ arrival: SideConversationLifecycle.Arrival, to child: TranscriptModel) {
+    private func deliver(
+        _ arrival: SideConversationLifecycle.Arrival, to child: TranscriptModel, state: SideConversationState
+    ) async {
         arrival.quotes.forEach { child.reply(with: $0) }
-        guard !arrival.question.isEmpty else { return }
-        Task { await child.submit(arrival.question) }
+        for question in arrival.questions {
+            guard state.lifecycle.sessionID == child.session.id else { return }
+            await child.submit(question)
+        }
     }
 
     func dismissSideConversation(from parent: TranscriptModel) {
@@ -81,32 +95,30 @@ extension WorkspaceModel {
         state.task?.cancel()
         state.task = nil
         let ending = state.lifecycle.close()
-        let child = state.transcript
         state.transcript = nil
         state.snapshot = nil
         state.error = nil
         parent.focusComposer()
-        guard let id = ending ?? child?.session.id else { return }
-        endSideConversation(id)
+        guard let ending else { return }
+        endSideConversation(ending)
     }
 
     func keepSideConversation(from parent: TranscriptModel) {
         guard let state = sideConversations[parent.session.id], let child = state.transcript,
               !state.isKeeping, state.lifecycle.sessionID == child.session.id, let store else { return }
         state.isKeeping = true
+        state.task?.cancel()
         state.task = Task { [weak self] in
             defer { state.isKeeping = false; state.task = nil }
             guard let self else { return }
             do {
                 guard let kept = try await store.keepSideConversation(sessionID: child.session.id) else { return }
-                try Task.checkCancellation()
                 child.session = kept
                 _ = state.lifecycle.keep()
                 state.transcript = nil
                 state.snapshot = nil
                 await reloadSessions()
                 WorkspaceTabsStore.shared.reveal(.chat(kept.id), in: self)
-            } catch is CancellationError {
             } catch {
                 state.error = error.readableMessage
             }

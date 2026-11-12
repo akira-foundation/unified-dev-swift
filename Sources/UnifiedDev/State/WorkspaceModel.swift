@@ -357,8 +357,8 @@ final class WorkspaceModel {
     func endSideConversation(_ id: SessionID) {
         transcripts.removeValue(forKey: id)?.teardown()
         app.bridge?.retire(sessionID: id)
-        Task { [weak self] in
-            guard let self, let store else { return }
+        guard let store else { return }
+        Task {
             do {
                 try await store.closeSideConversation(sessionID: id)
             } catch {

@@ -42,7 +42,8 @@ struct SideConversationTests {
         try await store.append(user("Keep the ordering", sessionID: parent.id))
         let child = try await store.openSideConversation(parentID: parent.id, streamingText: "I am checking the filter")
         let reopened = try await store.openSideConversation(parentID: parent.id, streamingText: "Later text")
-        #expect(child.id == reopened.id)
+        #expect(child.id != reopened.id)
+        #expect(try await store.session(id: child.id)?.archivedAt != nil)
         #expect(child.id != parent.id)
         #expect(child.agentSessionID == nil)
         #expect(child.model == parent.model)
@@ -58,6 +59,8 @@ struct SideConversationTests {
         #expect(snapshot.context.contains("Keep the ordering"))
         #expect(snapshot.context.contains("I am checking the filter"))
         #expect(!snapshot.context.contains("Later text"))
+        let latest = try #require(try await store.sideConversationSnapshot(sessionID: reopened.id))
+        #expect(latest.context.contains("Later text"))
     }
 
     @Test func failedFirstSendKeepsContextAndLeavesEditableTextAlone() async throws {
