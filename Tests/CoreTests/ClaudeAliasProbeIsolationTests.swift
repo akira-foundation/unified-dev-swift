@@ -102,17 +102,17 @@ struct ClaudeAliasProbeIsolationTests {
         let modelRequest = LoopbackExchange.send(
             "POST /v1/messages HTTP/1.1\r\nHost: api.anthropic.com\r\n\r\n", to: base, waiting: .seconds(2)
         )
-        let proxied = proxies.compactMap(\.self).map {
-            LoopbackExchange.send("CONNECT api.anthropic.com:443 HTTP/1.1\r\n\r\n", to: $0, waiting: .seconds(2))
-        }
+        let proxied = await LoopbackExchange.sendAtOnce(
+            "CONNECT api.anthropic.com:443 HTTP/1.1\r\n\r\n", to: proxies.compactMap(\.self), waiting: .seconds(15)
+        )
         try "".write(toFile: record + "/go", atomically: true, encoding: .utf8)
         let resolved = await answers.wait(upTo: .seconds(20))
 
         #expect(resolved?.probed == ["opus": "claude-opus-5-5"])
-        #expect(modelRequest?.isStillWaiting == true)
+        #expect(modelRequest?.isStillWaiting == true, "\(String(describing: modelRequest))")
         #expect(proxies.allSatisfy { $0 != nil && $0 != base })
         #expect(proxied.count == Self.proxyNames.count)
-        #expect(proxied.allSatisfy { $0?.wasClosedUnanswered == true })
+        #expect(proxied.allSatisfy { $0?.wasClosedUnanswered == true }, "\(proxied)")
         #expect(named.allSatisfy { settings[$0] != nil && settings[$0] == environment[$0] })
     }
 

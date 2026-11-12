@@ -1,6 +1,7 @@
 import Foundation
+import Synchronization
 
-struct LoopbackExchange {
+struct LoopbackExchange: Sendable {
     let connected: Bool
     let received: Int
     let failure: Int32
@@ -13,6 +14,19 @@ struct LoopbackExchange {
         guard let components = URLComponents(string: url), components.scheme == "http",
               components.host == "127.0.0.1", let port = components.port else { return nil }
         return UInt16(exactly: port)
+    }
+
+    static func sendAtOnce(_ request: String, to ports: [UInt16], waiting: Duration) async -> [LoopbackExchange?] {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global().async {
+                let answers = Mutex([LoopbackExchange?](repeating: nil, count: ports.count))
+                DispatchQueue.concurrentPerform(iterations: ports.count) { index in
+                    let answer = send(request, to: ports[index], waiting: waiting)
+                    answers.withLock { $0[index] = answer }
+                }
+                continuation.resume(returning: answers.withLock { $0 })
+            }
+        }
     }
 
     static func send(_ request: String, to port: UInt16, waiting: Duration) -> LoopbackExchange? {
