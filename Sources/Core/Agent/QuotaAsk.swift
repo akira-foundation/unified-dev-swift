@@ -97,6 +97,7 @@ public struct ClaudeCodeQuotaSource: AgentQuotaSource {
     private let accountPath: String
     private let credentialPath: String
     private let clock: @Sendable () -> Date
+    private let activity: ClaudeAccountActivity
     private let makeProcess: @Sendable (AgentLaunch) -> any AgentProcessing
 
     public init(
@@ -107,8 +108,10 @@ public struct ClaudeCodeQuotaSource: AgentQuotaSource {
         accountPath: String? = nil,
         credentialPath: String? = nil,
         clock: @escaping @Sendable () -> Date = Date.init,
+        activity: ClaudeAccountActivity = .shared,
         makeProcess: @escaping @Sendable (AgentLaunch) -> any AgentProcessing = AgentRunner.spawn
     ) {
+        self.activity = activity
         self.executable = executable
         self.cwd = cwd
         self.environment = environment
@@ -164,8 +167,12 @@ public struct ClaudeCodeQuotaSource: AgentQuotaSource {
     }
 
     private func ask() async -> Data? {
-        let id = "unifieddev-usage-\(UUID().uuidString)"
         await LoginShellPath.ready()
+        return await activity.holding(account) { await askHoldingTheAccount() }.flatMap(\.self)
+    }
+
+    private func askHoldingTheAccount() async -> Data? {
+        let id = "unifieddev-usage-\(UUID().uuidString)"
         let process = makeProcess(Self.launch(
             executable: executable,
             cwd: cwd,
@@ -186,7 +193,7 @@ public struct ClaudeCodeQuotaSource: AgentQuotaSource {
         } catch {
             answer = nil
         }
-        process.terminate()
+        await process.end(within: ClaudeAccountActivity.exitGrace)
         return answer
     }
 }

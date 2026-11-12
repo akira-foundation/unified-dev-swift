@@ -689,7 +689,7 @@ struct AgentRunnerProcessTests {
 
         #expect(activity.beginProbe(account))
         let sending = Task { try await runner.send("hello") }
-        try await Task.sleep(for: .milliseconds(100))
+        await waitUntil("the send waits for the probe") { activity.waitingRuns(account) == 1 }
         let launchedDuringProbe = recorder.all.count
         activity.endProbe(account)
         try await sending.value
@@ -719,13 +719,98 @@ struct AgentRunnerProcessTests {
         let sending = Task { try await runner.send("hello") }
         await waitUntil("the turn waits for the probe") { activity.isRunning(account) }
         runner.cancelNow()
-        try await Task.sleep(for: .milliseconds(50))
         activity.endProbe(account)
         let outcome = await sending.result
 
         #expect(throws: CancellationError.self) { try outcome.get() }
         #expect(recorder.all.isEmpty)
         #expect(!activity.isRunning(account))
+    }
+
+    @Test("a stop pressed while a send waits for the alias probe ends that send at once, with the probe still running",
+          arguments: [true, false])
+    func aStopEndsTheWaitAtOnce(fromAnyThread: Bool) async throws {
+        let store = try makeTestStore("agent")
+        let session = try await makeSession(store)
+        let recorder = ProcessRecorder()
+        let activity = ClaudeAccountActivity()
+        let account = AgentAccountHome.defaultID(for: .claudeCode)
+        let runner = AgentRunner(
+            workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session),
+            activity: activity, makeProcess: recorder.factory
+        )
+
+        #expect(activity.beginProbe(account))
+        let stopped = AwaitedAnswer<Bool>()
+        let sending = Task {
+            do {
+                try await runner.send("hello")
+                stopped.set(false)
+            } catch {
+                stopped.set(error is CancellationError)
+            }
+        }
+        await waitUntil("the send waits for the probe") { activity.waitingRuns(account) == 1 }
+        if fromAnyThread { runner.cancelNow() } else { await runner.cancel() }
+        let endedDuringProbe = await stopped.wait(upTo: .seconds(5))
+        let stillWaiting = activity.isRunning(account)
+        activity.endProbe(account)
+        _ = await sending.result
+
+        #expect(endedDuringProbe == true)
+        #expect(!stillWaiting)
+        #expect(recorder.all.isEmpty)
+    }
+
+    @Test("a process left without a turn by a failed send is ended once idle, and gives the account back")
+    func anUnpromptedProcessIsEvictedOnceIdle() async throws {
+        let store = try makeTestStore("agent")
+        let session = try await makeSession(store)
+        let recorder = ProcessRecorder()
+        let activity = ClaudeAccountActivity()
+        let account = AgentAccountHome.defaultID(for: .claudeCode)
+        let runner = AgentRunner(
+            workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session),
+            activity: activity, makeProcess: recorder.factory
+        )
+        let unclaimed = try await store.enqueueDelivery(Delivery(targetSessionID: session.id, body: "hello"))
+
+        await #expect(throws: DeliveryDispatchError.notClaimed) { try await runner.sendDelivery(unclaimed) }
+        let process = try #require(recorder.last)
+        let heldAfterTheFailure = activity.isRunning(account)
+        #expect(try await store.cancelDelivery(id: unclaimed.id))
+        let evicted = await runner.evictIfIdle(for: .zero)
+
+        #expect(heldAfterTheFailure)
+        #expect(evicted)
+        #expect(process.wasTerminated)
+        #expect(process.stdin.isEmpty)
+        await waitUntil("the account is free again") { !activity.isRunning(account) }
+        #expect(activity.beginProbe(account))
+    }
+
+    @Test("a failed send leaves a process alone once a turn has been written to it")
+    func aFailedSendKeepsAPromptedProcess() async throws {
+        let store = try makeTestStore("agent")
+        let session = try await makeSession(store)
+        let recorder = ProcessRecorder()
+        let activity = ClaudeAccountActivity()
+        let account = AgentAccountHome.defaultID(for: .claudeCode)
+        let runner = AgentRunner(
+            workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session),
+            activity: activity, makeProcess: recorder.factory
+        )
+        try await runner.send("hello")
+        let unclaimed = try await store.enqueueDelivery(Delivery(targetSessionID: session.id, body: "and this"))
+
+        await #expect(throws: DeliveryDispatchError.notClaimed) { try await runner.sendDelivery(unclaimed) }
+        let process = try #require(recorder.last)
+
+        #expect(recorder.all.count == 1)
+        #expect(!process.wasTerminated)
+        #expect(activity.isRunning(account))
+        process.endOutput()
+        await waitUntil("the runner stopped") { await runner.isRunning == false }
     }
 
     @Test("a stop pressed while two sends wait for the probe ends both of them")
@@ -744,11 +829,13 @@ struct AgentRunnerProcessTests {
         let first = Task { try await runner.send("hello") }
         await waitUntil("the first send waits for the probe") { activity.isRunning(account) }
         let second = Task { try await runner.send("and this") }
-        try await Task.sleep(for: .milliseconds(100))
+        await waitUntil("both sends wait for the probe") { activity.waitingRuns(account) == 2 }
         runner.cancelNow()
-        try await Task.sleep(for: .milliseconds(50))
-        activity.endProbe(account)
+        let stillWaiting = activity.waitingRuns(account)
         let outcomes = [await first.result, await second.result]
+        activity.endProbe(account)
+
+        #expect(stillWaiting == 0)
 
         #expect(outcomes.allSatisfy { (try? $0.get()) == nil })
         #expect(recorder.all.isEmpty)
