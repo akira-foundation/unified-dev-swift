@@ -249,4 +249,21 @@ struct SpendAccountIndexingTests {
         #expect(FileManager.default.fileExists(atPath: held.directory.path))
         #expect(try await world.store.agentAccounts().map(\.id) == [held.id])
     }
+
+    @Test("a removal cancelled while it reads stops as cancelled and keeps the account")
+    func cancelledRemovalKeepsTheAccount() async throws {
+        let world = try World()
+        let held = try await world.createAccount(label: "Held")
+        try world.transcript([claudeLine(60, identity: "msg_held")], in: held)
+        let (support, store) = (world.support, world.store)
+
+        let removal = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            try await AgentAccountRemoval.remove(held, support: support, store: store, keychain: .untouched, processes: { [] })
+        }
+
+        await #expect(throws: CancellationError.self) { try await removal.value }
+        #expect(FileManager.default.fileExists(atPath: held.directory.path))
+        #expect(try await store.agentAccounts().map(\.id) == [held.id])
+    }
 }

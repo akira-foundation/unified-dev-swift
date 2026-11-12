@@ -103,6 +103,7 @@ public enum AgentAccountRemoval {
         if let directory = directory(of: home, support: support) {
             try requireNothingHolds(directory, processes: processes)
             let unread = try await SpendIndexer(store: store).read(account: home)
+            try Task.checkCancellation()
             if let first = unread.first { throw AgentAccountError.spendUnread(first) }
         }
         try await store.forgetAgentAccount(home.id)
