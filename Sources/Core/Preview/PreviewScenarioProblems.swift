@@ -237,7 +237,7 @@ public extension PreviewScenario {
     }
 
     internal static func isFolderName(_ name: String) -> Bool {
-        guard !name.isEmpty, name.count <= 64, !name.hasPrefix(".") else { return false }
+        guard !name.isEmpty, name.count <= 64, !name.hasPrefix("."), !name.hasPrefix("-") else { return false }
         return name.unicodeScalars.allSatisfy {
             CharacterSet.alphanumerics.contains($0) && $0.isASCII || $0 == "-" || $0 == "_" || $0 == "."
         }
