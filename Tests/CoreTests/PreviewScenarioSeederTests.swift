@@ -184,4 +184,16 @@ struct PreviewScenarioSeederTests {
         #expect(stored.first?.fraction == 1)
         #expect(stored.first?.resetsAt == now.addingTimeInterval(140_400))
     }
+
+    @Test("a project whose name looks like an option still gets a folder of its own", arguments: [
+        PreviewScenario.RemoteAnswer.absent, .promptly,
+    ])
+    func optionLikeNameIsAFolder(remote: PreviewScenario.RemoteAnswer) async throws {
+        let (seeder, _) = try makeSeeder()
+        let path = try await seeder.makeRepository(PreviewScenario.Project(name: "--bare", remote: remote))
+
+        #expect(path == seeder.projectsRoot + "/--bare")
+        #expect(FileManager.default.fileExists(atPath: path + "/.git/HEAD"))
+        #expect(!FileManager.default.fileExists(atPath: seeder.projectsRoot + "/HEAD"))
+    }
 }

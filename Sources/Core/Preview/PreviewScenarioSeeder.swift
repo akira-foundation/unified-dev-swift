@@ -100,10 +100,10 @@ public struct PreviewScenarioSeeder: Sendable {
         try FileManager.default.createDirectory(atPath: remotesRoot, withIntermediateDirectories: true)
 
         if project.remote.exists {
-            try await git(["init", "-q", "--bare", "--initial-branch=main", remote], in: remotesRoot)
-            try await git(["clone", "-q", remote, path], in: projectsRoot)
+            try await git(["init", "-q", "--bare", "--initial-branch=main", "--", remote], in: remotesRoot)
+            try await git(["clone", "-q", "--", remote, path], in: projectsRoot)
         } else {
-            try await git(["init", "-q", "--initial-branch=main", project.name], in: projectsRoot)
+            try await git(["init", "-q", "--initial-branch=main", "--", project.name], in: projectsRoot)
         }
 
         try Self.write(project.files, into: path)
