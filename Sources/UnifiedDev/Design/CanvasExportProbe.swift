@@ -11,8 +11,8 @@ enum CanvasExportProbe {
             if !condition { failures.append("export: \(message)") }
         }
         let root = directory + "/export-probe"
-        guard (try? ProbeFolder.renew(URL(filePath: root, directoryHint: .isDirectory))) != nil,
-              writeRed(to: root + "/red.png") else { return ["export: could not seed"] }
+        if let failure = ProbeFolder.failureToRenew(root) { return ["export: \(failure)"] }
+        guard writeRed(to: root + "/red.png") else { return ["export: could not seed"] }
         let path = root + "/Spring Launch.udcanvas"
         let cover = CanvasFrame(id: CanvasFrameID("cover"), name: "Cover", rect: CanvasRect(x: 0, y: 0, width: 1_080, height: 1_080))
         let offer = CanvasFrame(id: CanvasFrameID("offer"), name: "Offer / 50%", rect: CanvasRect(x: 1_200, y: 0, width: 1_080, height: 1_350), fill: "#FFF4E0")
@@ -124,7 +124,7 @@ enum CanvasExportProbe {
     private static func vectorImages(in directory: String) -> [String] {
         var failures: [String] = []
         let root = directory + "/export-vectors"
-        guard (try? ProbeFolder.renew(URL(filePath: root, directoryHint: .isDirectory))) != nil else { return ["export: could not seed vectors"] }
+        if let failure = ProbeFolder.failureToRenew(root) { return ["export: \(failure)"] }
         let svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100\" height=\"100\"><rect width=\"100\" height=\"100\" fill=\"#00AA00\"/></svg>"
         try? svg.write(toFile: root + "/green.svg", atomically: true, encoding: .utf8)
         var box = CGRect(x: 0, y: 0, width: 100, height: 100)
@@ -183,7 +183,7 @@ enum CanvasExportProbe {
 
     private static func timing(in directory: String) -> [String] {
         let root = directory + "/export-timing"
-        try? ProbeFolder.renew(URL(filePath: root, directoryHint: .isDirectory))
+        if let failure = ProbeFolder.failureToRenew(root) { return ["export: \(failure)"] }
         var frames: [CanvasFrame] = []
         var elements: [CanvasElement] = []
         for index in 0..<10 {

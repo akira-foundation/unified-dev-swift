@@ -38,6 +38,16 @@ struct ProbeFolderTests {
         #expect(FileManager.default.fileExists(atPath: kept.path))
     }
 
+    @Test func aFolderNoProbeMadeIsNamedInTheFailure() throws {
+        let root = folder("older")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+
+        let failure = ProbeFolder.failureToRenew(root.path)
+
+        #expect(failure?.contains(root.path) == true)
+        #expect(ProbeFolder.failureToRenew(folder("clean").path) == nil)
+    }
+
     @Test func aLinkToAFolderAProbeMadeIsLeftAlone() throws {
         let target = folder("target")
         try ProbeFolder.renew(target)

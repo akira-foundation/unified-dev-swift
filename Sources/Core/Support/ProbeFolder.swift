@@ -6,7 +6,7 @@ public enum ProbeFolderError: Error, Equatable, LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .notMadeByAProbe(let path):
-            "The folder was not made by a probe, so it was left alone: \(path)"
+            "The folder was not made by a probe, so it was left alone. Remove it if an older build left it: \(path)"
         }
     }
 }
@@ -22,6 +22,15 @@ public enum ProbeFolder {
         }
         try files.createDirectory(at: root, withIntermediateDirectories: true)
         try Data().write(to: root.appending(path: markerName))
+    }
+
+    public static func failureToRenew(_ path: String) -> String? {
+        do {
+            try renew(URL(filePath: path, directoryHint: .isDirectory))
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
     }
 
     public static func discard(_ root: URL) {
