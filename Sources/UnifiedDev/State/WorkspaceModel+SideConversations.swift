@@ -34,16 +34,21 @@ extension WorkspaceModel {
         state.snapshot = nil
         state.error = nil
         state.task?.cancel()
+        let closing = state.closing
         state.task = Task { [weak self] in
+            await closing?.value
             guard let self else { return }
             if let kept = opening.keeping {
                 do {
                     _ = try await store.keepSideConversation(sessionID: kept)
                     await reloadSessions()
                 } catch {
-                    guard state.lifecycle.keepFailed(generation: opening.generation, restoring: kept) else { return }
+                    guard let previous,
+                          let arrival = state.lifecycle.keepFailed(generation: opening.generation, restoring: kept)
+                    else { return }
                     state.transcript = previous
                     state.error = error.readableMessage
+                    await deliver(arrival, to: previous, state: state)
                     return
                 }
             }
@@ -66,10 +71,10 @@ extension WorkspaceModel {
                 guard let arrival = state.lifecycle.ready(generation: opening.generation) else { return }
                 if state.isVisible { child.focusComposer() }
                 await deliver(arrival, to: child, state: state)
-            } catch is CancellationError {
-                state.lifecycle.failed(generation: opening.generation)
             } catch {
-                state.lifecycle.failed(generation: opening.generation)
+                guard case .current(let arrived) = state.lifecycle.failed(generation: opening.generation) else { return }
+                if let arrived { _ = try? await store.closeSideConversation(sessionID: arrived) }
+                guard !(error is CancellationError) else { return }
                 state.error = error.readableMessage
             }
         }
@@ -100,7 +105,7 @@ extension WorkspaceModel {
         state.error = nil
         parent.focusComposer()
         guard let ending else { return }
-        endSideConversation(ending)
+        state.closing = endSideConversation(ending)
     }
 
     func keepSideConversation(from parent: TranscriptModel) {

@@ -11,6 +11,7 @@ final class SideConversationState {
     var error: String?
     var isKeeping = false
     @ObservationIgnored var task: Task<Void, Never>?
+    @ObservationIgnored var closing: Task<Void, Never>?
 
     var isVisible: Bool { lifecycle.isShown }
     var isBusy: Bool { lifecycle.isOpening || isKeeping }

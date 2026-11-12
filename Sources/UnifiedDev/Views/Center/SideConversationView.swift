@@ -80,6 +80,7 @@ struct SideConversationView: View {
                 Image(systemName: "xmark")
             }
             .buttonStyle(.glass)
+            .disabled(state.isKeeping)
             .help("Close side conversation")
             .accessibilityLabel("Close side conversation")
         }

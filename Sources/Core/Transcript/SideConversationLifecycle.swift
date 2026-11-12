@@ -75,15 +75,21 @@ public struct SideConversationLifecycle: Equatable, Sendable {
         return takeArrival()
     }
 
-    public mutating func failed(generation: Int) {
-        guard case .opening(generation, _) = phase else { return }
-        phase = .idle
+    public enum Failure: Equatable, Sendable {
+        case stale
+        case current(arrived: SessionID?)
     }
 
-    public mutating func keepFailed(generation: Int, restoring id: SessionID) -> Bool {
-        guard case .opening(generation, nil) = phase else { return false }
+    public mutating func failed(generation: Int) -> Failure {
+        guard case .opening(generation, let arrived) = phase else { return .stale }
+        phase = .idle
+        return .current(arrived: arrived)
+    }
+
+    public mutating func keepFailed(generation: Int, restoring id: SessionID) -> Arrival? {
+        guard case .opening(generation, nil) = phase else { return nil }
         phase = .open(id)
-        return true
+        return takeArrival()
     }
 
     public func isOpening(_ session: SessionID, generation: Int) -> Bool {

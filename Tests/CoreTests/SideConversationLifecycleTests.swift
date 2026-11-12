@@ -98,7 +98,8 @@ struct SideConversationLifecycleTests {
         let stale = try #require(opening(life.start()))
         _ = life.close()
         let current = try #require(opening(life.start()))
-        life.failed(generation: stale.generation)
+        let failure = life.failed(generation: stale.generation)
+        #expect(failure == .stale)
         #expect(life.phase == .opening(generation: current.generation, session: nil))
     }
 
@@ -135,10 +136,13 @@ struct SideConversationLifecycleTests {
         let id = SessionID.new()
         var life = try opened(id)
         let started = try #require(opening(life.start(fresh: true)))
+        let queued = life.start(quoting: "during the keep")
         let restored = life.keepFailed(generation: started.generation, restoring: id)
         #expect(started.keeping == id)
-        #expect(restored)
+        #expect(queued == .wait)
+        #expect(restored == Arrival(quotes: ["during the keep"]))
         #expect(life.sessionID == id)
+        #expect(life.pending == Arrival())
     }
 
     @Test func aKeepFailureAfterACloseRestoresNothing() throws {
@@ -147,17 +151,28 @@ struct SideConversationLifecycleTests {
         let started = try #require(opening(life.start(fresh: true)))
         _ = life.close()
         let restored = life.keepFailed(generation: started.generation, restoring: id)
-        #expect(!restored)
+        #expect(restored == nil)
         #expect(life.phase == .idle)
     }
 
     @Test func aFailedOpeningKeepsWhatWasAskedForTheRetry() throws {
         var life = SideConversationLifecycle()
         let started = try #require(opening(life.start(question: "Why?", quoting: "q")))
-        life.failed(generation: started.generation)
+        let failure = life.failed(generation: started.generation)
+        #expect(failure == .current(arrived: nil))
         let retry = try #require(opening(life.start()))
         let arrival = arrive(&life, SessionID.new(), retry)
         #expect(arrival == Arrival(quotes: ["q"], questions: ["Why?"]))
+    }
+
+    @Test func aFailureAfterArrivalNamesTheSessionToEnd() throws {
+        var life = SideConversationLifecycle()
+        let started = try #require(opening(life.start()))
+        let id = SessionID.new()
+        _ = life.opened(id, generation: started.generation)
+        let failure = life.failed(generation: started.generation)
+        #expect(failure == .current(arrived: id))
+        #expect(life.phase == .idle)
     }
 
     @Test func aClosedConversationIsNoLongerPresent() throws {

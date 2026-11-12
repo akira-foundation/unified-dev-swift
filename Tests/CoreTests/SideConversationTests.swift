@@ -42,8 +42,10 @@ struct SideConversationTests {
         try await store.append(user("Keep the ordering", sessionID: parent.id))
         let child = try await store.openSideConversation(parentID: parent.id, streamingText: "I am checking the filter")
         let reopened = try await store.openSideConversation(parentID: parent.id, streamingText: "Later text")
+        let leftover = try #require(try await store.session(id: child.id))
         #expect(child.id != reopened.id)
-        #expect(try await store.session(id: child.id)?.archivedAt != nil)
+        #expect(leftover.archivedAt == nil)
+        #expect(leftover.sideConversationParentID == nil)
         #expect(child.id != parent.id)
         #expect(child.agentSessionID == nil)
         #expect(child.model == parent.model)
@@ -111,7 +113,10 @@ struct SideConversationTests {
         #expect(try await store.sideConversationSnapshot(sessionID: child.id)?.parentID == parent.id)
         #expect(TabSet.tabbable([parent, kept]) == [parent.id, kept.id])
         let next = try await store.openSideConversation(parentID: parent.id)
+        let stillKept = try #require(try await store.session(id: kept.id))
         #expect(next.id != kept.id)
+        #expect(stillKept.archivedAt == nil)
+        #expect(stillKept.sideConversationParentID == nil)
     }
 
     @Test func aStartAfterACloseCarriesNothingOfTheClosedOne() async throws {
@@ -129,6 +134,33 @@ struct SideConversationTests {
         #expect(try await store.messages(sessionID: next.id).isEmpty)
         #expect(snapshot.context.contains("Later topic"))
         #expect(try await store.session(id: closed.id)?.archivedAt != nil)
+    }
+
+    @Test func openingLeavesAnotherChatsSideConversationAlone() async throws {
+        let (store, parent) = try await fixture()
+        let other = try await store.upsert(Session(
+            workspaceID: try #require(parent.workspaceID), title: "Other", agentKind: .codex
+        ))
+        let othersChild = try await store.openSideConversation(parentID: other.id)
+        _ = try await store.openSideConversation(parentID: parent.id)
+        let untouched = try #require(try await store.session(id: othersChild.id))
+        #expect(untouched.sideConversationParentID == other.id)
+        #expect(untouched.archivedAt == nil)
+    }
+
+    @Test func aLateArrivalClosedBeforeItIsReadyIsArchived() async throws {
+        let (store, parent) = try await fixture()
+        var life = SideConversationLifecycle()
+        guard case .open(let opening) = life.start(quoting: "q") else {
+            Issue.record("an idle conversation must open")
+            return
+        }
+        _ = life.close()
+        let late = try await store.openSideConversation(parentID: parent.id)
+        let accepted = life.opened(late.id, generation: opening.generation)
+        if !accepted { try await store.closeSideConversation(sessionID: late.id) }
+        #expect(!accepted)
+        #expect(try await store.session(id: late.id)?.archivedAt != nil)
     }
 
     @Test func closeLeavesAKeptChatAlone() async throws {

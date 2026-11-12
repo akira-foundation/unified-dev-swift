@@ -1554,8 +1554,8 @@ public actor Store {
                   let workspace = try workspace(id: workspaceID), workspace.state == .active else {
                 throw SQLiteError(message: "This chat cannot start a side conversation.", sql: nil)
             }
-            for stale in try sessions(workspaceID: workspaceID) where stale.sideConversationParentID == parentID {
-                _ = try update(sessionID: stale.id) { $0.archivedAt = Date() }
+            for leftover in try sessions(workspaceID: workspaceID) where leftover.sideConversationParentID == parentID {
+                _ = try update(sessionID: leftover.id) { $0.sideConversationParentID = nil }
             }
             let recent = try db.query(
                 "SELECT * FROM messages WHERE session_id = ? ORDER BY seq DESC LIMIT 300",

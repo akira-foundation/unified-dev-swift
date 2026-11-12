@@ -5,9 +5,9 @@ Use `/btw` or the side-question button beside the composer to open a floating co
 work in the original chat continues. Escape hides the overlay, and `/btw` or Reply brings back the
 same one. The close button ends it: its agent stops, its session is archived, and the next `/btw` or
 Reply starts a fresh one with only the new quote, an empty transcript and context taken from the
-main chat at that moment. Opening one always creates a new session and archives any earlier side
-conversation of the same chat that was never kept, so a side conversation does not outlive the
-window that held it.
+main chat at that moment. Opening one always creates a new session. A side conversation of the
+same chat that was neither closed nor kept, which is what a relaunch leaves behind when one was
+only hidden, is kept as a chat at that moment rather than resumed or lost.
 The child inherits the parent's provider, model, reasoning, permissions and composer settings.
 
 **Keep as chat** gives the same conversation a regular tab. It preserves the provider session,
@@ -40,8 +40,10 @@ archived, including replacement through `/clear` or `/close`.
 
 The workspace owns the overlay state and the ordinary `TranscriptModel` owns the child runner.
 `SideConversationLifecycle` in Core decides what a start, a close and a keep do, including an
-opening that is closed before it arrives, which is archived as soon as it lands, and a
-"Keep and start new" whose keep fails, which restores the conversation it was keeping. Hiding the view
+opening that is closed before it arrives or fails after it arrived, which is archived, and a
+"Keep and start new" whose keep fails, which restores the conversation it was keeping and hands
+it anything quoted meanwhile. A start waits for a close still being written, so it cannot keep
+the conversation that was just closed. Hiding the view
 stops neither agent; closing stops the side conversation's. Workspace teardown cancels pending opening tasks and
 stops all its runners. The floating composer excludes workspace review comments, and the native
 Stop Agent command follows composer focus.
