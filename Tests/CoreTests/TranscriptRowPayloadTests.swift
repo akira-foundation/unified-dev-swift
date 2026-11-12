@@ -26,7 +26,7 @@ struct TranscriptRowPayloadTests {
         }
     }
 
-    private func front(of row: Data) -> Data { row.prefix(TranscriptRowPayload.probeLength) }
+    private func front(of row: Data) -> Data { row.prefix(TranscriptRowInk.probeLength) }
 
     @Test("a system row the transcript never draws keeps only the bytes the probes read")
     func undrawnSystemRowsKeepTheirFront() {
@@ -39,7 +39,7 @@ struct TranscriptRowPayloadTests {
         for row in rows {
             let kept = TranscriptRowPayload.retained(kind: .system, payload: row)
             #expect(kept == front(of: row))
-            #expect(kept.count <= TranscriptRowPayload.probeLength)
+            #expect(kept.count <= TranscriptRowInk.probeLength)
         }
     }
 
@@ -48,7 +48,7 @@ struct TranscriptRowPayloadTests {
         let row = payload(#"{"type":"system","subtype":"hook_response","output":"\#(String(repeating: "x", count: 4_000))"}"#)
         let kept = TranscriptRowPayload.retained(kind: .system, payload: row)
         #expect(kept.startIndex == 0)
-        #expect(kept.count == TranscriptRowPayload.probeLength)
+        #expect(kept.count == TranscriptRowInk.probeLength)
     }
 
     @Test("a hook named anywhere in the front still reads as one once trimmed")
@@ -161,6 +161,34 @@ struct TranscriptRowPayloadTests {
     func initUnderAnotherKindIsLeft() {
         for kind in MessageKind.allCases where kind != .system {
             #expect(TranscriptRowPayload.retained(kind: kind, payload: claudeInit) == claudeInit)
+        }
+    }
+
+    @Test("a hook named at the very end of the probed bytes is still a hook once trimmed")
+    func hookAtTheEdgeSurvives() {
+        let head = #"{"type":"system","subtype":"commands_changed","pad":""#
+        let pad = String(repeating: "f", count: TranscriptRowInk.probeLength - head.utf8.count - 12)
+        let row = payload(head + pad + #"","x":"hook_","tail":""# + String(repeating: "t", count: 500) + #""}"#)
+        let kept = TranscriptRowPayload.retained(kind: .system, payload: row)
+        #expect(TranscriptRowInk.namesHook(kind: .system, payload: row))
+        #expect(TranscriptRowInk.namesHook(kind: .system, payload: kept))
+        #expect(kept.count < row.count)
+    }
+
+    @Test("a background wake that names a hook is left whole")
+    func wakeNamingAHookIsLeft() {
+        let summary = "hook_check finished " + String(repeating: "s", count: 2_000)
+        let row = payload(
+            #"{"type":"system","subtype":"task_notification","task_id":"b1","status":"completed","summary":"\#(summary)","tool":"hook_"}"#
+        )
+        #expect(TranscriptRowPayload.retained(kind: .system, payload: row) == row)
+    }
+
+    @Test("a long row of another kind that names a hook is left whole")
+    func otherKindsNamingAHookAreLeft() {
+        let row = payload(#"{"type":"assistant","note":"hook_","text":"\#(String(repeating: "t", count: 4_000))"}"#)
+        for kind in MessageKind.allCases where kind != .system {
+            #expect(TranscriptRowPayload.retained(kind: kind, payload: row) == row)
         }
     }
 }
