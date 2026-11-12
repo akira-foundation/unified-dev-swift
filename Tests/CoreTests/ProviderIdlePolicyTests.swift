@@ -1,7 +1,7 @@
 import Testing
 @testable import Core
 
-@Suite struct ProviderIdlePolicyTests {
+@Suite(.scratchDirectory) struct ProviderIdlePolicyTests {
     @Test func nothingStoredEvictsAfterThirtyMinutes() {
         #expect(ProviderIdlePolicy.minutes(stored: nil) == 30)
         #expect(ProviderIdlePolicy.duration(stored: nil) == .seconds(1_800))
@@ -22,5 +22,16 @@ import Testing
     func aStoredChoiceKeepsItsMeaning(minutes: Int) {
         #expect(ProviderIdlePolicy.minutes(stored: String(minutes)) == minutes)
         #expect(ProviderIdlePolicy.duration(stored: String(minutes)) == .seconds(minutes * 60))
+    }
+
+    @Test func aStoreWithNothingStoredEvictsAfterThirtyMinutes() async throws {
+        let store = try makeTestStore("idle-policy-absent")
+        #expect(await ProviderIdlePolicy.duration(in: store) == .seconds(1_800))
+    }
+
+    @Test func aStoreHoldingZeroNeverEvicts() async throws {
+        let store = try makeTestStore("idle-policy-zero")
+        try await store.setSetting(ProviderIdlePolicy.settingKey, "0")
+        #expect(await ProviderIdlePolicy.duration(in: store) == nil)
     }
 }

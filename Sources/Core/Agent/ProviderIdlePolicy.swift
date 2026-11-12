@@ -16,6 +16,14 @@ public enum ProviderIdlePolicy {
         guard value > 0 else { return nil }
         return .seconds(value * 60)
     }
+
+    public static func duration(in store: Store) async -> Duration? {
+        do {
+            return duration(stored: try await store.setting(settingKey))
+        } catch {
+            return nil
+        }
+    }
 }
 
 public enum ProviderIdleError: Error, Sendable {

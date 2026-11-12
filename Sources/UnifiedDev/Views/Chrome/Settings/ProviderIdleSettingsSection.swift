@@ -21,9 +21,11 @@ struct ProviderIdleSettingsSection: View {
             if let failure { Text(failure).foregroundStyle(.red) }
         }
         .task {
-            let stored = try? await app.store?.setting(ProviderIdlePolicy.settingKey)
-            minutes = ProviderIdlePolicy.minutes(stored: stored)
-            loaded = true
+            guard let store = app.store else { return }
+            do {
+                minutes = ProviderIdlePolicy.minutes(stored: try await store.setting(ProviderIdlePolicy.settingKey))
+                loaded = true
+            } catch { failure = error.localizedDescription }
         }
         .onChange(of: minutes) { _, value in
             guard loaded else { return }
