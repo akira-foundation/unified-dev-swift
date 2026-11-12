@@ -49,18 +49,7 @@ enum BusyProbe {
         }
 
         try? await Task.sleep(for: .seconds(12))
-        if subagentCount > 0 {
-            guard let transcript = app.selectedModel?.activeTranscript else {
-                harness.fail("the selected workspace has no open chat to run subagents in")
-            }
-            for index in 0..<subagentCount {
-                transcript.probeApply(.started(SubagentStart(
-                    id: SubagentID("probe-\(index)"), toolUseID: "toolu_probe_\(index)",
-                    description: "Probe subagent \(index)", type: "general-purpose"
-                )))
-            }
-            try? await Task.sleep(for: .seconds(2))
-        }
+        let progress = startSubagents(in: app)
         let spawnsBefore = Shell.spawnCount
         let tallyBefore = ActivityTally.read()
         let mainBefore = ProbeHarness.mainThreadCPUSeconds()
@@ -74,6 +63,7 @@ enum BusyProbe {
         let processCPU = ProcessCPU.read() - processBefore
         writer.cancel()
         ticker.cancel()
+        progress?.cancel()
 
         let busyIDs = Set(busy.map(\.id))
         let shownAdditions = app.workspaces.filter { busyIDs.contains($0.id) }.map(\.additions).reduce(0, +)
@@ -107,6 +97,31 @@ enum BusyProbe {
             .object(report.merging(harness.conditions(window: nil)) { mine, _ in mine }), echo: true
         )
         exit(0)
+    }
+
+    private static func startSubagents(in app: AppModel) -> Task<Void, Never>? {
+        guard subagentCount > 0 else { return nil }
+        guard let transcript = app.selectedModel?.activeTranscript else {
+            harness.fail("the selected workspace has no open chat to run subagents in")
+        }
+        for index in 0..<subagentCount {
+            transcript.probeApply(.started(SubagentStart(
+                id: SubagentID("probe-\(index)"), toolUseID: "toolu_probe_\(index)",
+                description: "Probe subagent \(index)", type: "general-purpose"
+            )))
+        }
+        return Task { @MainActor in
+            var reported = 30
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(2))
+                reported += 2
+                for index in 0..<subagentCount {
+                    transcript.probeApply(.progressed(SubagentProgress(
+                        parentToolUseID: "toolu_probe_\(index)", elapsedSeconds: reported
+                    )))
+                }
+            }
+        }
     }
 
     private static func loadedApp() async -> AppModel? {
