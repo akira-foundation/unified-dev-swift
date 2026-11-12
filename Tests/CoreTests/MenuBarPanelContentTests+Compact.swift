@@ -32,4 +32,23 @@ extension MenuBarPanelContentTests {
         #expect(content.providers.first?.section?.onDemand.isEmpty == true)
         #expect(content.providers.first?.isFoldable == true)
     }
+
+    @Test("the status line in the cases with nobody running")
+    func headlineCorners() {
+        #expect(MenuBarPanelContent.headline(running: 2, workspaces: 0, waiting: 0, hold: .none) == "2 agents running")
+        #expect(MenuBarPanelContent.headline(running: 0, workspaces: 0, waiting: 2, hold: .none) == "2 waiting on you")
+        #expect(MenuBarPanelContent.headline(running: 0, workspaces: 0, waiting: 0, hold: .indefinitely) == "No agents running, awake")
+        let elsewhere = MenuBarPanelContent.headline(
+            running: 0, workspaces: 0, waiting: 0, hold: .whileAgentsRun, hasAgentsElsewhere: true
+        )
+        #expect(elsewhere == "No agents in this profile, awake")
+    }
+
+    @Test("an agent running outranks one waiting in the status dot")
+    func activityOrder() {
+        let a = workspace("a")
+        let b = workspace("b")
+        let both = MenuBarPanelContent.make(input(workspaces: [a, b], running: [a], waiting: [b], quotas: [calmCodex]))
+        #expect(both.activity == .running)
+    }
 }

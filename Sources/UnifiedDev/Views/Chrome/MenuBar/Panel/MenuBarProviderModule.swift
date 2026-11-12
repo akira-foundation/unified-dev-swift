@@ -93,7 +93,7 @@ struct MenuBarProviderModule: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(compact.isExpanded ? "Show fewer limits" : "Show \(compact.folded.count) more limits")
+            .accessibilityLabel(compact.foldSpoken)
             .panelFocus(focus, .fold(provider.kind))
             if let names = compact.foldedNames {
                 Spacer(minLength: Metrics.spacingWide)

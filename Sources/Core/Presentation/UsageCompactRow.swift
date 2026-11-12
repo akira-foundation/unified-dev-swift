@@ -22,14 +22,9 @@ public struct UsageCompactRow: Sendable, Hashable, Identifiable {
             title: metric.title,
             reading: reading,
             value: reading.menuBarValue ?? UsageMeterReading.emptyHeadline,
-            reset: quota.resetsAt.map { countdown(until: $0, from: now) } ?? reading.trailing,
-            alert: deadline.map { countdown(until: $0, from: now) },
+            reset: quota.resetsAt.map { UsageFormat.countdown(until: $0, from: now) } ?? reading.trailing,
+            alert: deadline.map { UsageFormat.countdown(until: $0, from: now) },
             showsFlame: reading.status?.showsFlame ?? false
         )
-    }
-
-    static func countdown(until date: Date, from now: Date) -> String {
-        let remaining = date.timeIntervalSince(now)
-        return remaining > UsageFormat.soonThreshold ? UsageFormat.compactDuration(remaining) : "soon"
     }
 }

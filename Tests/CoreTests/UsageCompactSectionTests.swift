@@ -144,4 +144,68 @@ struct UsageCompactSectionTests {
         #expect(row?.reset == "6d 0h")
         #expect(row?.reading.tone == .critical)
     }
+
+    private func quota(_ key: String, _ measure: QuotaMeasure, resetsAt: Date?) -> UsageMetric {
+        UsageCatalogue.metric(for: AgentQuota(
+            provider: .claudeCode,
+            window: .lasting(604_800, key: key),
+            measure: measure,
+            resetsAt: resetsAt,
+            observedAt: now
+        ))
+    }
+
+    @Test("a limit resetting within five minutes says soon, and one just past five minutes says how long")
+    func soon() {
+        let compact = UsageCompactSection.make(
+            section([meter("a", 0.3, resetsIn: 4 * 60)]), at: now, options: options
+        )
+        #expect(compact.rows.first?.reset == "soon")
+        #expect(UsageFormat.countdown(until: now.addingTimeInterval(5 * 60 + 1), from: now) != UsageFormat.soonWord)
+    }
+
+    @Test("a limit with no reset time falls back to what the reading says")
+    func noResetTime() {
+        let compact = UsageCompactSection.make(
+            section([quota("a", .fraction(0.3), resetsAt: nil)]), at: now, options: options
+        )
+        let row = compact.rows.first
+        #expect(row?.reset == row?.reading.trailing)
+        #expect(row?.resetHelp == nil)
+    }
+
+    @Test("a limit with no figure is drawn last and says it has none")
+    func unknownLast() {
+        let unknown = quota("unknown", .unknown, resetsAt: now.addingTimeInterval(86_400))
+        let compact = UsageCompactSection.make(
+            section([unknown, meter("a", 0.0), meter("b", 0.2)]), at: now, options: options
+        )
+        #expect(compact.rows.map(\.id.rawValue).last == unknown.id.rawValue)
+        #expect(compact.rows.last?.value == UsageMeterReading.emptyHeadline)
+    }
+
+    @Test("spend with no cap goes up into the header rather than vanishing")
+    func spendWithoutCap() {
+        let spend = quota("extra_usage", .counted(used: 12.34, limit: nil, unit: "USD"), resetsAt: nil)
+        let compact = UsageCompactSection.make(section([spend]), at: now, options: options)
+        #expect(compact.rows.isEmpty)
+        #expect(compact.summary?.hasSuffix(" spent") == true)
+        #expect(compact.summary?.contains("12.34") == true)
+    }
+
+    @Test("credits shown at all times go up into the header too")
+    func summaryFromAlwaysVisible() {
+        let account = balances(credits: AgentAccount.Credits(balance: 5, isUnlimited: false), resets: nil)
+        let compact = UsageCompactSection.make(section(account + [meter("a", 0.1)]), at: now, options: options)
+        #expect(compact.summary == "5 credits")
+    }
+
+    @Test("the fold says out loud how many limits it hides, in the singular for one")
+    func foldSpoken() {
+        let limits = [meter("a", 0.1), meter("b", 0.2), meter("c", 0.3), meter("d", 0.4)]
+        let folded = UsageCompactSection.make(section(limits), at: now, options: options)
+        #expect(folded.foldSpoken == "Show 1 more limit")
+        let expanded = UsageCompactSection.make(section(limits, expanded: true), at: now, options: options)
+        #expect(expanded.foldSpoken == "Show fewer limits")
+    }
 }

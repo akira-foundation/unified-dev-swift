@@ -65,9 +65,11 @@ public enum UsageCatalogue {
     public static func metric(for quota: AgentQuota) -> UsageMetric {
         let key = key(for: quota)
         let content: UsageMetric.Content
+        var headerPhrase: String?
         if case .counted(let used, nil, let unit) = quota.measure {
-            let spent = UsageFormat.money(used, code: unit)
-            content = .value("\(spent) spent", tray: UsageFormat.trayMoney(used, code: unit), tooltip: nil)
+            let spent = "\(UsageFormat.money(used, code: unit)) spent"
+            content = .value(spent, tray: UsageFormat.trayMoney(used, code: unit), tooltip: nil)
+            headerPhrase = spent
         } else {
             content = .meter(quota)
         }
@@ -76,7 +78,8 @@ public enum UsageCatalogue {
             provider: quota.provider,
             title: title(for: quota),
             content: content,
-            isSession: kind(of: quota) == .session
+            isSession: kind(of: quota) == .session,
+            headerPhrase: headerPhrase
         )
     }
 

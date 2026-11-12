@@ -14,6 +14,10 @@ public struct UsageCompactSection: Sendable, Hashable {
         isExpanded ? "Show less" : MenuBarPanelContent.moreTitle(folded.count)
     }
 
+    public var foldSpoken: String {
+        isExpanded ? "Show fewer limits" : "Show \(Counted.of(folded.count, "more limit"))"
+    }
+
     public var foldedNames: String? {
         isExpanded || folded.isEmpty ? nil : folded.joined(separator: ", ")
     }
