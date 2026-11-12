@@ -179,6 +179,7 @@ final class AppModel {
     private var refreshTask: Task<Void, Never>?
     @ObservationIgnored var pullRequestTrackTask: Task<Void, Never>?
     @ObservationIgnored private var lastDiffRefresh: [WorkspaceID: Date] = [:]
+    @ObservationIgnored private var diffRefreshFailures: [WorkspaceID: DiffRefreshSchedule.Failure] = [:]
 
     @ObservationIgnored private var diffInvalidations = DiffRefreshInvalidations()
 
@@ -614,12 +615,15 @@ final class AppModel {
             busy: busy,
             selected: selection.workspaceID,
             activity: activity,
+            shown: Set(profileWorkspaces.map(\.id)),
+            failures: diffRefreshFailures,
             lastRefreshed: lastDiffRefresh,
             now: Date()
         ))
 
         let present = Set(workspaces.map(\.id))
         lastDiffRefresh = lastDiffRefresh.filter { present.contains($0.key) }
+        diffRefreshFailures = diffRefreshFailures.filter { present.contains($0.key) }
         diffInvalidations.retain(present)
 
         let pending = workspaces.filter {
@@ -648,7 +652,11 @@ final class AppModel {
                 diffInvalidations.finish(id, generation: generation, succeeded: succeeded)
                 if succeeded {
                     lastDiffRefresh[id] = Date()
+                    diffRefreshFailures[id] = nil
                     refreshed.insert(id)
+                } else {
+                    let previous = diffRefreshFailures[id] ?? DiffRefreshSchedule.Failure(count: 0, at: Date())
+                    diffRefreshFailures[id] = previous.after(another: Date())
                 }
                 if Task.isCancelled {
                     group.cancelAll()
