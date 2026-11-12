@@ -24,6 +24,7 @@ final class WorkspaceModel {
             if storedActiveSessionID != newValue {
                 storedActiveSessionID = newValue
                 tasksFocus.activeChatChanged()
+                sideFocus.activeChatChanged()
             }
             prepareActiveTranscript()
             app.noteSubagentsChanged(workspaceID: workspace.id)
@@ -52,12 +53,19 @@ final class WorkspaceModel {
 
     private var inspectorChoice = InspectorTabChoice()
 
-    private(set) var inspectorSideParent: TranscriptModel?
+    private var sideFocus = SideConversationFocus()
+
+    var inspectorSideParent: TranscriptModel? {
+        let present = Set(sideConversations.filter { $0.value.lifecycle.isPresent }.keys)
+        return sideFocus.parent(active: activeSession?.id, present: present).flatMap { transcripts[$0] }
+    }
 
     var inspectorSideConversation: SideConversationState? {
-        guard let parent = inspectorSideParent, let state = sideConversations[parent.session.id],
-              state.lifecycle.isPresent else { return nil }
-        return state
+        inspectorSideParent.flatMap { sideConversations[$0.session.id] }
+    }
+
+    func isShowingSideConversation(of parent: TranscriptModel) -> Bool {
+        inspectorTab == .side && inspectorSideParent === parent
     }
 
     var availableInspectorTabs: [InspectorTab] {
@@ -67,7 +75,7 @@ final class WorkspaceModel {
     }
 
     func showSideConversation(of parent: TranscriptModel) {
-        inspectorSideParent = parent
+        sideFocus.choose(parent.session.id, active: activeSession?.id)
         inspectorChoice.sideConversationStarted()
         app.setInspectorVisible(true)
     }
@@ -324,6 +332,7 @@ final class WorkspaceModel {
         do {
             let next = try await store.replaceWorkspaceConversation(id: previous.id, controls: controls)
             transcripts.removeValue(forKey: previous.id)?.teardown()
+            forgetSideConversation(of: previous.id)
             app.bridge?.retire(sessionID: previous.id)
             WorkspaceTabsStore.shared.replaceConversation(previous.id, with: next.id, in: self)
             if let index = sessions.firstIndex(where: { $0.id == previous.id }) { sessions[index] = next }
@@ -364,6 +373,7 @@ final class WorkspaceModel {
         do {
             let next = try await store.replaceWorkspaceConversation(id: session.id, controls: controls)
             transcripts.removeValue(forKey: session.id)?.teardown()
+            forgetSideConversation(of: session.id)
             app.bridge?.retire(sessionID: session.id)
             await reloadSessions()
             activeSessionID = next.id
@@ -375,13 +385,21 @@ final class WorkspaceModel {
         }
     }
 
+    func forgetSideConversation(of parentID: SessionID) {
+        guard let state = sideConversations.removeValue(forKey: parentID) else { return }
+        state.task?.cancel()
+        inspectorChoice.sideConversationLeft()
+    }
+
     func endSideConversation(_ id: SessionID) -> Task<Void, Never>? {
-        transcripts.removeValue(forKey: id)?.teardown()
-        app.bridge?.retire(sessionID: id)
         guard let store else { return nil }
         return Task {
             do {
-                try await store.closeSideConversation(sessionID: id)
+                let closed = try await store.closeSideConversation(sessionID: id)
+                let livesOnAsChat = try await store.session(id: id).map { $0.archivedAt == nil } ?? false
+                guard closed || !livesOnAsChat else { return }
+                transcripts.removeValue(forKey: id)?.teardown()
+                app.bridge?.retire(sessionID: id)
             } catch {
                 app.notice = Notice(
                     message: "Could not close the side conversation: \(error.readableMessage)", tone: .error
@@ -412,6 +430,7 @@ final class WorkspaceModel {
         }
         transcripts[session.id]?.teardown()
         transcripts[session.id] = nil
+        forgetSideConversation(of: session.id)
         app.bridge?.retire(sessionID: session.id)
         await reloadSessions()
         await settleOpenCanvasComments()

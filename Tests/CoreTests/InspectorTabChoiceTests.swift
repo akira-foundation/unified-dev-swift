@@ -35,6 +35,8 @@ struct InspectorTabChoiceTests {
     func otherTabsStayOnOffer() {
         var choice = InspectorTabChoice()
         choice.sideConversationStarted()
+        let selected = choice.resolved(available: withSide)
+        #expect(selected == .side)
         #expect(withSide.contains(.changes))
         choice.choose(.changes)
         #expect(choice.resolved(available: withSide) == .changes)
@@ -54,6 +56,31 @@ struct InspectorTabChoiceTests {
         var choice = InspectorTabChoice(.tasks)
         choice.sideConversationStarted()
         #expect(choice.resolved(available: withoutSide) == .changes)
+    }
+
+    @Test("a fresh choice starts on Changes")
+    func startsOnChanges() {
+        #expect(InspectorTabChoice().chosen == .changes)
+    }
+
+    @Test("picking Side by hand forgets the tab a start replaced")
+    func pickingSideByHandForgetsTheOrigin() {
+        var choice = InspectorTabChoice(.allFiles)
+        choice.sideConversationStarted()
+        choice.choose(.changes)
+        choice.choose(.side)
+        choice.sideConversationLeft()
+        #expect(choice.chosen == .changes)
+    }
+
+    @Test("leaving forgets the origin, so a later pick of Side falls back")
+    func leavingForgetsTheOrigin() {
+        var choice = InspectorTabChoice(.allFiles)
+        choice.sideConversationStarted()
+        choice.sideConversationLeft()
+        choice.choose(.side)
+        choice.sideConversationLeft()
+        #expect(choice.chosen == InspectorTab.fallback)
     }
 
     @Test("ending while another tab is selected leaves it alone")

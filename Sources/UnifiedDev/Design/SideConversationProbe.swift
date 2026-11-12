@@ -101,7 +101,12 @@ enum SideConversationProbe {
         }
         host.cacheDisplay(in: host.bounds, to: bitmap)
         let path = harness.outputPath + ".\(name).png"
-        try? bitmap.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: path))
+        guard let png = bitmap.representation(using: .png, properties: [:]) else { harness.fail("no PNG for \(name)") }
+        do {
+            try png.write(to: URL(fileURLWithPath: path))
+        } catch {
+            harness.fail("\(path): \(error)")
+        }
     }
 }
 #endif

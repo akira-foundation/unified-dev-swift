@@ -16,8 +16,14 @@ reasoning, permissions and composer settings.
 
 **Keep as chat** gives the same conversation a regular tab. It preserves the provider session,
 draft, history and any running turn. **Keep and start new** keeps the current detour as a tab and
-opens another with fresh context. Closing the parent also keeps its side conversation, so a
-running answer or approval request cannot become unreachable.
+opens another with fresh context. Closing or clearing the parent keeps its side conversation as a
+chat and takes the Side tab away, so a running answer or approval request cannot become
+unreachable.
+
+Each chat has at most one side conversation, and the Side tab shows the one belonging to the chat
+on screen. Switching to a chat with none takes the tab away; switching back brings it back. A side
+conversation started from a pane that is not the active chat is shown until the active chat
+changes. `SideConversationFocus` in Core makes that choice.
 
 ## Context
 

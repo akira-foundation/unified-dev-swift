@@ -72,7 +72,7 @@ extension WorkspaceModel {
                 state.snapshot = snapshot
                 await child.load()
                 guard let arrival = state.lifecycle.ready(generation: opening.generation) else { return }
-                if state.isVisible { child.focusComposer() }
+                if isShowingSideConversation(of: parent) { child.focusComposer() }
                 await deliver(arrival, to: child, state: state)
             } catch {
                 guard case .current(let arrived) = state.lifecycle.failed(generation: opening.generation) else { return }
