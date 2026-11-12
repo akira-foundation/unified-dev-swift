@@ -49,7 +49,7 @@ public struct Subagent: Sendable, Hashable, Identifiable {
         startedAt: Date = Date()
     ) {
         self.startedAt = startedAt
-        self.workingSince = startedAt.addingTimeInterval(-Double(elapsedSeconds))
+        self.workingSince = min(startedAt, (finishedAt ?? startedAt).addingTimeInterval(-Double(elapsedSeconds)))
         self.id = id
         self.toolUseID = toolUseID
         self.description = description
@@ -71,13 +71,13 @@ public struct Subagent: Sendable, Hashable, Identifiable {
     public var hasOutput: Bool { !(outputFile ?? "").isEmpty }
 
     public func secondsElapsed(at now: Date) -> Int {
-        let ours = Int((finishedAt ?? now).timeIntervalSince(startedAt))
-        return max(elapsedSeconds, max(0, ours))
+        max(0, Int((finishedAt ?? now).timeIntervalSince(workingSince)))
     }
 
     fileprivate mutating func move(to state: SubagentState, at now: Date) {
         self.state = state
         if state == .running {
+            if finishedAt != nil { workingSince = now }
             finishedAt = nil
             return
         }

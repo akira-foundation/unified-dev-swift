@@ -287,10 +287,10 @@ import Foundation
 
     @Test func aRunningRowCountsSeconds() {
         let now = Self.start
-        #expect(SubagentRow(running(elapsed: 11), now: now).detail.text(at: now) == "11s")
-        #expect(SubagentRow(running(elapsed: 72), now: now).detail.text(at: now) == "1m 12s")
-        #expect(SubagentRow(running(elapsed: 0), now: now).detail.text(at: now) == "")
-        #expect(SubagentRow(running(elapsed: 0), now: now).spokenValue(at: now) == "working")
+        #expect(SubagentRow(running(elapsed: 11)).detail.text(at: now) == "11s")
+        #expect(SubagentRow(running(elapsed: 72)).detail.text(at: now) == "1m 12s")
+        #expect(SubagentRow(running(elapsed: 0)).detail.text(at: now) == "")
+        #expect(SubagentRow(running(elapsed: 0)).spokenValue(at: now) == "working")
     }
 
     @Test func aRetryingRowSaysItInTheRetrySurfacesWords() {
@@ -343,11 +343,12 @@ import Foundation
         let start = Date(timeIntervalSince1970: 1_700_000_000)
         let silent = Subagent(id: SubagentID("a"), startedAt: start)
         let later = start.addingTimeInterval(42)
-        #expect(SubagentRow(silent, now: later).detail.text(at: later) == "42s")
+        #expect(SubagentRow(silent).detail.text(at: later) == "42s")
 
         let ticked = Subagent(id: SubagentID("a"), elapsedSeconds: 90, startedAt: start)
         let fiveIn = start.addingTimeInterval(5)
-        #expect(SubagentRow(ticked, now: fiveIn).detail.text(at: fiveIn) == "1m 35s")
+        #expect(SubagentRow(ticked).detail.text(at: fiveIn) == "1m 35s")
+        #expect(ticked.secondsElapsed(at: fiveIn) == 95)
 
         let done = Subagent(
             id: SubagentID("a"), state: .completed,
@@ -359,8 +360,8 @@ import Foundation
     @Test func aWorkingRowIsTheSameRowAsTheSecondsGoBy() {
         let start = Date(timeIntervalSince1970: 1_700_000_000)
         let working = Subagent(id: SubagentID("a"), description: "Read the store", startedAt: start)
-        let first = SubagentRow(working, now: start.addingTimeInterval(3))
-        let later = SubagentRow(working, now: start.addingTimeInterval(64))
+        let first = SubagentRow(working)
+        let later = SubagentRow(working)
 
         #expect(first == later)
         #expect(first.detail.workingSince == start)
@@ -388,6 +389,36 @@ import Foundation
         #expect(ticked == later)
         #expect(ticked == again)
         #expect(later.first?.detail.text(at: start.addingTimeInterval(64)) == "2m 29s")
+    }
+
+    @Test func aTickLessThanASecondAheadIsNotAMove() {
+        let start = Self.start
+        let ahead = { (seconds: Double) -> Date? in
+            var roster = SubagentRoster()
+            roster.apply(.started(SubagentStart(id: SubagentID("a"), toolUseID: "toolu_a")), now: start)
+            roster.apply(.progressed(SubagentProgress(parentToolUseID: "toolu_a", elapsedSeconds: 10)),
+                         now: start.addingTimeInterval(10 - seconds))
+            return roster[SubagentID("a")]?.workingSince
+        }
+
+        #expect(ahead(0.9) == start)
+        #expect(ahead(1) == start.addingTimeInterval(-1))
+        #expect(ahead(2) == start.addingTimeInterval(-2))
+    }
+
+    @Test func aResumedSubagentCountsFromWhenItResumed() {
+        let start = Self.start
+        var roster = SubagentRoster()
+        roster.apply(.started(SubagentStart(id: SubagentID("a"), toolUseID: "toolu_a")), now: start)
+        roster.apply(.reported(SubagentReport(id: SubagentID("a"), status: "completed")),
+                     now: start.addingTimeInterval(20))
+        roster.apply(.started(SubagentStart(id: SubagentID("a"), toolUseID: "toolu_a", resumesExisting: true)),
+                     now: start.addingTimeInterval(100))
+
+        let resumed = roster[SubagentID("a")]
+        #expect(resumed?.state == .running)
+        #expect(resumed?.workingSince == start.addingTimeInterval(100))
+        #expect(resumed?.secondsElapsed(at: start.addingTimeInterval(103)) == 3)
     }
 
     @Test func aClockBehindOursLeavesTheRowAlone() {

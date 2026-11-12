@@ -50,6 +50,7 @@ enum BusyProbe {
 
         try? await Task.sleep(for: .seconds(12))
         let progress = startSubagents(in: app)
+        if progress != nil { try? await Task.sleep(for: .seconds(2)) }
         let spawnsBefore = Shell.spawnCount
         let tallyBefore = ActivityTally.read()
         let mainBefore = ProbeHarness.mainThreadCPUSeconds()

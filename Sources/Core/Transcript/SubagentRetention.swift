@@ -13,7 +13,7 @@ public enum SubagentRetention: Sendable {
             guard keeps(subagent, now: now, opened: opened, failuresKept: &failuresKept) else {
                 return nil
             }
-            return SubagentRow(subagent, now: now)
+            return SubagentRow(subagent)
         }
     }
 

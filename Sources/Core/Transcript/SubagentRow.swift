@@ -47,11 +47,11 @@ public struct SubagentRow: Sendable, Hashable, Identifiable {
 
     static let detailLimit = 28
 
-    public static func rows(_ roster: SubagentRoster, now: Date = Date()) -> [SubagentRow] {
-        roster.subagents.map { SubagentRow($0, now: now) }
+    public static func rows(_ roster: SubagentRoster) -> [SubagentRow] {
+        roster.subagents.map { SubagentRow($0) }
     }
 
-    public init(_ subagent: Subagent, now: Date = Date()) {
+    public init(_ subagent: Subagent) {
         id = subagent.id
         title = Self.title(of: subagent)
         mark = switch subagent.state {
@@ -60,7 +60,7 @@ public struct SubagentRow: Sendable, Hashable, Identifiable {
         case .failed: .failed
         case .stopped: .stopped
         }
-        detail = Self.detail(of: subagent, now: now)
+        detail = Self.detail(of: subagent)
         opensOutput = subagent.kind == .agent || subagent.hasOutput
         spokenState = Self.spokenState(of: subagent)
     }
@@ -77,7 +77,7 @@ public struct SubagentRow: Sendable, Hashable, Identifiable {
         return type.isEmpty ? "Subagent" : type
     }
 
-    static func detail(of subagent: Subagent, now: Date = Date()) -> Detail {
+    static func detail(of subagent: Subagent) -> Detail {
         switch subagent.state {
         case .running:
             if let retry = subagent.retry { return .retrying(retry) }
