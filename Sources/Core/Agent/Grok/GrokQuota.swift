@@ -7,6 +7,8 @@ public struct GrokQuotaSource: AgentQuotaSource {
 
     public static let timeout = Duration.seconds(20)
 
+    public static let loginShellProbe: @Sendable () async -> Void = { await LoginShellPath.ready() }
+
     static let methodNotFound = -32601
 
     static let reportsNothing = Data("{}".utf8)
@@ -18,6 +20,8 @@ public struct GrokQuotaSource: AgentQuotaSource {
     private let timeout: Duration
     private let bundleIdentifier: String?
     private let makeProcess: @Sendable (AgentLaunch) -> any AgentProcessing
+    private let watchdogSleep: @Sendable (Duration) async throws -> Void
+    private let loginShellReady: @Sendable () async -> Void
 
     public init(
         executable: String = GrokClient.executable,
@@ -26,7 +30,9 @@ public struct GrokQuotaSource: AgentQuotaSource {
         account: AgentAccountHome? = nil,
         timeout: Duration = GrokQuotaSource.timeout,
         bundleIdentifier: String? = Bundle.main.bundleIdentifier,
-        makeProcess: @escaping @Sendable (AgentLaunch) -> any AgentProcessing = GrokClient.spawn
+        makeProcess: @escaping @Sendable (AgentLaunch) -> any AgentProcessing = GrokClient.spawn,
+        watchdogSleep: @escaping @Sendable (Duration) async throws -> Void = GrokClient.taskSleep,
+        loginShellReady: @escaping @Sendable () async -> Void = GrokQuotaSource.loginShellProbe
     ) {
         self.executable = executable
         self.cwd = cwd
@@ -35,23 +41,25 @@ public struct GrokQuotaSource: AgentQuotaSource {
         self.timeout = timeout
         self.bundleIdentifier = bundleIdentifier
         self.makeProcess = makeProcess
+        self.watchdogSleep = watchdogSleep
+        self.loginShellReady = loginShellReady
     }
 
     public func standing() async -> QuotaStanding {
-        await LoginShellPath.ready()
+        await loginShellReady()
         let wouldReadTheOwnersLogin = account == nil && PreviewIdentity.isPreview(bundleIdentifier: bundleIdentifier)
         return QuotaStanding(isInstalled: !wouldReadTheOwnersLogin && Shell.which(executable) != nil)
     }
 
     public func read() async -> Data? {
-        await LoginShellPath.ready()
+        await loginShellReady()
         let configuration = GrokClient.Configuration(
             executable: executable,
             cwd: cwd,
             account: account,
             environment: environment ?? Shell.environment()
         )
-        let client = GrokClient(configuration: configuration, makeProcess: makeProcess)
+        let client = GrokClient(configuration: configuration, makeProcess: makeProcess, watchdogSleep: watchdogSleep)
         defer { Task { await client.stop() } }
         do {
             try await client.start(timeout: timeout)

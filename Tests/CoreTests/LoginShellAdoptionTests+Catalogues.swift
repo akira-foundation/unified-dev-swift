@@ -129,4 +129,11 @@ extension LoginShellAdoptionTests {
 
         #expect(asked.path?.components(separatedBy: ":").contains(asked.adopted) == true)
     }
+
+    @Test("a Grok quota source made before the probe answers asks with the adopted PATH")
+    func grokQuotaAsksWithTheAdoptedPath() async {
+        let asked = await quotaAskPath { spawn in GrokQuotaSource(makeProcess: spawn) }
+
+        #expect(asked.path?.components(separatedBy: ":").contains(asked.adopted) == true)
+    }
 }
