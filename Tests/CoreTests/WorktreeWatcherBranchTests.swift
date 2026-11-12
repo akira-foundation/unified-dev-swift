@@ -118,6 +118,23 @@ struct WorktreeWatcherBranchTests {
         #expect(marked == [pair.one, pair.two])
     }
 
+    @Test("a base picked from the remote also answers to the local branch of the same name")
+    func remoteBaseAnswersToLocal() async throws {
+        let pair = try await pair()
+        defer { pair.repo.cleanUp() }
+        let branches = [
+            pair.one: WorktreeWatcher.concernedBranches(branch: "one", base: "origin/main"),
+            pair.two: WorktreeWatcher.concernedBranches(branch: "two", base: "elsewhere"),
+        ]
+
+        let marked = WorktreeWatcher.metadataWorktrees(
+            changed: [pair.common + "/refs/heads/main"], metadata: pair.metadata, branches: branches
+        )
+
+        #expect(marked == [pair.one])
+        #expect(WorktreeWatcher.concernedBranches(branch: "b", base: "origin/feature/x") == ["b", "origin/feature/x", "feature/x"])
+    }
+
     @Test("the branch named by a ref path", arguments: [
         ("refs/heads/feature/x", Set(["feature/x"])),
         ("logs/refs/heads/one", Set(["one"])),

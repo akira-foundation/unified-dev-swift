@@ -51,6 +51,7 @@ public final class WorktreeWatcher: Sendable {
             state.metadata = Self.metadataRoots(for: wanted)
             state.stream = wanted.isEmpty ? nil : makeStream(for: wanted, metadata: false)
             state.metadataStream = state.metadata.isEmpty ? nil : makeStream(for: Array(state.metadata.keys), metadata: true)
+            if state.metadataStream == nil, !state.metadata.isEmpty { state.given = [] }
         }
     }
 
@@ -135,7 +136,9 @@ public final class WorktreeWatcher: Sendable {
 
     private func reportMetadata(_ paths: [String]) {
         let (metadata, branches) = watched.withLock { ($0.metadata, $0.branches) }
-        let changed = Self.metadataWorktrees(changed: paths, metadata: metadata, branches: branches)
+        let relevant = paths.filter { !$0.contains("/objects/") }
+        guard !relevant.isEmpty else { return }
+        let changed = Self.metadataWorktrees(changed: relevant, metadata: metadata, branches: branches)
         guard !changed.isEmpty else { return }
         onChange(changed)
     }
@@ -185,6 +188,12 @@ public final class WorktreeWatcher: Sendable {
             }
         }
         return worktrees
+    }
+
+    public static func concernedBranches(branch: String, base: String) -> Set<String> {
+        var names: Set<String> = [branch, base]
+        if let slash = base.firstIndex(of: "/") { names.insert(String(base[base.index(after: slash)...])) }
+        return names
     }
 
     static func movedBranchNames(_ relative: String) -> Set<String>? {

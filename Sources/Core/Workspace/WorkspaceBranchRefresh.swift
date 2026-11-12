@@ -3,7 +3,7 @@ import Foundation
 extension WorkspaceManager {
     public func refreshBranch(workspace: Workspace) async {
         guard workspace.state == .active, !Task.isCancelled,
-              let checkedOut = Git.headBranch(in: workspace.path),
+              let checkedOut = await checkedOutBranch(in: workspace.path),
               checkedOut != "HEAD", Git.isValidBranchName(checkedOut),
               checkedOut != workspace.branch, checkedOut != workspace.baseBranch,
               let repo = try? await store.repo(id: workspace.repoID),
@@ -16,5 +16,17 @@ extension WorkspaceManager {
                   in: workspace.path
               ), old.status == 1, !Task.isCancelled else { return }
         try? await store.updateCheckedOutBranch(checkedOut, observed: workspace)
+    }
+
+    private func checkedOutBranch(in path: String) async -> String? {
+        if let read = Git.headBranch(in: path), read == "HEAD" || Git.isValidBranchName(read) { return read }
+        guard let result = try? await Git.run(
+            ["rev-parse", "--show-toplevel", "--abbrev-ref", "HEAD"], in: path
+        ), result.ok else { return nil }
+        let lines = result.lines
+        guard lines.count == 2,
+              URL(fileURLWithPath: lines[0]).resolvingSymlinksInPath().path
+                == URL(fileURLWithPath: path).resolvingSymlinksInPath().path else { return nil }
+        return lines[1]
     }
 }
