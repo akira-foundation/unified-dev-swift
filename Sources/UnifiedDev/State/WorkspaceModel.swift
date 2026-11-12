@@ -480,6 +480,17 @@ final class WorkspaceModel {
         transcripts[sessionID]
     }
 
+    var openTranscripts: [TranscriptModel] {
+        Array(transcripts.values)
+    }
+
+    func releaseHeldFiles() {
+        patches = PatchCache()
+        presentations = DiffPresentationCache()
+        let path = workspace.path
+        Task { await FileIndex.shared.invalidate(workspacePath: path) }
+    }
+
     func prepareTranscript(for sessionID: SessionID) {
         guard CenterTabStore.shared.terminal(for: sessionID, in: workspace.id) == nil,
               let session = sessions.first(where: { $0.id == sessionID }) else { return }

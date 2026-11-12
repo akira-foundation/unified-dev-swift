@@ -664,6 +664,11 @@ struct TranscriptListView: View {
             atLiveEnd.value = true
             arrivalSession = nil
         }
+        .task(id: ObjectIdentifier(transcript)) { [transcript] in
+            transcript.beginShowing()
+            while !Task.isCancelled { try? await Task.sleep(for: .seconds(3_600)) }
+            transcript.endShowing()
+        }
         .task(id: transcript.session.id) {
             follower.onStart = { [controller] in controller.followerTookOver() }
             follower.onStop = { [controller] in controller.followerHandedBack() }
