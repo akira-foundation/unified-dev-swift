@@ -95,8 +95,8 @@ extension WorkspaceModel {
     }
 
     func dismissSideConversation(from parent: TranscriptModel) {
-        sideConversations[parent.session.id]?.lifecycle.hide()
         leaveSideConversation(of: parent)
+        sideConversations[parent.session.id]?.lifecycle.hide()
         parent.focusComposer()
     }
 
@@ -104,8 +104,8 @@ extension WorkspaceModel {
         guard let state = sideConversations[parent.session.id], !state.isKeeping else { return }
         state.task?.cancel()
         state.task = nil
-        let ending = state.lifecycle.close()
         leaveSideConversation(of: parent)
+        let ending = state.lifecycle.close()
         state.transcript = nil
         state.snapshot = nil
         state.error = nil
@@ -126,8 +126,8 @@ extension WorkspaceModel {
             do {
                 guard let kept = try await store.keepSideConversation(sessionID: child.session.id) else { return }
                 child.session = kept
-                _ = state.lifecycle.keep()
                 leaveSideConversation(of: parent)
+                _ = state.lifecycle.keep()
                 state.transcript = nil
                 state.snapshot = nil
                 await reloadSessions()

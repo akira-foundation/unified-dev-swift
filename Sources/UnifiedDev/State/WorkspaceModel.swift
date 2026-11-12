@@ -55,9 +55,13 @@ final class WorkspaceModel {
 
     private var sideFocus = SideConversationFocus()
 
-    var inspectorSideParent: TranscriptModel? {
+    private var inspectorSideParentID: SessionID? {
         let present = Set(sideConversations.filter { $0.value.lifecycle.isPresent }.keys)
-        return sideFocus.parent(active: activeSession?.id, present: present).flatMap { transcripts[$0] }
+        return sideFocus.parent(active: activeSession?.id, present: present)
+    }
+
+    var inspectorSideParent: TranscriptModel? {
+        inspectorSideParentID.flatMap { transcripts[$0] }
     }
 
     var inspectorSideConversation: SideConversationState? {
@@ -81,7 +85,7 @@ final class WorkspaceModel {
     }
 
     func leaveSideConversation(of parent: TranscriptModel) {
-        guard inspectorSideParent === parent else { return }
+        guard inspectorSideParentID == parent.session.id else { return }
         inspectorChoice.sideConversationLeft()
     }
 
@@ -386,9 +390,10 @@ final class WorkspaceModel {
     }
 
     func forgetSideConversation(of parentID: SessionID) {
+        let wasShown = inspectorSideParentID == parentID || activeSessionID == parentID
         guard let state = sideConversations.removeValue(forKey: parentID) else { return }
         state.task?.cancel()
-        inspectorChoice.sideConversationLeft()
+        if wasShown { inspectorChoice.sideConversationLeft() }
     }
 
     func endSideConversation(_ id: SessionID) -> Task<Void, Never>? {
@@ -397,9 +402,10 @@ final class WorkspaceModel {
             do {
                 let closed = try await store.closeSideConversation(sessionID: id)
                 let livesOnAsChat = try await store.session(id: id).map { $0.archivedAt == nil } ?? false
-                guard closed || !livesOnAsChat else { return }
-                transcripts.removeValue(forKey: id)?.teardown()
-                app.bridge?.retire(sessionID: id)
+                if closed || !livesOnAsChat {
+                    transcripts.removeValue(forKey: id)?.teardown()
+                    app.bridge?.retire(sessionID: id)
+                }
             } catch {
                 app.notice = Notice(
                     message: "Could not close the side conversation: \(error.readableMessage)", tone: .error
