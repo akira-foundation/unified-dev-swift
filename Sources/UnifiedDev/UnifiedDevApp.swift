@@ -10,6 +10,7 @@ struct UnifiedDevApp: App {
         if SourceEditorProbe.isRequested { SourceEditorProbe.runAndExit() }
         if AppChromeProbe.isRequested { AppChromeProbe.runAndExit() }
         if BackgroundTaskProbe.isRequested { BackgroundTaskProbe.runAndExit() }
+        if SideConversationProbe.isRequested { SideConversationProbe.runAndExit() }
         if ComposerInputProbe.isRequested { ComposerInputProbe.runAndExit() }
         if MarkdownTableProbe.isRequested { MarkdownTableProbe.runAndExit() }
         if MarkdownSelectionProbe.isRequested { MarkdownSelectionProbe.runAndExit() }

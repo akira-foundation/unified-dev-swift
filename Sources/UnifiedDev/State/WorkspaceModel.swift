@@ -50,10 +50,31 @@ final class WorkspaceModel {
     private(set) var branchCommits = BranchCommitList()
     private(set) var hasReadBranchCommits = false
 
-    private var chosenInspectorTab: InspectorTab = .changes
+    private var inspectorChoice = InspectorTabChoice()
+
+    private(set) var inspectorSideParent: TranscriptModel?
+
+    var inspectorSideConversation: SideConversationState? {
+        guard let parent = inspectorSideParent, let state = sideConversations[parent.session.id],
+              state.lifecycle.isPresent else { return nil }
+        return state
+    }
 
     var availableInspectorTabs: [InspectorTab] {
-        InspectorTab.available(for: pullRequest, hasTasks: hasBackgroundTasks)
+        InspectorTab.available(
+            for: pullRequest, hasTasks: hasBackgroundTasks, hasSideConversation: inspectorSideConversation != nil
+        )
+    }
+
+    func showSideConversation(of parent: TranscriptModel) {
+        inspectorSideParent = parent
+        inspectorChoice.sideConversationStarted()
+        app.setInspectorVisible(true)
+    }
+
+    func leaveSideConversation(of parent: TranscriptModel) {
+        guard inspectorSideParent === parent else { return }
+        inspectorChoice.sideConversationLeft()
     }
 
     var hasBackgroundTasks: Bool {
@@ -64,7 +85,7 @@ final class WorkspaceModel {
         tasksTranscript?.clearFinishedTasks()
         guard !hasBackgroundTasks else { return }
         tasksFocus.activeChatChanged()
-        chosenInspectorTab = inspectorTab
+        inspectorChoice.choose(inspectorTab)
     }
 
     private var tasksFocus = BackgroundTasksFocus()
@@ -78,8 +99,8 @@ final class WorkspaceModel {
     }
 
     var inspectorTab: InspectorTab {
-        get { InspectorTab.resolve(chosenInspectorTab, available: availableInspectorTabs) }
-        set { chosenInspectorTab = newValue }
+        get { inspectorChoice.resolved(available: availableInspectorTabs) }
+        set { inspectorChoice.choose(newValue) }
     }
     var changedFiles: [ChangedFile] = [] {
         didSet { reviewFiles = ChangedFileTree.orderedFiles(from: changedFiles) }

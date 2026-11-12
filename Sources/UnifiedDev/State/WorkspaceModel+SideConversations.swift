@@ -11,6 +11,7 @@ extension WorkspaceModel {
         let state = sideConversations[parentID] ?? SideConversationState()
         sideConversations[parentID] = state
         guard !state.isKeeping else { return false }
+        showSideConversation(of: parent)
         switch state.lifecycle.start(question: question, quoting: quoting, fresh: fresh) {
         case .wait:
             return true
@@ -95,6 +96,7 @@ extension WorkspaceModel {
 
     func dismissSideConversation(from parent: TranscriptModel) {
         sideConversations[parent.session.id]?.lifecycle.hide()
+        leaveSideConversation(of: parent)
         parent.focusComposer()
     }
 
@@ -103,6 +105,7 @@ extension WorkspaceModel {
         state.task?.cancel()
         state.task = nil
         let ending = state.lifecycle.close()
+        leaveSideConversation(of: parent)
         state.transcript = nil
         state.snapshot = nil
         state.error = nil
@@ -124,6 +127,7 @@ extension WorkspaceModel {
                 guard let kept = try await store.keepSideConversation(sessionID: child.session.id) else { return }
                 child.session = kept
                 _ = state.lifecycle.keep()
+                leaveSideConversation(of: parent)
                 state.transcript = nil
                 state.snapshot = nil
                 await reloadSessions()
