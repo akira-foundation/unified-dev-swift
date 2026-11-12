@@ -85,12 +85,14 @@ public actor GrokClient {
     public init(
         configuration: Configuration,
         makeProcess: @escaping @Sendable (AgentLaunch) -> any AgentProcessing = GrokClient.spawn,
-        watchdogSleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+        watchdogSleep: @escaping @Sendable (Duration) async throws -> Void = GrokClient.taskSleep
     ) {
         self.configuration = configuration
         self.makeProcess = makeProcess
         self.watchdogSleep = watchdogSleep
     }
+
+    public static let taskSleep: @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
 
     public static let spawn: @Sendable (AgentLaunch) -> any AgentProcessing = { launch in
         StreamingProcess(
