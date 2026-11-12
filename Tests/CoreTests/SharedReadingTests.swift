@@ -60,9 +60,9 @@ private final class FakeClock: Sendable {
             return counter.read()
         }
 
-        async let first = reading.value(notOlderThan: .zero)
-        async let second = reading.value(notOlderThan: .zero)
-        async let third = reading.value(notOlderThan: .zero)
+        async let first = reading.value(notOlderThan: .seconds(2))
+        async let second = reading.value(notOlderThan: .seconds(2))
+        async let third = reading.value(notOlderThan: .seconds(2))
         let values = await [first, second, third]
 
         #expect(counter.reads == 1)
@@ -79,5 +79,50 @@ private final class FakeClock: Sendable {
         #expect(failed == nil)
         #expect(next == 7)
         #expect(counter.reads == 2)
+    }
+
+    @Test func aFreshCallerDoesNotJoinAReadThatStartedBeforeIt() async {
+        let counter = ReadCounter()
+        let reading = SharedReading<Int> {
+            try? await Task.sleep(for: .milliseconds(200))
+            return counter.read()
+        }
+
+        async let older = reading.value(notOlderThan: .seconds(2))
+        try? await Task.sleep(for: .milliseconds(50))
+        let fresh = await reading.value(notOlderThan: .zero)
+        _ = await older
+
+        #expect(counter.reads == 2)
+        #expect(fresh == 2)
+    }
+
+    @Test func aReadingCountsFromWhenItWasAskedFor() async {
+        let counter = ReadCounter()
+        let clock = FakeClock()
+        let reading = SharedReading<Int>(now: { clock.now }) {
+            clock.advance(.seconds(1))
+            return counter.read()
+        }
+
+        _ = await reading.value(notOlderThan: .seconds(2))
+        clock.advance(.milliseconds(500))
+        let stillShared = await reading.value(notOlderThan: .seconds(2))
+        clock.advance(.milliseconds(600))
+        let taken = await reading.value(notOlderThan: .seconds(2))
+
+        #expect(stillShared == 1)
+        #expect(taken == 2)
+    }
+
+    @Test func invalidatingForgetsTheKeptReading() async {
+        let counter = ReadCounter()
+        let reading = SharedReading<Int> { counter.read() }
+
+        _ = await reading.value(notOlderThan: .seconds(60))
+        await reading.invalidate()
+        let next = await reading.value(notOlderThan: .seconds(60))
+
+        #expect(next == 2)
     }
 }

@@ -73,13 +73,11 @@ final class TerminalPersistence {
         await Self.readPanePIDs(command)
     }
 
-    func panePIDs(notOlderThan maxAge: Duration = TerminalActivitySchedule.readingMaxAge) async -> [String: Int32] {
+    func panePIDs(notOlderThan maxAge: Duration) async -> [String: Int32] {
         await panePIDSnapshot(notOlderThan: maxAge) ?? [:]
     }
 
-    func panePIDSnapshot(
-        notOlderThan maxAge: Duration = TerminalActivitySchedule.readingMaxAge
-    ) async -> [String: Int32]? {
+    func panePIDSnapshot(notOlderThan maxAge: Duration) async -> [String: Int32]? {
         await paneReading.value(notOlderThan: maxAge)
     }
 
@@ -113,6 +111,7 @@ final class TerminalPersistence {
             )
             knownSessions.remove(session)
         }
+        await paneReading.invalidate()
     }
 
     func sweepOrphans(livePaneIDs: Set<String>, doubtful: Set<WorkspaceID>) async {

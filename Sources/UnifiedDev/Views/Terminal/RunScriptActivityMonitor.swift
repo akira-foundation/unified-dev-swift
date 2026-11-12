@@ -55,9 +55,15 @@ final class RunScriptActivityMonitor {
     func ensurePolling() {
         guard pollTask == nil, !probes().isEmpty else { return }
         pollTask = Task { [weak self] in
+            var lastPoll = ContinuousClock.now
             while !Task.isCancelled {
-                try? await Task.sleep(for: TerminalActivitySchedule.runScriptTick(isAppActive: NSApp?.isActive ?? true))
+                try? await Task.sleep(for: TerminalActivitySchedule.tick)
                 guard !Task.isCancelled, let self else { return }
+                let now = ContinuousClock.now
+                let activity: DiffRefreshSchedule.Activity = NSApp?.isActive ?? true ? .foreground : .background
+                let interval = TerminalActivitySchedule.runScriptInterval(for: activity)
+                guard TerminalActivitySchedule.isDue(lastRun: lastPoll, now: now, interval: interval) else { continue }
+                lastPoll = now
                 guard await self.poll() else {
                     self.pollTask = nil
                     return

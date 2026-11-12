@@ -51,7 +51,7 @@ public struct ProcessTable: Sendable, Equatable {
 
     public static let shared = SharedReading<ProcessTable> { await current() }
 
-    public static func recent(notOlderThan maxAge: Duration = TerminalActivitySchedule.readingMaxAge) async -> ProcessTable? {
+    public static func recent(notOlderThan maxAge: Duration) async -> ProcessTable? {
         await shared.value(notOlderThan: maxAge)
     }
 
