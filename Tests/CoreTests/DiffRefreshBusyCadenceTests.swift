@@ -75,6 +75,7 @@ struct DiffRefreshBusyCadenceTests {
         (1, DiffRefreshSchedule.tick * 2),
         (2, DiffRefreshSchedule.tick * 4),
         (3, DiffRefreshSchedule.tick * 8),
+        (4, DiffRefreshSchedule.failureBackoffCeiling),
         (40, DiffRefreshSchedule.failureBackoffCeiling),
     ])
     func delayGrows(failures: Int, delay: TimeInterval) {
@@ -84,7 +85,7 @@ struct DiffRefreshBusyCadenceTests {
     @Test("behind another app a failing selection is not retried every tick either")
     func backgroundBacksOff() {
         let now = Date()
-        let failed = DiffRefreshSchedule.Failure(count: 3, at: now.addingTimeInterval(-DiffRefreshSchedule.backgroundTick))
+        let failed = DiffRefreshSchedule.Failure(count: 1, at: now.addingTimeInterval(-DiffRefreshSchedule.backgroundTick))
 
         let due = DiffRefreshSchedule.due(
             workspaces: [selected], busy: [selected], selected: selected, activity: .background,

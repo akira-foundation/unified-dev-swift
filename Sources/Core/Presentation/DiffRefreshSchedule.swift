@@ -20,7 +20,7 @@ public enum DiffRefreshSchedule {
 
     public static let busyHiddenMaxAge: TimeInterval = 30
 
-    public static let failureBackoffCeiling: TimeInterval = 300
+    public static let failureBackoffCeiling: TimeInterval = 60
 
     public struct Failure: Sendable, Equatable {
         public var count: Int
@@ -88,7 +88,7 @@ public enum DiffRefreshSchedule {
     ) -> [WorkspaceID] {
         if activity == .background {
             guard let selected, workspaces.contains(selected),
-                  !isBackingOff(failures[selected], now: now, tick: tick) else { return [] }
+                  !isBackingOff(failures[selected], now: now, tick: backgroundTick) else { return [] }
             return [selected]
         }
 

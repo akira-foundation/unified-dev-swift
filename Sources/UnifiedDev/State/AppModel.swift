@@ -659,7 +659,8 @@ final class AppModel {
                     lastDiffRefresh[id] = Date()
                     diffRefreshFailures[id] = nil
                     refreshed.insert(id)
-                } else {
+                }
+                if !succeeded, !Task.isCancelled {
                     let previous = diffRefreshFailures[id] ?? DiffRefreshSchedule.Failure(count: 0, at: Date())
                     diffRefreshFailures[id] = previous.after(another: Date())
                 }
