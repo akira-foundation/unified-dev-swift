@@ -111,7 +111,8 @@ public struct MenuBarPanelContent: Equatable, Sendable {
         }
 
         public var isFoldable: Bool {
-            reading == .measured && !(section?.onDemand.isEmpty ?? true)
+            guard reading == .measured, let section else { return false }
+            return UsageCompactSection.foldCount(section) > 0
         }
     }
 
@@ -164,7 +165,15 @@ public struct MenuBarPanelContent: Equatable, Sendable {
         "\(provider.label) did not report its limits."
     }
 
+    public enum Activity: Equatable, Sendable {
+        case running
+        case waiting
+        case idle
+    }
+
     public var sentence: String
+    public var headline = ""
+    public var activity = Activity.idle
     public var badges: [Badge]
     public var providers: [Provider]
     public var agents: [Agent]
@@ -200,6 +209,14 @@ public struct MenuBarPanelContent: Equatable, Sendable {
                 needsSetup: needsSetup,
                 now: input.now
             ),
+            headline: headline(
+                running: running,
+                workspaces: working,
+                waiting: waiting,
+                hold: input.hold,
+                hasAgentsElsewhere: input.hasAgentsElsewhere
+            ),
+            activity: running > 0 ? .running : (waiting > 0 ? .waiting : .idle),
             badges: badges,
             providers: providers,
             agents: Array(listed.prefix(agentLimit)),
