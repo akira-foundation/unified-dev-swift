@@ -38,30 +38,42 @@ struct GitHubLoginTests {
         let variables = login.variables
         #expect(variables["GH_CONFIG_DIR"] == "/support/GitHubLogins/debtges")
         #expect(variables["GH_TOKEN"] == GitHubLogin.signedOutToken)
-        for name in ["GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN"] {
+        #expect(variables["GH_ENTERPRISE_TOKEN"] == GitHubLogin.signedOutToken)
+        for name in ["GITHUB_TOKEN", "GITHUB_ENTERPRISE_TOKEN"] {
             #expect(variables[name] == "")
         }
 
         let inherited = ["GH_TOKEN": "a", "GITHUB_TOKEN": "b", "GH_ENTERPRISE_TOKEN": "c", "PATH": "/bin"]
         #expect(login.applied(to: inherited) == [
-            "GH_CONFIG_DIR": "/support/GitHubLogins/debtges", "GH_TOKEN": GitHubLogin.signedOutToken, "PATH": "/bin",
+            "GH_CONFIG_DIR": "/support/GitHubLogins/debtges", "GH_TOKEN": GitHubLogin.signedOutToken,
+            "GH_ENTERPRISE_TOKEN": GitHubLogin.signedOutToken, "PATH": "/bin",
         ])
         #expect(login.signInEnvironment(from: inherited) == ["GH_CONFIG_DIR": "/support/GitHubLogins/debtges", "PATH": "/bin"])
     }
 
-    @Test func anOwnLoginWithASessionLetsGhReadItsOwnFile() throws {
+    @Test func anOwnLoginLetsGhReadItsOwnFileOnlyForTheHostItIsSignedInTo() throws {
         let directory = URL(filePath: TestScratch.unique("signed-in-profile"), directoryHint: .isDirectory)
         let login = GitHubLogin.profile(debtges, directory: directory)
         try login.prepare()
-        try "github.com:\n    oauth_token: \"\"\n    user: client-bot\n"
-            .write(to: directory.appending(path: "hosts.yml"), atomically: true, encoding: .utf8)
-        #expect(!login.holdsToken)
+        let hosts = directory.appending(path: "hosts.yml")
+        try "github.com:\n    oauth_token: \"\"\n    user: client-bot\n".write(to: hosts, atomically: true, encoding: .utf8)
+        #expect(login.hostsHoldingTokens.isEmpty)
 
-        try "github.com:\n    oauth_token: not-a-real-token\n    user: client-bot\n"
-            .write(to: directory.appending(path: "hosts.yml"), atomically: true, encoding: .utf8)
-        #expect(login.holdsToken)
+        try "github.com:\n    users:\n        client-bot:\n            oauth_token: not-a-real-token\n"
+            .appending("    oauth_token: not-a-real-token\n    user: client-bot\n")
+            .write(to: hosts, atomically: true, encoding: .utf8)
+        #expect(login.hostsHoldingTokens == ["github.com"])
         #expect(login.variables["GH_TOKEN"] == "")
-        #expect(login.applied(to: ["GH_TOKEN": "a", "PATH": "/bin"]) == ["GH_CONFIG_DIR": directory.path, "PATH": "/bin"])
+        #expect(login.variables["GH_ENTERPRISE_TOKEN"] == GitHubLogin.signedOutToken)
+        #expect(login.applied(to: ["GH_TOKEN": "a", "PATH": "/bin"]) == [
+            "GH_CONFIG_DIR": directory.path, "GH_ENTERPRISE_TOKEN": GitHubLogin.signedOutToken, "PATH": "/bin",
+        ])
+
+        try "git.example.com:\n    oauth_token: not-a-real-token\n    user: client-bot\n"
+            .write(to: hosts, atomically: true, encoding: .utf8)
+        #expect(login.hostsHoldingTokens == ["git.example.com"])
+        #expect(login.variables["GH_TOKEN"] == GitHubLogin.signedOutToken)
+        #expect(login.variables["GH_ENTERPRISE_TOKEN"] == "")
     }
 
     @Test func theSignInCommandToCopyNamesTheProfilesDirectory() {

@@ -264,6 +264,7 @@ struct GitHubLoginRoutingTests {
         let launch = await runner.launch()
         #expect(launch.environment["GH_CONFIG_DIR"] == "/support/GitHubLogins/debtges")
         #expect(launch.environment["GH_TOKEN"] == GitHubLogin.signedOutToken)
+        #expect(launch.environment["GH_ENTERPRISE_TOKEN"] == GitHubLogin.signedOutToken)
         #expect(launch.environment["GITHUB_TOKEN"] == nil)
     }
 }

@@ -17,19 +17,20 @@ public enum GitHubLogin: Sendable, Hashable {
         }
     }
 
-    public var holdsToken: Bool {
-        switch self {
-        case .thisMac: true
-        case .unresolved: false
-        case .profile(_, let directory): GitHubHostsFile.holdsToken(in: directory)
-        }
+    public var hostsHoldingTokens: Set<String> {
+        guard case .profile(_, let directory) = self else { return [] }
+        return GitHubHostsFile.hostsHoldingTokens(in: directory)
     }
 
     public var variables: [String: String] {
         guard let directory else { return [:] }
         var result = Dictionary(uniqueKeysWithValues: Self.tokenVariables.map { ($0, "") })
         result[Self.directoryVariable] = directory.path
-        if !holdsToken { result["GH_TOKEN"] = Self.signedOutToken }
+        let holding = hostsHoldingTokens
+        if !holding.contains(GitHubHostsFile.publicHost) { result["GH_TOKEN"] = Self.signedOutToken }
+        if holding.subtracting([GitHubHostsFile.publicHost]).isEmpty {
+            result["GH_ENTERPRISE_TOKEN"] = Self.signedOutToken
+        }
         return result
     }
 

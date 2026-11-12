@@ -124,7 +124,8 @@ there would replace this Mac's own login, and a profile with nobody signed in wo
 back from it. Unified Dev never signs out on its own.
 
 A profile with its own login and nobody signed in does not fall back to this Mac's login. Unified Dev sets
-`GH_TOKEN` to a value GitHub refuses whenever the folder holds no token, which `gh` prefers to the Keychain,
+`GH_TOKEN` to a value GitHub refuses whenever the folder holds no token for github.com, and
+`GH_ENTERPRISE_TOKEN` likewise when it holds none for another host, which `gh` prefers to the Keychain,
 so its pull requests, checks, agents and git credentials stop at GitHub and ask for a sign in, and the work of
 one organisation cannot run under the identity of another. Switching back to Unified's login keeps the folder, and switching to
 its own again finds the same login. Deleting a profile leaves its folder, and the token in it, where they are.
@@ -136,7 +137,7 @@ to tell, and some profile has a login of its own, the call runs signed out rathe
 A workspace chat's agent runs under the login of its project's profile, and an Ask chat's under that of the
 profile its turn is pinned to. The app sets `GH_CONFIG_DIR` for the profile's login and clears `GH_TOKEN`, `GITHUB_TOKEN`,
 `GH_ENTERPRISE_TOKEN` and `GITHUB_ENTERPRISE_TOKEN`, which `gh` would otherwise prefer to the folder, except
-for the refused `GH_TOKEN` of a profile nobody has signed in to.
+for the refused values of a profile nobody has signed in to.
 Agents get them when their process starts, and terminals when their shell or tmux session starts, so a
 running one keeps the login it started with. Creating a repository from Add Project runs under the active
 profile's login, and filing feedback about Unified Dev itself runs under this Mac's.
