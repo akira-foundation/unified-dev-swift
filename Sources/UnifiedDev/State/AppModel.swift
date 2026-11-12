@@ -475,9 +475,23 @@ final class AppModel {
         guard let store else { return }
         storeObservationTask?.cancel()
         storeObservationTask = Task { [weak self] in
-            for await _ in store.changes(of: StoreDomain.projectsWorkspacesAndTheirAccounts) {
+            for await batch in store.changes(of: StoreDomain.projectListFeed) {
                 guard let self else { return }
-                await self.reload()
+                switch ProjectListRefresh(answering: batch) {
+                case .reload: await self.reload()
+                case .diffStatsOnly: await self.adoptDiffStats()
+                }
+            }
+        }
+    }
+
+    private func adoptDiffStats() async {
+        guard let store, let stats = try? await store.diffStats(),
+              let updated = WorkspaceDiffStat.applied(stats, to: workspaces) else { return }
+        workspaces = updated
+        for workspace in updated {
+            if let existing = workspaceModels[workspace.id], existing.workspace != workspace {
+                existing.workspace = workspace
             }
         }
     }

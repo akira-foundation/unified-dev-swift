@@ -1452,8 +1452,23 @@ public actor Store {
         }
         try db.run(
             "UPDATE workspaces SET additions = ?, deletions = ?, changed_files = ? WHERE id = ?",
-            [.int(Int64(additions)), .int(Int64(deletions)), .int(Int64(files)), .text(workspaceID)]
+            [.int(Int64(additions)), .int(Int64(deletions)), .int(Int64(files)), .text(workspaceID)],
+            publishing: [.diffStats]
         )
+    }
+
+    public func diffStats() throws -> [WorkspaceID: WorkspaceDiffStat] {
+        let rows = try db.query("SELECT id, additions, deletions, changed_files FROM workspaces")
+        var stats: [WorkspaceID: WorkspaceDiffStat] = [:]
+        for row in rows {
+            guard let id = row.string("id") else { continue }
+            stats[WorkspaceID(id)] = WorkspaceDiffStat(
+                additions: Int(row.int("additions") ?? 0),
+                deletions: Int(row.int("deletions") ?? 0),
+                files: Int(row.int("changed_files") ?? 0)
+            )
+        }
+        return stats
     }
 
     public func updateCheckedOutBranch(_ branch: String, observed: Workspace) throws {

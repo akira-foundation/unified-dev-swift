@@ -663,9 +663,9 @@ echo "==> the store feed a reload watches is the set the core declares"
 # passes it.
 observer=Sources/UnifiedDev/State/AppModel.swift
 if [ -f "$observer" ] &&
-   ! grep -q 'store.changes(of: StoreDomain.projectsWorkspacesAndTheirAccounts)' "$observer"; then
+   ! grep -q 'store.changes(of: StoreDomain.projectListFeed)' "$observer"; then
   grep -n 'store.changes(of:' "$observer" | show || true
-  report "$observer must watch StoreDomain.projectsWorkspacesAndTheirAccounts, not a set written here. A domain dropped from a literal is a picker that keeps naming the account the agent stopped using, and nothing in Tests/ can see it."
+  report "$observer must watch StoreDomain.projectListFeed, not a set written here. A domain dropped from a literal is a picker that keeps naming the account the agent stopped using, and nothing in Tests/ can see it."
 fi
 
 echo "==> only the project's settings pane turns the orchestrator's switch"
