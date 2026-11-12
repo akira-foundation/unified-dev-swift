@@ -250,7 +250,21 @@ struct SpendAccountIndexingTests {
         #expect(try await world.store.agentAccounts().map(\.id) == [held.id])
     }
 
-    @Test("a removal cancelled while it reads stops as cancelled and keeps the account")
+    @Test("a removal reads a turn whose line is longer than a refresh would hold")
+    func removalReadsALongLine() async throws {
+        let world = try World()
+        let removed = try await world.createAccount(label: "Long")
+        let padding = String(repeating: "x", count: TranscriptReader.defaultBudget + 1_000)
+        let long = claudeLine(70, identity: "msg_long")
+            .replacingOccurrences(of: "\"type\":\"assistant\",", with: "\"type\":\"assistant\",\"padding\":\"\(padding)\",")
+        try world.transcript([long], in: removed)
+
+        try await AgentAccountRemoval.remove(removed, support: world.support, store: world.store, keychain: .untouched, processes: { [] })
+
+        #expect(try await spendTotals(in: world.store).output == 70)
+    }
+
+    @Test("a removal cancelled before it reads stops as cancelled and keeps the account")
     func cancelledRemovalKeepsTheAccount() async throws {
         let world = try World()
         let held = try await world.createAccount(label: "Held")

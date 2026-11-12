@@ -84,9 +84,10 @@ public actor SpendIndexer {
             for page in TranscriptCursorSweep.pages(of: TranscriptSources.files(in: source)) {
                 let cursors = try await store.transcriptCursors(forPaths: page.map(\.url.path))
                 for file in page {
+                    try Task.checkCancellation()
                     let work = TranscriptWork.decide(for: file, cursor: cursors[file.url.path])
                     guard work != .unchanged else { continue }
-                    let read = try await consume(file, work: work, batch: TranscriptReader.defaultBudget, calendar: calendar)
+                    let read = try await consume(file, work: work, batch: TranscriptReader.lineCeiling, calendar: calendar)
                     if read?.finished != true { unread.append(file.url.path) }
                 }
             }
