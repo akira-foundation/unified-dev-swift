@@ -1769,6 +1769,16 @@ public actor Store {
         try db.query("SELECT * FROM sessions WHERE id = ?", [.text(id)]).first.map(Self.session(from:))
     }
 
+    public func sessions(ids: [SessionID]) throws -> [SessionID: Session] {
+        let unique = Array(Set(ids))
+        guard !unique.isEmpty else { return [:] }
+        let placeholders = unique.map { _ in "?" }.joined(separator: ", ")
+        let rows = try db.query(
+            "SELECT * FROM sessions WHERE id IN (\(placeholders))", unique.map { SQLValue.text($0) }
+        ).map(Self.session(from:))
+        return Dictionary(rows.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+    }
+
     public func sessionActivity(includingArchivedWorkspaces: Bool = false) throws -> [SessionActivity] {
         let states = AgentTurns.Kind.allCases.map(\.sessionState)
         let placeholders = states.map { _ in "?" }.joined(separator: ", ")

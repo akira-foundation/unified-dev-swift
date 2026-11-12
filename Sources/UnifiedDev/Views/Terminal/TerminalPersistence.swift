@@ -69,11 +69,21 @@ final class TerminalPersistence {
         return TmuxSessions.parseSessionList(result.stdout)
     }
 
-    func panePIDs() async -> [String: Int32] {
-        await panePIDSnapshot() ?? [:]
+    private lazy var paneReading = SharedReading<[String: Int32]> { [command] in
+        await Self.readPanePIDs(command)
     }
 
-    func panePIDSnapshot() async -> [String: Int32]? {
+    func panePIDs(notOlderThan maxAge: Duration = TerminalActivitySchedule.readingMaxAge) async -> [String: Int32] {
+        await panePIDSnapshot(notOlderThan: maxAge) ?? [:]
+    }
+
+    func panePIDSnapshot(
+        notOlderThan maxAge: Duration = TerminalActivitySchedule.readingMaxAge
+    ) async -> [String: Int32]? {
+        await paneReading.value(notOlderThan: maxAge)
+    }
+
+    private nonisolated static func readPanePIDs(_ command: TmuxCommand?) async -> [String: Int32]? {
         guard let command else { return [:] }
         guard let result = try? await Shell.run(
             command.executable, command.listPanes, timeout: .seconds(5)

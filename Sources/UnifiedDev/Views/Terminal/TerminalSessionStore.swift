@@ -259,7 +259,7 @@ final class TerminalSessionStore {
 
     func agentsInTerminals(of workspaceID: WorkspaceID) async -> [AgentKind]? {
         ensurePersistence()
-        guard let table = await ProcessTable.current(), !table.rows.isEmpty else { return nil }
+        guard let table = await ProcessTable.recent(), !table.rows.isEmpty else { return nil }
         var shells = livePanes().filter { paneOwner[$0.pane] == workspaceID }.map(\.shell)
         if let persistence {
             guard let snapshot = await persistence.panePIDSnapshot() else { return nil }
@@ -293,7 +293,7 @@ final class TerminalSessionStore {
             return
         }
         let observedAt = Date()
-        guard let table = await ProcessTable.current() else { return }
+        guard let table = await ProcessTable.recent() else { return }
         var pids: [String: Int32] = [:]
         if let persistence {
             guard let snapshot = await persistence.panePIDSnapshot() else { return }
@@ -312,9 +312,10 @@ final class TerminalSessionStore {
             kind.interactiveScreenIsBusy(lines: currentScreen(inPane: pane)) ? pane : nil
         })
         var turns: [SessionID: AgentTurns.Live] = [:]
+        let linkedSessions = (try? await store.sessions(ids: linkedTabs.compactMap(\.agentSessionID))) ?? [:]
         for tab in linkedTabs {
             guard let sessionID = tab.agentSessionID,
-                  let session = try? await store.session(id: sessionID),
+                  let session = linkedSessions[sessionID],
                   session.archivedAt == nil else { continue }
             let paneIDs = TerminalSplitStore.shared.panes(of: tab.id)
             for pane in paneIDs where detected[pane] == nil {
@@ -429,15 +430,15 @@ final class TerminalSessionStore {
     private func startRecordingCommands() {
         guard recordTask == nil, repoStore != nil else { return }
         recordTask = Task { [weak self] in
-            var ticks = 0
+            var lastRecorded = ContinuousClock.now
             while !Task.isCancelled {
                 await self?.refreshAgentActivity()
-                try? await Task.sleep(for: .seconds(2))
+                try? await Task.sleep(for: TerminalActivitySchedule.tick(isAppActive: NSApp?.isActive ?? true))
                 guard !Task.isCancelled else { return }
-                ticks += 1
-                if ticks == 15 {
+                let now = ContinuousClock.now
+                if TerminalActivitySchedule.isRecordDue(lastRecorded: lastRecorded, now: now) {
                     await self?.recordCommands()
-                    ticks = 0
+                    lastRecorded = now
                 }
             }
         }
