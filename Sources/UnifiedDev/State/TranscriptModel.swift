@@ -379,6 +379,7 @@ final class TranscriptModel {
 
         var row = TranscriptRow(message: message)
         row.parentToolUseID = decided.parentToolUseID
+        row.payload = TranscriptRowPayload.retained(kind: message.kind, payload: message.payload)
         if let ask = decided.ask {
             row.permissionDecision = ask.standing(in: decisions, inWorkspace: inWorkspace)
             row.isQuestion = ask.isQuestion
