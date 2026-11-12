@@ -10,10 +10,12 @@ public final class WorktreeWatcher: Sendable {
 
     private struct Watched {
         var stream: FSEventStreamRef?
+        var metadataStream: FSEventStreamRef?
         var given: [String] = []
         var matching: [String] = []
         var origins: [String: String] = [:]
         var metadata: [String: Set<String>] = [:]
+        var branches: [String: Set<String>] = [:]
     }
 
     private let watched = Mutex(Watched())
@@ -28,37 +30,45 @@ public final class WorktreeWatcher: Sendable {
     deinit {
         watched.withLock { state in
             Self.tearDown(state.stream)
+            Self.tearDown(state.metadataStream)
             state.stream = nil
+            state.metadataStream = nil
         }
     }
 
-    public func watch(roots: [String]) {
+    public func watch(roots: [String], branches: [String: Set<String>] = [:]) {
         let wanted = Self.ordered(roots)
         watched.withLock { state in
+            state.branches = branches
             guard state.given != wanted else { return }
             Self.tearDown(state.stream)
+            Self.tearDown(state.metadataStream)
             state.given = wanted
             var origins: [String: String] = [:]
             for root in wanted { origins[Self.resolve(root)] = root }
             state.origins = origins
             state.matching = Self.ordered(Array(origins.keys))
             state.metadata = Self.metadataRoots(for: wanted)
-            state.stream = wanted.isEmpty ? nil : makeStream(for: Array(Set(wanted + Array(state.metadata.keys))))
+            state.stream = wanted.isEmpty ? nil : makeStream(for: wanted, metadata: false)
+            state.metadataStream = state.metadata.isEmpty ? nil : makeStream(for: Array(state.metadata.keys), metadata: true)
         }
     }
 
     public func stop() {
         watched.withLock { state in
             Self.tearDown(state.stream)
+            Self.tearDown(state.metadataStream)
             state.stream = nil
+            state.metadataStream = nil
             state.given = []
             state.matching = []
             state.origins = [:]
             state.metadata = [:]
+            state.branches = [:]
         }
     }
 
-    private func makeStream(for roots: [String]) -> FSEventStreamRef? {
+    private func makeStream(for roots: [String], metadata: Bool) -> FSEventStreamRef? {
         var context = FSEventStreamContext(
             version: 0,
             info: Unmanaged.passUnretained(self).toOpaque(),
@@ -73,16 +83,23 @@ public final class WorktreeWatcher: Sendable {
                 | kFSEventStreamCreateFlagWatchRoot
         )
 
-        let fileFlags = onFilesChanged == nil ? UInt32(0) : UInt32(kFSEventStreamCreateFlagFileEvents)
+        let wantsFiles = metadata || onFilesChanged != nil
+        let fileFlags = wantsFiles ? UInt32(kFSEventStreamCreateFlagFileEvents) : UInt32(0)
+        let worktreeEvents: FSEventStreamCallback = { _, info, count, paths, eventFlags, _ in
+            guard let info, count > 0 else { return }
+            let watcher = Unmanaged<WorktreeWatcher>.fromOpaque(info).takeUnretainedValue()
+            let changed = unsafeBitCast(paths, to: NSArray.self) as? [String] ?? []
+            watcher.report(changed)
+            watcher.reportFiles(changed, flags: Array(UnsafeBufferPointer(start: eventFlags, count: count)))
+        }
+        let metadataEvents: FSEventStreamCallback = { _, info, count, paths, _, _ in
+            guard let info, count > 0 else { return }
+            let watcher = Unmanaged<WorktreeWatcher>.fromOpaque(info).takeUnretainedValue()
+            watcher.reportMetadata(unsafeBitCast(paths, to: NSArray.self) as? [String] ?? [])
+        }
         guard let stream = FSEventStreamCreate(
             kCFAllocatorDefault,
-            { _, info, count, paths, eventFlags, _ in
-                guard let info, count > 0 else { return }
-                let watcher = Unmanaged<WorktreeWatcher>.fromOpaque(info).takeUnretainedValue()
-                let changed = unsafeBitCast(paths, to: NSArray.self) as? [String] ?? []
-                watcher.report(changed)
-                watcher.reportFiles(changed, flags: Array(UnsafeBufferPointer(start: eventFlags, count: count)))
-            },
+            metadata ? metadataEvents : worktreeEvents,
             &context,
             roots as CFArray,
             FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
@@ -111,8 +128,14 @@ public final class WorktreeWatcher: Sendable {
         let files = paths.filter { path in
             !metadata.keys.contains { path == $0 || path.hasPrefix($0 + "/") }
         }
-        var changed = Set(Self.roots(of: files, in: matching).compactMap { origins[$0] })
-        changed.formUnion(Self.metadataWorktrees(changed: paths, metadata: metadata))
+        let changed = Set(Self.roots(of: files, in: matching).compactMap { origins[$0] })
+        guard !changed.isEmpty else { return }
+        onChange(changed)
+    }
+
+    private func reportMetadata(_ paths: [String]) {
+        let (metadata, branches) = watched.withLock { ($0.metadata, $0.branches) }
+        let changed = Self.metadataWorktrees(changed: paths, metadata: metadata, branches: branches)
         guard !changed.isEmpty else { return }
         onChange(changed)
     }
@@ -141,17 +164,44 @@ public final class WorktreeWatcher: Sendable {
         return result
     }
 
-    static func metadataWorktrees(changed paths: [String], metadata: [String: Set<String>]) -> Set<String> {
+    static func metadataWorktrees(
+        changed paths: [String], metadata: [String: Set<String>], branches: [String: Set<String>] = [:]
+    ) -> Set<String> {
         var worktrees: Set<String> = []
         let ordered = Self.ordered(Array(metadata.keys))
         for path in paths {
             if let root = ordered.first(where: { path == $0 || path.hasPrefix($0 + "/") }) {
                 let relative = path == root ? "" : String(path.dropFirst(root.count + 1))
                 guard metadataAffectsWorktree(relative) else { continue }
-                worktrees.formUnion(metadata[root] ?? [])
+                let owners = metadata[root] ?? []
+                guard let moved = movedBranchNames(relative) else {
+                    worktrees.formUnion(owners)
+                    continue
+                }
+                worktrees.formUnion(owners.filter { owner in
+                    guard let concerned = branches[owner] else { return true }
+                    return !concerned.isDisjoint(with: moved)
+                })
             }
         }
         return worktrees
+    }
+
+    static func movedBranchNames(_ relative: String) -> Set<String>? {
+        var parts = relative.split(separator: "/").map(String.init)
+        if parts.first == "logs" { parts.removeFirst() }
+        guard parts.count >= 3, parts[0] == "refs", let last = parts.last else { return nil }
+        if last.hasSuffix(".lock") { parts[parts.count - 1] = String(last.dropLast(5)) }
+        switch parts[1] {
+        case "heads":
+            return [parts[2...].joined(separator: "/")]
+        case "remotes":
+            guard parts.count >= 4 else { return nil }
+            let name = parts[3...].joined(separator: "/")
+            return [name, parts[2] + "/" + name]
+        default:
+            return nil
+        }
     }
 
     private static func metadataAffectsWorktree(_ relative: String) -> Bool {
@@ -167,7 +217,7 @@ public final class WorktreeWatcher: Sendable {
         }
         if first == "worktrees" { return parts.count == 1 }
         return [
-            "HEAD", "index", "index.lock", "packed-refs", "packed-refs.lock", "config",
+            "HEAD", "index", "index.lock", "packed-refs", "config",
             "config.worktree", "commondir", "gitdir", "shallow", "MERGE_HEAD", "REBASE_HEAD",
             "CHERRY_PICK_HEAD", "REVERT_HEAD", "BISECT_LOG", "rebase-apply", "rebase-merge", "sequencer",
         ].contains(first)

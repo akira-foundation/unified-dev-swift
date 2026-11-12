@@ -398,7 +398,12 @@ final class AppModel {
                 let landed = Set(reconciled.map(\.id))
                 pendingWorkspaces.removeAll { landed.contains($0.id) }
             }
-            worktreeWatcher.watch(roots: workspaces.map(\.path))
+            worktreeWatcher.watch(
+                roots: workspaces.map(\.path),
+                branches: Dictionary(
+                    workspaces.map { ($0.path, Set([$0.branch, $0.baseBranch])) }, uniquingKeysWith: { $0.union($1) }
+                )
+            )
             for workspace in workspaces {
                 CenterTabStore.shared.load(workspaceID: workspace.id)
                 if let existing = workspaceModels[workspace.id], existing.workspace != workspace {
