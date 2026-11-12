@@ -166,22 +166,22 @@ struct QuotaPollScheduleTests {
     }
 
     @Test func asksEveryMinuteWhileTheAppIsInFront() {
-        #expect(QuotaPollSchedule.gap(isAppActive: true, isPanelOpen: false) == 60)
+        #expect(QuotaPollSchedule.gap(for: .foreground, isPanelOpen: false) == 60)
     }
 
     @Test func asksEveryMinuteWhileThePanelIsOpenWithTheAppBehind() {
-        #expect(QuotaPollSchedule.gap(isAppActive: false, isPanelOpen: true) == 60)
+        #expect(QuotaPollSchedule.gap(for: .background, isPanelOpen: true) == 60)
     }
 
     @Test func asksNoMoreThanEveryFiveMinutesInTheBackground() {
-        #expect(QuotaPollSchedule.gap(isAppActive: false, isPanelOpen: false) >= 300)
+        #expect(QuotaPollSchedule.gap(for: .background, isPanelOpen: false) >= 300)
     }
 
     @Test("an hour of ticks asks as often as the attention allows", arguments: [
-        (false, false, 12), (true, false, 60), (false, true, 60),
+        (DiffRefreshSchedule.Activity.background, false, 12), (.foreground, false, 60), (.background, true, 60),
     ])
-    func anHourOfTicks(isAppActive: Bool, isPanelOpen: Bool, expected: Int) {
-        let gap = QuotaPollSchedule.gap(isAppActive: isAppActive, isPanelOpen: isPanelOpen)
+    func anHourOfTicks(activity: DiffRefreshSchedule.Activity, isPanelOpen: Bool, expected: Int) {
+        let gap = QuotaPollSchedule.gap(for: activity, isPanelOpen: isPanelOpen)
         var lastAskedAt: Date?
         var asks = 0
         for second in stride(from: 0, to: 3_600, by: QuotaPollSchedule.tick) {
@@ -197,11 +197,11 @@ struct QuotaPollScheduleTests {
         let backgroundAsk = now - 90
         #expect(!QuotaPollSchedule.isDue(
             lastAskedAt: backgroundAsk, at: now,
-            after: QuotaPollSchedule.gap(isAppActive: false, isPanelOpen: false)
+            after: QuotaPollSchedule.gap(for: .background, isPanelOpen: false)
         ))
         #expect(QuotaPollSchedule.isDue(
             lastAskedAt: backgroundAsk, at: now,
-            after: QuotaPollSchedule.gap(isAppActive: true, isPanelOpen: false)
+            after: QuotaPollSchedule.gap(for: .foreground, isPanelOpen: false)
         ))
     }
 

@@ -9,8 +9,8 @@ public enum QuotaPollSchedule {
 
     public static let tick: TimeInterval = 15
 
-    public static func gap(isAppActive: Bool, isPanelOpen: Bool) -> TimeInterval {
-        isAppActive || isPanelOpen ? interval : backgroundInterval
+    public static func gap(for activity: DiffRefreshSchedule.Activity, isPanelOpen: Bool) -> TimeInterval {
+        activity == .foreground || isPanelOpen ? interval : backgroundInterval
     }
 
     public static func isDue(lastAskedAt: Date?, at now: Date, after gap: TimeInterval) -> Bool {

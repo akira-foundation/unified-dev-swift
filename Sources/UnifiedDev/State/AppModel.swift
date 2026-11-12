@@ -446,7 +446,7 @@ final class AppModel {
         if quotas != loaded { quotas = loaded }
     }
 
-    func refreshQuotas(after gap: TimeInterval = QuotaPollSchedule.interval) async {
+    func refreshQuotas(after gap: TimeInterval) async {
         guard store != nil,
               !isAskingForQuotas,
               !UserDefaults.standard.bool(forKey: PreviewScenario.holdsQuotasKey),
@@ -454,8 +454,8 @@ final class AppModel {
         else { return }
         isAskingForQuotas = true
         defer { isAskingForQuotas = false }
-        guard let resolution = await accountResolution(for: selectedAccountScope) else { return }
         lastQuotaAskAt = Date()
+        guard let resolution = await accountResolution(for: selectedAccountScope) else { return }
         let report = await AgentQuotaSources.report(AgentQuotaSources.all(accounts: resolution.homes))
         for account in report.accounts where accounts[account.provider] != account {
             accounts[account.provider] = account
@@ -478,8 +478,8 @@ final class AppModel {
     }
 
     private func refreshQuotasIfDue() async {
-        let gap = QuotaPollSchedule.gap(isAppActive: NSApp?.isActive ?? true, isPanelOpen: isMenuBarPanelOpen())
-        await refreshQuotas(after: gap)
+        let activity: DiffRefreshSchedule.Activity = NSApp?.isActive ?? true ? .foreground : .background
+        await refreshQuotas(after: QuotaPollSchedule.gap(for: activity, isPanelOpen: isMenuBarPanelOpen()))
     }
 
     private func startPollingQuotas() {
@@ -494,7 +494,7 @@ final class AppModel {
         quotaActivationTask = Task { [weak self] in
             for await _ in NotificationCenter.default.notifications(named: NSApplication.didBecomeActiveNotification) {
                 guard let self else { return }
-                await self.refreshQuotas(after: QuotaPollSchedule.interval)
+                await self.refreshQuotas(after: QuotaPollSchedule.gap(for: .foreground, isPanelOpen: false))
             }
         }
     }
