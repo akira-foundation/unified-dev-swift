@@ -33,9 +33,11 @@ extension WorkspaceModel {
         state.transcript = nil
         state.snapshot = nil
         state.error = nil
-        state.task?.cancel()
+        let prior = state.task
+        prior?.cancel()
         let closing = state.closing
         state.task = Task { [weak self] in
+            await prior?.value
             await closing?.value
             guard let self else { return }
             if let kept = opening.keeping {
@@ -85,7 +87,8 @@ extension WorkspaceModel {
     ) async {
         arrival.quotes.forEach { child.reply(with: $0) }
         for question in arrival.questions {
-            guard state.lifecycle.sessionID == child.session.id else { return }
+            let stillOpen = state.lifecycle.sessionID == child.session.id
+            guard stillOpen || child.session.sideConversationParentID == nil else { return }
             await child.submit(question)
         }
     }
@@ -112,10 +115,11 @@ extension WorkspaceModel {
         guard let state = sideConversations[parent.session.id], let child = state.transcript,
               !state.isKeeping, state.lifecycle.sessionID == child.session.id, let store else { return }
         state.isKeeping = true
-        state.task?.cancel()
+        let delivering = state.task
         state.task = Task { [weak self] in
             defer { state.isKeeping = false; state.task = nil }
             guard let self else { return }
+            await delivering?.value
             do {
                 guard let kept = try await store.keepSideConversation(sessionID: child.session.id) else { return }
                 child.session = kept
