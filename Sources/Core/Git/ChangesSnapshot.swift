@@ -10,8 +10,4 @@ public struct ChangesSnapshot: Sendable, Equatable {
         self.revisions = revisions
         self.scope = scope
     }
-
-    public static func advancesGeneration(from previous: ChangesSnapshot?, to next: ChangesSnapshot) -> Bool {
-        previous != next
-    }
 }

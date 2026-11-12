@@ -27,6 +27,7 @@ enum BusyProbe {
         let quiet = app.workspaces.first { workspace in
             !busy.contains { $0.id == workspace.id } && FileManager.default.fileExists(atPath: workspace.path)
         }
+        if quietSelection, quiet == nil { harness.fail("wanted a quiet workspace on disk beside the busy ones") }
         let selected = quietSelection ? quiet : busy.first
         if let selected { app.selection = .workspace(selected.id) }
 

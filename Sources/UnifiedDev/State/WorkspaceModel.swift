@@ -122,7 +122,7 @@ final class WorkspaceModel {
     var isLoadingChanges = false
     private(set) var hasReadChanges = false
     private(set) var changesGeneration = 0
-    @ObservationIgnored private var lastChanges: ChangesSnapshot?
+    @ObservationIgnored private var changesRecord = ChangesGeneration()
     @ObservationIgnored private var patches = PatchCache()
     @ObservationIgnored private var presentations = DiffPresentationCache()
     @ObservationIgnored private var panePositions: [TranscriptPaneState.Key: TranscriptPaneState] = [:]
@@ -1192,9 +1192,8 @@ final class WorkspaceModel {
             ActivityTally.changeReads += 1
             #endif
             let snapshot = ChangesSnapshot(files: answer.files, revisions: answer.revisions, scope: scope)
-            if ChangesSnapshot.advancesGeneration(from: lastChanges, to: snapshot) {
-                lastChanges = snapshot
-                changesGeneration &+= 1
+            if changesRecord.record(snapshot) {
+                changesGeneration = changesRecord.value
                 #if DEBUG
                 ActivityTally.changeGenerations += 1
                 #endif
