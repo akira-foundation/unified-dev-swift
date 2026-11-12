@@ -220,7 +220,7 @@ built there and then. Hand it a row read a few seconds ago and it carries every 
 it looked like then. `update(workspaceID:)` and its siblings read the row inside the actor, apply
 the change and write, with no suspension in between.
 
-This is not tidiness. A workspace row has a diff stat refresh writing every six seconds, an archive
+This is not tidiness. A workspace row has a diff stat refresh writing every few seconds, an archive
 that takes seconds of disk work, a panel somebody sits in for a minute, and an agent turn that runs
 for ten. Whole-value writes rolled each other back, and the worst of it was a row that said a
 workspace was live after its worktree had been deleted. `Tests/CoreTests/WorkspaceWriteIsolationTests.swift`
