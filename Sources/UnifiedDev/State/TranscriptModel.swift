@@ -125,7 +125,7 @@ final class TranscriptModel {
     }
 
     var hasNothingToShow: Bool {
-        rows.allSatisfy { AppRequest.isHidden(kind: $0.kind, payload: $0.payload) }
+        !rowsReleased && rows.allSatisfy { AppRequest.isHidden(kind: $0.kind, payload: $0.payload) }
             && sending == nil && Delivery.messages(in: pendingDeliveries).isEmpty
     }
 
@@ -303,6 +303,7 @@ final class TranscriptModel {
         guard let store, !isLoaded else {
             if let store, rowsReleased {
                 await loader.run { [self] in await restoreRows(from: store) }
+                await appendLatestMessages()
                 return
             }
             SwitchTrace.mark("transcript.reused", workspace: workspace?.id)
@@ -384,7 +385,7 @@ final class TranscriptModel {
             holdsRows: isLoaded && !rowsReleased && !rows.isEmpty,
             isShown: viewers > 0,
             isBusy: isRunning || isAwaitingPermission || isStreaming || sending != nil
-                || !pendingDeliveries.isEmpty || subagents.isWorking,
+                || !pendingDeliveries.isEmpty || subagents.isWorking || history.isFinalisingTurn,
             lastShown: lastShown
         )
     }
