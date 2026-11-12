@@ -79,6 +79,24 @@ struct GitHubLoginRoutingTests {
         #expect(await store.gitHubLogin(forDirectory: elsewhere) == store.gitHubLogin(for: debtges.id))
     }
 
+    @Test func aRouteFollowsAWorkspaceOrProjectWhosePathChangesAtTheSameLength() async throws {
+        let store = try makeTestStore("github-login-respelled")
+        let debtges = try await store.createProfile(name: "Debtges", colour: Accent.all[1], symbol: "star")
+        try await store.setGitHubSource(.own, for: debtges.id)
+        let (repo, workspace) = try await seed(store, in: debtges.id)
+        let own = store.gitHubLogin(for: debtges.id)
+        #expect(await store.gitHubLogin(forDirectory: workspace.path) == own)
+
+        let moved = String(workspace.path.dropLast()) + "Z"
+        _ = try await store.update(workspaceID: workspace.id) { $0.path = moved }
+        #expect(await store.gitHubLogin(forDirectory: moved) == own)
+
+        let replacement = String(repo.path.dropLast()) + "Z"
+        try await store.deleteRepo(id: repo.id)
+        _ = try await store.upsert(Repo(name: "r", path: replacement, profileID: debtges.id))
+        #expect(await store.gitHubLogin(forDirectory: replacement) == own)
+    }
+
     @Test func movingAProjectMovesItsLogin() async throws {
         let store = try makeTestStore("github-login-move")
         let debtges = try await store.createProfile(name: "Debtges", colour: Accent.all[1], symbol: "star")

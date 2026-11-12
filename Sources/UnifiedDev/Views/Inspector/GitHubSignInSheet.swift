@@ -20,7 +20,7 @@ struct GitHubSignInSheet: View {
 
     private static let successPause = Duration.milliseconds(700)
     private static let unresolvedRefusal =
-        "Unified Dev could not tell which profile this belongs to, so it did not sign in. Try again in a moment."
+        "Unified Dev could not tell which profile this belongs to, so it did not sign in. Close this and try again."
     private static let manualURL = "https://cli.github.com/manual/gh_auth_login"
     private static let downloadURL = "https://cli.github.com"
 

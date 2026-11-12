@@ -22,14 +22,22 @@ public struct GitHubLoginRoutes: Sendable, Hashable {
     public func profile(forDirectory directory: String) -> ProfileID? {
         guard !directory.isEmpty else { return nil }
         let url = URL(filePath: directory)
-        let ignoresCase = (try? url.resourceValues(forKeys: [.volumeSupportsCaseSensitiveNamesKey]))?
-            .volumeSupportsCaseSensitiveNames == false
+        let ignoresCase = Self.volumeIgnoresCase(at: url)
         for wanted in [Self.normalised(directory), Self.normalised(url.resolvingSymlinksInPath().path)] {
             if let route = routes.first(where: { Self.holds($0.path, wanted, ignoringCase: ignoresCase) }) {
                 return route.profile
             }
         }
         return nil
+    }
+
+    private static func volumeIgnoresCase(at url: URL) -> Bool {
+        var probe = url.standardizedFileURL
+        while !FileManager.default.fileExists(atPath: probe.path), probe.path != "/" {
+            probe = probe.deletingLastPathComponent()
+        }
+        let values = try? probe.resourceValues(forKeys: [.volumeSupportsCaseSensitiveNamesKey])
+        return values?.volumeSupportsCaseSensitiveNames == false
     }
 
     private static func holds(_ route: String, _ wanted: String, ignoringCase: Bool) -> Bool {

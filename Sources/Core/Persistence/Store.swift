@@ -894,23 +894,21 @@ public actor Store {
     }
 
     func gitHubLoginRoutes() throws -> GitHubLoginRoutes {
-        let signature = try db.query(
-            """
-            SELECT (SELECT COUNT(*) || ':' || IFNULL(SUM(LENGTH(path)), 0) || ':' || IFNULL(GROUP_CONCAT(profile_id), '')
-                    FROM repos)
-                || '|' || (SELECT COUNT(*) || ':' || IFNULL(SUM(LENGTH(path)), 0) FROM workspaces) AS signature
-            """
-        ).first?.string("signature") ?? ""
-        if let cached = gitHubRouteCache, cached.signature == signature { return cached.routes }
         let rows = try db.query(
             """
             SELECT path, profile_id FROM repos
             UNION ALL
             SELECT workspaces.path, repos.profile_id FROM workspaces JOIN repos ON repos.id = workspaces.repo_id
+            ORDER BY 1, 2
             """
         )
-        let routes = GitHubLoginRoutes(routes: rows.flatMap { row -> [GitHubLoginRoutes.Route] in
-            guard let path = row.string("path"), let profile = row.string("profile_id") else { return [] }
+        let pairs = rows.compactMap { row -> (String, String)? in
+            guard let path = row.string("path"), let profile = row.string("profile_id") else { return nil }
+            return (path, profile)
+        }
+        let signature = pairs.map { $0.0 + "\u{0}" + $0.1 }.joined(separator: "\n")
+        if let cached = gitHubRouteCache, cached.signature == signature { return cached.routes }
+        let routes = GitHubLoginRoutes(routes: pairs.flatMap { path, profile -> [GitHubLoginRoutes.Route] in
             let resolved = URL(filePath: path).resolvingSymlinksInPath().path
             return Set([path, resolved]).map { GitHubLoginRoutes.Route(path: $0, profile: ProfileID(profile)) }
         })
