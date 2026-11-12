@@ -1453,12 +1453,12 @@ public actor Store {
         try db.run(
             "UPDATE workspaces SET additions = ?, deletions = ?, changed_files = ? WHERE id = ?",
             [.int(Int64(additions)), .int(Int64(deletions)), .int(Int64(files)), .text(workspaceID)],
-            publishing: [.diffStats]
+            publishing: [.workspaces: .diffStats]
         )
     }
 
     public func diffStats() throws -> [WorkspaceID: WorkspaceDiffStat] {
-        let rows = try db.query("SELECT id, additions, deletions, changed_files FROM workspaces")
+        let rows = try db.query("SELECT id, additions, deletions, changed_files FROM workspaces WHERE state = 'active'")
         var stats: [WorkspaceID: WorkspaceDiffStat] = [:]
         for row in rows {
             guard let id = row.string("id") else { continue }

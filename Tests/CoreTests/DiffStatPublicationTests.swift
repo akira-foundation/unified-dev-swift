@@ -46,7 +46,7 @@ struct DiffStatPublicationTests {
             try database.run(
                 "UPDATE workspaces SET additions = 9 WHERE id = ?",
                 [.text(workspace.id)],
-                publishing: [.diffStats]
+                publishing: [.workspaces: .diffStats]
             )
         }
 
@@ -65,33 +65,69 @@ struct DiffStatPublicationTests {
         #expect(stats[workspace.id] == WorkspaceDiffStat(additions: 7, deletions: 4, files: 3))
     }
 
-    @Test("applying counts that match the list changes nothing")
-    func applyingEqualCountsIsNil() {
+    @Test("counts that match the list are no change")
+    func equalCountsAreNoChange() {
         let workspace = Workspace(
             repoID: RepoID("r"), name: "w", branch: "b", path: "/w", baseBranch: "main",
             additions: 1, deletions: 2, changedFiles: 3
         )
         let stats = [workspace.id: WorkspaceDiffStat(additions: 1, deletions: 2, files: 3)]
 
-        #expect(WorkspaceDiffStat.applied(stats, to: [workspace]) == nil)
+        #expect(WorkspaceDiffStat.changes(stats, to: [workspace]).isEmpty)
     }
 
-    @Test("applying counts changes only the workspace whose counts moved")
-    func applyingChangesOnlyTheMovedWorkspace() throws {
+    @Test("only the workspace whose counts moved is a change, and applying it touches only its counts")
+    func onlyTheMovedWorkspaceChanges() {
         let still = Workspace(repoID: RepoID("r"), name: "still", branch: "a", path: "/a", baseBranch: "main")
-        let moved = Workspace(repoID: RepoID("r"), name: "moved", branch: "b", path: "/b", baseBranch: "main")
-        let stats = [
-            still.id: WorkspaceDiffStat(of: still),
-            moved.id: WorkspaceDiffStat(additions: 5, deletions: 6, files: 2),
-        ]
+        var moved = Workspace(repoID: RepoID("r"), name: "moved", branch: "b", path: "/b", baseBranch: "main")
+        let stat = WorkspaceDiffStat(additions: 5, deletions: 6, files: 2)
+        let stats = [still.id: WorkspaceDiffStat(of: still), moved.id: stat]
 
-        let updated = try #require(WorkspaceDiffStat.applied(stats, to: [still, moved]))
+        let changes = WorkspaceDiffStat.changes(stats, to: [still, moved])
+        changes[moved.id]?.apply(to: &moved)
 
-        #expect(updated[0] == still)
-        #expect(updated[1].additions == 5)
-        #expect(updated[1].deletions == 6)
-        #expect(updated[1].changedFiles == 2)
-        #expect(updated[1].name == "moved")
+        #expect(changes == [moved.id: stat])
+        #expect(moved.additions == 5)
+        #expect(moved.deletions == 6)
+        #expect(moved.changedFiles == 2)
+        #expect(moved.name == "moved")
+    }
+
+    @Test("an archived workspace's counts are not read back")
+    func archivedCountsAreNotRead() async throws {
+        let store = try makeTestStore("diffstat")
+        let workspace = try await seeded(store)
+        try await store.updateDiffStat(workspaceID: workspace.id, additions: 7, deletions: 4, files: 3)
+        try await store.update(workspaceID: workspace.id) { $0.state = .archived }
+
+        #expect(try await store.diffStats()[workspace.id] == nil)
+    }
+
+    @Test("a write after a diff stat names its own table again")
+    func relabelEndsWithItsStatement() async throws {
+        let store = try makeTestStore("diffstat")
+        let workspace = try await seeded(store)
+        try await store.updateDiffStat(workspaceID: workspace.id, additions: 3, deletions: 1, files: 2)
+        let listener = try await StoreChangeListener(store)
+
+        try await store.update(workspaceID: workspace.id) { $0.name = "renamed" }
+
+        #expect(await listener.nextBatch() == [.workspaces])
+        listener.stop()
+    }
+
+    @Test("a stat for a workspace not listed, or a listed workspace with no stat, is no change")
+    func unmatchedIdsAreNoChange() {
+        let listed = Workspace(
+            repoID: RepoID("r"), name: "listed", branch: "a", path: "/a", baseBranch: "main", additions: 4
+        )
+        let gone = WorkspaceID("gone")
+
+        let changes = WorkspaceDiffStat.changes(
+            [gone: WorkspaceDiffStat(additions: 9, deletions: 9, files: 9)], to: [listed]
+        )
+
+        #expect(changes.isEmpty)
     }
 
     @Test("the project list feed covers every domain a reload reads, and diff stats beside them")

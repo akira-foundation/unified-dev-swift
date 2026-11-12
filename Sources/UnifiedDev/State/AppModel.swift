@@ -389,6 +389,7 @@ final class AppModel {
             if accountChoices != loadedChoices { accountChoices = loadedChoices }
             if repos != loadedRepos { repos = loadedRepos }
             if workspaces != reconciled { workspaces = reconciled }
+            await adoptDiffStats()
             settleSelectionInActiveProfile()
             if !pendingWorkspaces.isEmpty {
                 let landed = Set(reconciled.map(\.id))
@@ -486,13 +487,17 @@ final class AppModel {
     }
 
     private func adoptDiffStats() async {
-        guard let store, let stats = try? await store.diffStats(),
-              let updated = WorkspaceDiffStat.applied(stats, to: workspaces) else { return }
+        guard let store, let stats = try? await store.diffStats() else { return }
+        let moved = WorkspaceDiffStat.changes(stats, to: workspaces)
+        guard !moved.isEmpty else { return }
+        var updated = workspaces
+        for index in updated.indices {
+            moved[updated[index].id]?.apply(to: &updated[index])
+        }
         workspaces = updated
-        for workspace in updated {
-            if let existing = workspaceModels[workspace.id], existing.workspace != workspace {
-                existing.workspace = workspace
-            }
+        for (id, stat) in moved {
+            guard let model = workspaceModels[id], stat != WorkspaceDiffStat(of: model.workspace) else { continue }
+            stat.apply(to: &model.workspace)
         }
     }
 

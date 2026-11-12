@@ -90,7 +90,7 @@ final class SQLiteDatabase: @unchecked Sendable {
 
     private let uncommitted = Mutex<Set<StoreDomain>>([])
 
-    private let relabelled = Mutex<Set<StoreDomain>?>(nil)
+    private let relabelled = Mutex<[StoreDomain: StoreDomain]>([:])
 
     init(path: String) throws {
         self.changes = StoreChangeHub.shared(forPath: path)
@@ -131,8 +131,8 @@ final class SQLiteDatabase: @unchecked Sendable {
     }
 
     private func record(_ domain: StoreDomain) {
-        let published = relabelled.withLock { $0 } ?? [domain]
-        uncommitted.withLock { $0.formUnion(published) }
+        let published = relabelled.withLock { $0[domain] } ?? domain
+        uncommitted.withLock { _ = $0.insert(published) }
     }
 
     private func flushChanges() {
@@ -242,9 +242,9 @@ final class SQLiteDatabase: @unchecked Sendable {
     }
 
     @discardableResult
-    func run(_ sql: String, _ bindings: [SQLValue] = [], publishing domains: Set<StoreDomain>) throws -> Int64 {
-        relabelled.withLock { $0 = domains }
-        defer { relabelled.withLock { $0 = nil } }
+    func run(_ sql: String, _ bindings: [SQLValue] = [], publishing renames: [StoreDomain: StoreDomain]) throws -> Int64 {
+        relabelled.withLock { $0 = renames }
+        defer { relabelled.withLock { $0 = [:] } }
         return try run(sql, bindings)
     }
 

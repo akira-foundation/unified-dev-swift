@@ -17,20 +17,20 @@ public struct WorkspaceDiffStat: Sendable, Hashable {
         )
     }
 
-    public static func applied(
+    public func apply(to workspace: inout Workspace) {
+        workspace.additions = additions
+        workspace.deletions = deletions
+        workspace.changedFiles = files
+    }
+
+    public static func changes(
         _ stats: [WorkspaceID: WorkspaceDiffStat], to workspaces: [Workspace]
-    ) -> [Workspace]? {
-        var updated = workspaces
-        var changed = false
-        for index in updated.indices {
-            guard let stat = stats[updated[index].id], stat != WorkspaceDiffStat(of: updated[index]) else {
-                continue
-            }
-            updated[index].additions = stat.additions
-            updated[index].deletions = stat.deletions
-            updated[index].changedFiles = stat.files
-            changed = true
+    ) -> [WorkspaceID: WorkspaceDiffStat] {
+        var moved: [WorkspaceID: WorkspaceDiffStat] = [:]
+        for workspace in workspaces {
+            guard let stat = stats[workspace.id], stat != WorkspaceDiffStat(of: workspace) else { continue }
+            moved[workspace.id] = stat
         }
-        return changed ? updated : nil
+        return moved
     }
 }
