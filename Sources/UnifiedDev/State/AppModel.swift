@@ -186,6 +186,7 @@ final class AppModel {
         Task { @MainActor in self?.noteWorktreesChanged(paths) }
     }
     private var storeObservationTask: Task<Void, Never>?
+    @ObservationIgnored private var diffStatReads = 0
     private var sessionObservationTask: Task<Void, Never>?
     private var quotaObservationTask: Task<Void, Never>?
     @ObservationIgnored var pullRequestAutoFixesUnderWay: Set<WorkspaceID> = []
@@ -372,6 +373,9 @@ final class AppModel {
 
     func reload() async {
         guard let store else { return }
+        #if DEBUG
+        ActivityTally.reloads += 1
+        #endif
         let known = Set(workspaces.map(\.id))
         do {
             try await reloadProfiles()
@@ -403,6 +407,7 @@ final class AppModel {
             if let crew { applyCrew(crew) }
             await refreshProjectActivity()
             await adoptSelectedAccounts()
+            await adoptDiffStats()
         } catch {
             alert = AppAlert(
                 title: "Could not read workspaces",
@@ -474,10 +479,30 @@ final class AppModel {
         guard let store else { return }
         storeObservationTask?.cancel()
         storeObservationTask = Task { [weak self] in
-            for await _ in store.changes(of: StoreDomain.projectsWorkspacesAndTheirAccounts) {
+            for await batch in store.changes(of: StoreDomain.projectListFeed) {
                 guard let self else { return }
-                await self.reload()
+                switch ProjectListRefresh(answering: batch) {
+                case .reload: await self.reload()
+                case .diffStatsOnly: await self.adoptDiffStats()
+                }
             }
+        }
+    }
+
+    private func adoptDiffStats() async {
+        diffStatReads &+= 1
+        let read = diffStatReads
+        guard let store, let stats = try? await store.diffStats(), read == diffStatReads else { return }
+        let moved = WorkspaceDiffStat.changes(stats, to: workspaces)
+        guard !moved.isEmpty else { return }
+        var updated = workspaces
+        for index in updated.indices {
+            moved[updated[index].id]?.apply(to: &updated[index])
+        }
+        workspaces = updated
+        for (id, stat) in moved {
+            guard let model = workspaceModels[id], stat != WorkspaceDiffStat(of: model.workspace) else { continue }
+            stat.apply(to: &model.workspace)
         }
     }
 
@@ -550,12 +575,16 @@ final class AppModel {
                 guard DiffRefreshSchedule.isDue(activity: activity, lastRun: lastRun, now: now)
                 else { continue }
                 lastRun = now
-                await self.noteMissingWorktrees(exempt: self.archivingWorkspaceIDs.union(self.restoring))
-                let refreshed = await self.refreshDiffStats(activity: activity)
-                if let selected = self.selection.workspaceID, refreshed.contains(selected) {
-                    await self.refreshSelectedChangedFiles(activity: activity)
-                }
+                await self.runDiffRefreshTick(activity: activity)
             }
+        }
+    }
+
+    func runDiffRefreshTick(activity: DiffRefreshSchedule.Activity) async {
+        await noteMissingWorktrees(exempt: archivingWorkspaceIDs.union(restoring))
+        let refreshed = await refreshDiffStats(activity: activity)
+        if let selected = selection.workspaceID, refreshed.contains(selected) {
+            await refreshSelectedChangedFiles(activity: activity)
         }
     }
 
