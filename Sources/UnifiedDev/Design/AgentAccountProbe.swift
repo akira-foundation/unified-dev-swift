@@ -161,7 +161,7 @@ enum AgentAccountProbe {
             Scene(name: "composer-lost", size: panel, view: Self.composer(project: "deleted")),
             Scene(name: "composer-other-agent", size: panel, view: Self.composer(project: "lab", .codex)),
             Scene(name: "composer-no-accounts-lost", size: panel, view: Self.composer(project: "deleted", .cursor)),
-        ] + panelScenes() + offerScenes() + grokUsageScenes()
+        ] + panelScenes() + offerScenes() + grokUsageScenes() + compactPanelScenes()
     }
 
     private static func shoot(_ scene: Scene, scheme: ColorScheme) async -> Bool {
