@@ -237,3 +237,53 @@ extension AgentPresentationFeedTests {
         #expect(batch.events.count == 3)
     }
 }
+
+extension AgentPresentationFeedTests {
+    @Test func theLastSubscriberLeavingLetsGoOfEveryEntry() {
+        let feed = AgentPresentationFeed()
+        let reader = UUID()
+        let stream = feed.notifications(id: reader, after: 0)
+        for index in 0..<20 { feed.yield(.status(String(index))) }
+
+        feed.unsubscribe(reader)
+
+        withExtendedLifetime(stream) {}
+        #expect(feed.retainedUsage.items == 0)
+        #expect(feed.retainedUsage.bytes == 0)
+    }
+
+    @Test func aSubscriberLeavingKeepsWhatTheOtherHasNotAcknowledged() {
+        let feed = AgentPresentationFeed()
+        let staying = UUID()
+        let leaving = UUID()
+        let stayingStream = feed.notifications(id: staying, after: 0)
+        let leavingStream = feed.notifications(id: leaving, after: 0)
+        defer { withExtendedLifetime((stayingStream, leavingStream)) {}; feed.unsubscribe(staying) }
+        for index in 0..<20 { feed.yield(.status(String(index))) }
+        feed.acknowledge(subscriber: staying, through: 12)
+
+        feed.unsubscribe(leaving)
+
+        #expect(feed.retainedUsage.items == 8)
+        #expect(feed.read(after: 12).eventRevisions == Array(13...20))
+    }
+
+    @Test func aPumpJoiningAfterAnotherAcknowledgedRecoversFromItsBaseline() {
+        let feed = AgentPresentationFeed()
+        let first = UUID()
+        let firstStream = feed.notifications(id: first, after: 0)
+        defer { withExtendedLifetime(firstStream) {}; feed.unsubscribe(first) }
+        feed.yield(.streamDelta(.text("early ")))
+        let baseline = feed.snapshot()
+        feed.yield(.streamDelta(.text("late")))
+        feed.acknowledge(subscriber: first, through: feed.snapshot().revision)
+
+        let joining = UUID()
+        let joiningStream = feed.notifications(id: joining, after: baseline.revision)
+        defer { withExtendedLifetime(joiningStream) {}; feed.unsubscribe(joining) }
+        let batch = feed.read(after: baseline.revision)
+
+        #expect(batch.events.isEmpty)
+        #expect(batch.recovery?.text == "early late")
+    }
+}
