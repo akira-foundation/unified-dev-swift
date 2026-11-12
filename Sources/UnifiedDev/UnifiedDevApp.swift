@@ -12,6 +12,7 @@ struct UnifiedDevApp: App {
         if BackgroundTaskProbe.isRequested { BackgroundTaskProbe.runAndExit() }
         if SideConversationProbe.isRequested { SideConversationProbe.runAndExit() }
         if ComposerInputProbe.isRequested { ComposerInputProbe.runAndExit() }
+        if ComposerBusyProbe.isRequested { ComposerBusyProbe.runAndExit() }
         if MarkdownTableProbe.isRequested { MarkdownTableProbe.runAndExit() }
         if MarkdownSelectionProbe.isRequested { MarkdownSelectionProbe.runAndExit() }
         if MenuBarSpendProbe.isRequested { MenuBarSpendProbe.schedule() }
