@@ -72,6 +72,10 @@ public struct Subagent: Sendable, Hashable, Identifiable {
         return max(elapsedSeconds, max(0, ours))
     }
 
+    public func workingSince(at now: Date) -> Date {
+        min(startedAt, now.addingTimeInterval(-Double(elapsedSeconds)))
+    }
+
     fileprivate mutating func move(to state: SubagentState, at now: Date) {
         self.state = state
         if state == .running {
