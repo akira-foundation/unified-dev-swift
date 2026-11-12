@@ -1,6 +1,8 @@
 import Foundation
 
 public enum TranscriptRowPayload {
+    public static let probeLength = 256
+    private static let hookMarker = Data(#""hook_"#.utf8)
     private static let initHead = #"{"type":"system","subtype":"init""#
 
     private static let initKeys: Set<String> = [
@@ -10,7 +12,10 @@ public enum TranscriptRowPayload {
 
     public static func retained(kind: MessageKind, payload: Data) -> Data {
         guard kind == .system, !BackgroundWake.isRow(kind: kind, payload: payload) else { return payload }
-        if TranscriptRowInk.drawsNothing(kind: kind, payload: payload) { return Data() }
+        let front = payload.prefix(probeLength)
+        if TranscriptRowInk.drawsNothing(kind: kind, payload: payload) || front.range(of: hookMarker) != nil {
+            return Data([UInt8](front))
+        }
         return compactInit(payload) ?? payload
     }
 

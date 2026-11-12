@@ -26,21 +26,54 @@ struct TranscriptRowPayloadTests {
         }
     }
 
-    @Test("a system row the transcript never draws keeps nothing")
-    func undrawnSystemRowsKeepNothing() {
+    private func front(of row: Data) -> Data { row.prefix(TranscriptRowPayload.probeLength) }
+
+    @Test("a system row the transcript never draws keeps only the bytes the probes read")
+    func undrawnSystemRowsKeepTheirFront() {
+        let output = String(repeating: "x", count: 4_000)
         let rows = [
-            #"{"type":"system","subtype":"commands_changed","commands":["review","plan"]}"#,
-            #"{"type":"system","subtype":"hook_started","hook_name":"SessionStart"}"#,
-            #"{"type":"stream_event","event":{"type":"content_block_delta"}}"#,
-            #"{"type":"control_request","request_id":"r","request":{"tool_name":"Read"}}"#,
+            payload(#"{"type":"system","subtype":"commands_changed","commands":["review","plan"]}"#),
+            payload(#"{"type":"system","subtype":"hook_response","hook_name":"Stop","output":"\#(output)"}"#),
+            payload(#"{"type":"stream_event","event":{"type":"content_block_delta","text":"\#(output)"}}"#),
         ]
         for row in rows {
-            #expect(TranscriptRowPayload.retained(kind: .system, payload: payload(row)).isEmpty)
+            let kept = TranscriptRowPayload.retained(kind: .system, payload: row)
+            #expect(kept == front(of: row))
+            #expect(kept.count <= TranscriptRowPayload.probeLength)
         }
     }
 
-    @Test("an emptied row still draws nothing")
-    func emptiedRowStaysBlank() {
+    @Test("the kept bytes are a copy, not a window onto the whole payload")
+    func keptBytesAreACopy() {
+        let row = payload(#"{"type":"system","subtype":"hook_response","output":"\#(String(repeating: "x", count: 4_000))"}"#)
+        let kept = TranscriptRowPayload.retained(kind: .system, payload: row)
+        #expect(kept.startIndex == 0)
+        #expect(kept.count == TranscriptRowPayload.probeLength)
+    }
+
+    @Test("a hook named anywhere in the front still reads as one once trimmed")
+    func hookMarkerSurvivesWherever() {
+        let rows = [
+            payload(#"{"type":"system","subtype":"hook_started","hook_name":"SessionStart"}"#),
+            payload(#"{"type":"system","subtype":"commands_changed","commands":["hook_review"]}"#),
+        ]
+        let marker = Data(#""hook_"#.utf8)
+        for row in rows {
+            let kept = TranscriptRowPayload.retained(kind: .system, payload: row)
+            #expect(front(of: row).range(of: marker) != nil)
+            #expect(kept.range(of: marker) != nil)
+        }
+    }
+
+    @Test("an init that names a hook in its front is left as the probes saw it")
+    func initNamingAHookKeepsItsFront() {
+        let row = payload(#"{"type":"system","subtype":"init","tools":["hook_run"],"slash_commands":["\#(String(repeating: "c", count: 2_000))"]}"#)
+        let kept = TranscriptRowPayload.retained(kind: .system, payload: row)
+        #expect(kept == front(of: row))
+    }
+
+    @Test("a trimmed row still draws nothing")
+    func trimmedRowStaysBlank() {
         let row = payload(#"{"type":"system","subtype":"commands_changed"}"#)
         let kept = TranscriptRowPayload.retained(kind: .system, payload: row)
         #expect(TranscriptRowInk.drawsNothing(kind: .system, payload: kept))
@@ -105,5 +138,29 @@ struct TranscriptRowPayloadTests {
     func unreadableInitIsLeft() {
         let row = payload(#"{"type":"system","subtype":"init""#)
         #expect(TranscriptRowPayload.retained(kind: .system, payload: row) == row)
+    }
+
+    @Test("an init with nothing worth keeping is still a whole init")
+    func bareInitStaysValid() {
+        let row = payload(#"{"type":"system","subtype":"init","tools":["Read"]}"#)
+        let kept = TranscriptRowPayload.retained(kind: .system, payload: row)
+        #expect(kept == payload(#"{"type":"system","subtype":"init"}"#))
+        guard case .initialized? = AgentEvent.decode(line: String(decoding: kept, as: UTF8.self)) else {
+            Issue.record("a bare init no longer decodes")
+            return
+        }
+    }
+
+    @Test("a subtype that only starts like init is not rewritten as one")
+    func lookalikeSubtypeIsLeft() {
+        let row = payload(#"{"type":"system","subtype":"initialize","detail":"x"}"#)
+        #expect(TranscriptRowPayload.retained(kind: .system, payload: row) == row)
+    }
+
+    @Test("an init payload under another kind is left whole")
+    func initUnderAnotherKindIsLeft() {
+        for kind in MessageKind.allCases where kind != .system {
+            #expect(TranscriptRowPayload.retained(kind: kind, payload: claudeInit) == claudeInit)
+        }
     }
 }
