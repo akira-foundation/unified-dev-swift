@@ -30,15 +30,20 @@ struct DiffStatProcessCountTests {
         #expect(tally.count == 4)
     }
 
-    @Test("the counts agree with the changed files list, renames, binaries and untracked files included")
-    func countsAgreeWithChangedFiles() async throws {
-        let (repo, _, workspace) = try await fixture()
+    @Test("the counts read a rename, an edit, a binary and an untracked file as git does")
+    func countsReadEachKindOfChange() async throws {
+        let repo = try await TempRepo()
         defer { repo.cleanUp() }
+        try repo.write("moved.txt", "a\nb\nc\nd\ne\nf\n")
+        try repo.write("kept.txt", "one\n")
+        try Data([0, 1, 2, 3]).write(to: URL(fileURLWithPath: repo.path + "/blob.bin"))
+        try await repo.commit("Seed the base")
+        let store = try makeTestStore("process-count")
+        let manager = WorkspaceManager(store: store)
+        let registered = try await manager.addRepository(at: repo.path)
+        let created = try await manager.createWorkspace(repo: registered, prompt: "Count the kinds")
+        let workspace = try #require(try await store.workspace(id: created.id))
         let tree = TempRepo(existing: workspace.path)
-        try tree.write("moved.txt", "a\nb\nc\nd\ne\nf\n")
-        try tree.write("kept.txt", "one\n")
-        try Data([0, 1, 2, 3]).write(to: URL(fileURLWithPath: workspace.path + "/blob.bin"))
-        try await tree.commit("Seed")
         try await Shell.check("git", ["mv", "moved.txt", "renamed.txt"], cwd: workspace.path)
         try tree.write("kept.txt", "one\ntwo\n")
         try Data([4, 5, 6, 0]).write(to: URL(fileURLWithPath: workspace.path + "/blob.bin"))
@@ -47,9 +52,11 @@ struct DiffStatProcessCountTests {
         let files = try await Git.changedFiles(worktree: workspace.path, base: workspace.baseBranch)
         let stat = try await Git.diffStat(worktree: workspace.path, base: workspace.baseBranch)
 
+        #expect(files.first { $0.path == "renamed.txt" }?.change == .renamed)
+        #expect(stat.files == 4)
+        #expect(stat.additions == 3)
+        #expect(stat.deletions == 0)
         #expect(stat.files == files.count)
         #expect(stat.additions == files.reduce(0) { $0 + $1.additions })
-        #expect(stat.deletions == files.reduce(0) { $0 + $1.deletions })
-        #expect(stat.files == 4)
     }
 }
