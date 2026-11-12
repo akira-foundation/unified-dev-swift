@@ -150,6 +150,7 @@ struct ClaudeAliasRefreshTests {
         let subject = ClaudeAliasRefresh(
             probe: { _ in scriptedProbe(launches, timeout: .seconds(30)) { _ in [] } },
             installedVersion: { _ in "2.1.322" },
+            activity: ClaudeAccountActivity(),
             now: { clock.now }
         )
 

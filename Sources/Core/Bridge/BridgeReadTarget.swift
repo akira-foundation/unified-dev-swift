@@ -45,7 +45,7 @@ public enum BridgeReadTarget: Sendable, Equatable {
             given = AgentStartTool.text(text)
         }
         let choice: BridgeProfileChoice
-        switch try await BridgeProfileReach.choice(request, allowsEvery: false, as: identity, store: store) {
+        switch try await BridgeProfileReach.choice(request, allowsEvery: false, for: .read, as: identity, store: store) {
         case .failure(let trouble): return .failure(.profile(trouble))
         case .success(let resolved): choice = resolved
         }

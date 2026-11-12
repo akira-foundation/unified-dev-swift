@@ -25,7 +25,11 @@ public final class BridgeRegistry: Sendable {
 
     @discardableResult
     public func mint(
-        sessionID: SessionID, workspaceID: WorkspaceID, role: BridgeRole, launchedOrchestrating: Bool = false
+        sessionID: SessionID,
+        workspaceID: WorkspaceID,
+        role: BridgeRole,
+        launchedOrchestrating: Bool = false,
+        launchedAsking: Bool = false
     ) -> String {
         let token = makeToken()
         state.withLock { state in
@@ -35,7 +39,8 @@ public final class BridgeRegistry: Sendable {
                 sessionID: sessionID,
                 workspaceID: workspaceID,
                 role: role,
-                launchedOrchestrating: launchedOrchestrating
+                launchedOrchestrating: launchedOrchestrating,
+                launchedAsking: launchedAsking
             )
         }
         return token

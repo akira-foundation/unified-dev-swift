@@ -3,7 +3,14 @@ import Foundation
 public enum BridgeProfileCaller: Sendable, Equatable {
     case owner
     case orchestrator
+    case workspace
+    case unasked
     case confined
+}
+
+public enum BridgeProfilePurpose: Sendable, Equatable {
+    case talk
+    case read
 }
 
 public enum BridgeProfileChoice: Sendable, Equatable {
@@ -28,10 +35,11 @@ public enum BridgeProfileReach {
         "type": .string("string"),
         "description": .string(
             "Another profile to act in, by its id or by a name no other reachable profile shares. "
-                + "Leave it out to stay in your own. Only a project's orchestrator, not one on Codex, and the owner's own "
-                + "clients can reach another profile, only one the owner has opened, and an "
-                + "orchestrator's own profile must be open too. The owner approves an orchestrator's "
-                + "every call that names one."
+                + "Leave it out to stay in your own. Any workspace on Claude Code can send a message to a "
+                + "project's orchestrator there; reading its chats and diffs is left to a project's "
+                + "orchestrator and the owner's own clients. Only a profile the owner has opened can be "
+                + "reached, a workspace's own profile must be open too, and a workspace reaches one only from a "
+                + "chat launched in Accept edits, where the owner approves every call that names one."
         ),
     ])
 
@@ -40,18 +48,20 @@ public enum BridgeProfileReach {
         "description": .string(
             "Another profile to list, by its id or by a name no other reachable profile shares, or "
                 + "'all' for your own and every other you can reach. Leave it out to stay in your own. "
-                + "Only a project's orchestrator, not one on Codex, and the owner's own clients can reach another profile, "
-                + "only one the owner has opened, and an orchestrator's own profile must be open too. "
-                + "The owner approves an orchestrator's every call that names one. Each row then says "
-                + "which profile it belongs to."
+                + "Any workspace on Claude Code can list another profile the owner has opened, when its own "
+                + "is open too, from a chat launched in Accept edits, where the owner approves every call that names one. Each "
+                + "row then says which profile it belongs to."
         ),
     ])
 
-    public static func mayCross(_ caller: BridgeProfileCaller, ownOpen: Bool, targetOpen: Bool) -> Bool {
+    public static func mayCross(
+        _ caller: BridgeProfileCaller, for purpose: BridgeProfilePurpose, ownOpen: Bool, targetOpen: Bool
+    ) -> Bool {
         switch caller {
         case .owner: targetOpen
         case .orchestrator: ownOpen && targetOpen
-        case .confined: false
+        case .workspace: purpose == .talk && ownOpen && targetOpen
+        case .unasked, .confined: false
         }
     }
 
@@ -60,40 +70,59 @@ public enum BridgeProfileReach {
         case .owner:
             return .owner
         case .workspace:
-            guard identity.launchedOrchestrating,
-                  let workspaceID = identity.workspaceID, let sessionID = identity.sessionID,
-                  let workspace = try await store.workspace(id: workspaceID),
-                  workspace.isOrchestrator, workspace.state == .active,
+            guard let workspaceID = identity.workspaceID, let sessionID = identity.sessionID,
+                  let workspace = try await store.workspace(id: workspaceID), workspace.state == .active,
                   let session = try await store.session(id: sessionID),
-                  session.workspaceID == workspaceID, session.parentSessionID == nil,
-                  session.agentKind != .codex
+                  session.workspaceID == workspaceID, session.agentKind != .codex
             else { return .confined }
-            return .orchestrator
+            let leads = identity.launchedOrchestrating && workspace.isOrchestrator && session.parentSessionID == nil
+            guard !leads else { return .orchestrator }
+            guard session.agentKind == .claudeCode else { return .confined }
+            return identity.launchedAsking ? .workspace : .unasked
         }
     }
 
-    public static func mayLeaveOwnProfile(_ identity: BridgeIdentity, store: Store) async throws -> Bool {
+    public static func asksTheOwner(_ mode: PermissionMode) -> Bool {
+        mode == .acceptEdits
+    }
+
+    public static func lists(_ workspace: Workspace, to caller: BridgeProfileCaller) -> Bool {
+        switch caller {
+        case .owner, .orchestrator: true
+        case .workspace, .unasked, .confined: OrchestratorRole.leads(workspace)
+        }
+    }
+
+    public static func mayLeaveOwnProfile(
+        _ identity: BridgeIdentity, for purpose: BridgeProfilePurpose, store: Store
+    ) async throws -> Bool {
         let caller = try await caller(of: identity, store: store)
         guard let own = try await BridgeProfileScope.profile(of: identity, store: store) else { return false }
         return mayCross(
-            caller, ownOpen: await ProfileBridgeSwitch.isOn(profile: own, in: store), targetOpen: true
+            caller, for: purpose, ownOpen: await ProfileBridgeSwitch.isOn(profile: own, in: store), targetOpen: true
         )
     }
 
-    public static func reachable(from identity: BridgeIdentity, store: Store) async throws -> [Profile] {
+    public static func reachable(
+        from identity: BridgeIdentity, for purpose: BridgeProfilePurpose, store: Store
+    ) async throws -> [Profile] {
         let caller = try await caller(of: identity, store: store)
         guard let own = try await BridgeProfileScope.profile(of: identity, store: store) else { return [] }
         let ownOpen = await ProfileBridgeSwitch.isOn(profile: own, in: store)
         var open: [Profile] = []
         for profile in try await store.profiles() where profile.id != own {
             let targetOpen = await ProfileBridgeSwitch.isOn(profile: profile.id, in: store)
-            if mayCross(caller, ownOpen: ownOpen, targetOpen: targetOpen) { open.append(profile) }
+            if mayCross(caller, for: purpose, ownOpen: ownOpen, targetOpen: targetOpen) { open.append(profile) }
         }
         return open
     }
 
     static func choice(
-        _ request: MCPRequest, allowsEvery: Bool, as identity: BridgeIdentity, store: Store
+        _ request: MCPRequest,
+        allowsEvery: Bool,
+        for purpose: BridgeProfilePurpose,
+        as identity: BridgeIdentity,
+        store: Store
     ) async throws -> Result<BridgeProfileChoice, BridgeProfileTrouble> {
         guard let raw = request.param(argument), raw != .null else { return .success(.own) }
         guard let text = raw.stringValue else { return .failure(.notText) }
@@ -103,14 +132,18 @@ public enum BridgeProfileReach {
               let own = try await store.profile(id: ownID)
         else { return .failure(.unreachable(given: given)) }
 
-        let others = try await reachable(from: identity, store: store)
+        let others = try await reachable(from: identity, for: purpose, store: store)
         if allowsEvery, given.caseInsensitiveCompare(everyProfile) == .orderedSame {
-            guard try await mayLeaveOwnProfile(identity, store: store) else {
+            guard try await mayLeaveOwnProfile(identity, for: purpose, store: store) else {
                 return .failure(.unreachable(given: given))
             }
             return .success(.every(own: own, others: others))
         }
-        return find(given, own: own, others: others)
+        let found = find(given, own: own, others: others)
+        guard case .failure(.unreachable) = found else { return found }
+        return try await BridgeProfileReachRefusal.plain(
+            given, own: own, purpose: purpose, allowsEvery: allowsEvery, as: identity, store: store
+        ) ?? found
     }
 
     private static func find(

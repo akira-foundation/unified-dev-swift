@@ -20,18 +20,19 @@ struct ProfileReachWorld {
             path: TestScratch.unique("lead"), baseBranch: "main"
         ))
         _ = try await store.setOrchestrator(true, workspaceID: leadWorkspace.id)
-        let leadChat = try await store.upsert(Session(workspaceID: leadWorkspace.id, title: "Lead Chat"))
+        let leadChat = try await store.upsert(Session(workspaceID: leadWorkspace.id, title: "Lead Chat", permissionMode: .acceptEdits))
         let child = try await store.upsert(Session(
-            workspaceID: leadWorkspace.id, parentSessionID: leadChat.id, title: "Helper"
+            workspaceID: leadWorkspace.id, parentSessionID: leadChat.id, title: "Helper", permissionMode: .acceptEdits
         ))
         let farChat = try #require(try await store.sessions(workspaceID: world.farWorkspace.id).first)
         return ProfileReachWorld(
             world: world,
             lead: BridgeIdentity(
-                sessionID: leadChat.id, workspaceID: leadWorkspace.id, role: .workspace, launchedOrchestrating: true
+                sessionID: leadChat.id, workspaceID: leadWorkspace.id, role: .workspace, launchedOrchestrating: true,
+                launchedAsking: true
             ),
             leadChat: leadChat,
-            subagent: BridgeIdentity(sessionID: child.id, workspaceID: leadWorkspace.id, role: .workspace),
+            subagent: BridgeIdentity(sessionID: child.id, workspaceID: leadWorkspace.id, role: .workspace, launchedAsking: true),
             window: WorkspaceSayWindow(
                 store: store, chats: [world.farWorkspace.id: farChat]
             )

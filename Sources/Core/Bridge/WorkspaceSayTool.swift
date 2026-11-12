@@ -59,12 +59,13 @@ public struct WorkspaceSayTool: BridgeToolHandling {
             prompt or a question. With it, there is no need to ask the other agent to report back \
             when it is done.
 
-            Pass profile to send it to a workspace in another profile, which a project's \
-            orchestrator and the owner's own clients can do once the owner has opened that profile. \
-            Such a message arrives marked as coming from outside, without the owner's authority, \
-            and the agent there is told to ask the owner before acting on it, whatever it asks for. \
-            Only a project's orchestrator, not one on Codex, can answer one, so pass notify_when_done to hear how the \
-            turn ended.
+            Pass profile to send it to another profile, once the owner has opened it. A workspace \
+            on Claude Code launched in Accept edits can write to a project's orchestrator there, by its workspace id or by passing project \
+            instead of workspace; only a project's orchestrator and the owner's own clients can write \
+            to its other workspaces. Such a message arrives marked as coming from outside, without \
+            the owner's authority, and the agent there is told to ask the owner before acting on it. \
+            When the project has no orchestrator, the owner gets a card asking to start one, and the \
+            message is delivered to it once they do. Pass notify_when_done to hear how the turn ended.
             """,
         inputSchema: .object([
             "type": .string("object"),
@@ -75,6 +76,13 @@ public struct WorkspaceSayTool: BridgeToolHandling {
                         "The workspace to send it to, by the id workspace_list reports, or by its "
                             + "name when no other workspace shares it. To answer a message, the "
                             + "id it names."
+                    ),
+                ]),
+                "project": .object([
+                    "type": .string("string"),
+                    "description": .string(
+                        "Instead of workspace: the project whose orchestrator should receive it, by the id "
+                            + "or name project_list reports."
                     ),
                 ]),
                 BridgeProfileReach.argument: BridgeProfileReach.schemaProperty,
@@ -93,7 +101,7 @@ public struct WorkspaceSayTool: BridgeToolHandling {
                     ),
                 ]),
             ]),
-            "required": .array([.string("workspace"), .string("message")]),
+            "required": .array([.string("message")]),
         ])
     )
 
@@ -108,9 +116,9 @@ public struct WorkspaceSayTool: BridgeToolHandling {
         guard text.count <= Self.maximumLength else {
             return .failure(WorkspaceSayTrouble.tooLong(count: text.count).sentence)
         }
-        guard let given = AgentStartTool.text(request.stringParam("workspace")) else {
-            return .failure(WorkspaceSayTrouble.noWorkspace.sentence)
-        }
+        let given = AgentStartTool.text(request.stringParam("workspace"))
+        let project = AgentStartTool.text(request.stringParam("project"))
+        guard given != nil || project != nil else { return .failure(WorkspaceSayTrouble.noWorkspace.sentence) }
 
         do {
             let sender = try await Sender.resolve(identity, store: store)
@@ -118,14 +126,18 @@ public struct WorkspaceSayTool: BridgeToolHandling {
                 return .failure(WorkspaceSayTrouble.callerHasGone.sentence)
             }
             let choice: BridgeProfileChoice
-            switch try await BridgeProfileReach.choice(request, allowsEvery: false, as: identity, store: store) {
+            switch try await BridgeProfileReach.choice(request, allowsEvery: false, for: .talk, as: identity, store: store) {
             case .failure(let trouble): return .failure(WorkspaceSayTrouble.appRefused(trouble.sentence).sentence)
             case .success(let resolved): choice = resolved
             }
             let target: Workspace
-            switch try await Self.target(named: given, as: identity, store: store, in: choice) {
+            switch try await WorkspaceSayDestination.resolve(
+                workspace: given, project: project, in: choice, as: identity, store: store
+            ) {
             case .failure(let trouble): return .failure(trouble.sentence)
-            case .success(let found): target = found
+            case .success(.noOrchestrator(let repo)):
+                return try await WorkspaceSayDestination.awaitOrchestrator(repo, saying: text, as: identity, store: store)
+            case .success(.workspace(let found)): target = found
             }
 
             if let source = sender.workspace, source.id == target.id {
@@ -144,28 +156,13 @@ public struct WorkspaceSayTool: BridgeToolHandling {
                 }
             }
 
-            var heard: WorkspaceMessage?
-            if let source = sender.workspace {
-                heard = try await store.latestWorkspaceMessage(from: target.id, to: source.id)
-            }
-
             let wantsNotice = WorkspaceDoneWatch.isRequested(request.param(WorkspaceDoneWatch.argument))
-            var sendEnd = sender.end
-            let projectName = try await store.repo(id: target.repoID)?.name ?? ""
-            var crossedTo: String?
-            if case .other(let profile) = choice {
-                crossedTo = profile.name
-                sendEnd.profile = try await Self.originName(of: identity, store: store)
-                sendEnd.profileID = try await BridgeProfileScope.profile(of: identity, store: store)
-            }
-            let message = WorkspaceMessage(
-                source: sendEnd,
-                target: WorkspaceMessageEnd(
-                    workspaceID: target.id, workspace: target.name, project: projectName, profile: crossedTo
-                ),
-                replySessionID: heard?.source.sessionID,
-                text: text,
-                notifyWhenDone: wantsNotice && sendEnd.sessionID != nil
+            let crossedTo: String?
+            let destination: Profile?
+            if case .other(let profile) = choice { destination = profile } else { destination = nil }
+            crossedTo = destination?.name
+            let message = try await WorkspaceMessageComposer.compose(
+                text, to: target, crossingTo: destination, notify: wantsNotice, as: identity, store: store
             )
 
             switch await deliver(message) {
@@ -218,13 +215,6 @@ public struct WorkspaceSayTool: BridgeToolHandling {
         return false
     }
 
-    private static func originName(of identity: BridgeIdentity, store: Store) async throws -> String {
-        guard let id = try await BridgeProfileScope.profile(of: identity, store: store),
-              let profile = try await store.profile(id: id)
-        else { return "unknown" }
-        return profile.name
-    }
-
     static func target(
         named given: String, as identity: BridgeIdentity, store: Store, in choice: BridgeProfileChoice = .own
     ) async throws -> Result<Workspace, WorkspaceSayTrouble> {
@@ -261,8 +251,9 @@ public struct WorkspaceSayTool: BridgeToolHandling {
             ? "This connection is not a workspace, so the agent there cannot answer you with "
                 + "workspace_say. Call workspace_list to see what became of it."
             : profile != nil
-            ? "It can only answer if it is a project's orchestrator, not one on Codex, and both profiles "
-                + "are open. Use notify_when_done to hear how its turn ended."
+            ? "It can answer with workspace_say while both profiles stay open, an orchestrator always and "
+                + "another workspace only when you are an orchestrator. Use notify_when_done to hear how its "
+                + "turn ended."
             : "If it answers, it answers with workspace_say, and its message lands in this chat, "
                 + "unless a message from another chat in this workspace reaches it first."
         let chat = message.target.chat

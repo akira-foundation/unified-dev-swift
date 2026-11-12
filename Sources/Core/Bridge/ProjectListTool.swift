@@ -47,7 +47,7 @@ public struct ProjectListTool: BridgeToolHandling {
         store: Store
     ) async -> BridgeToolResult {
         do {
-            switch try await BridgeProfileReach.choice(request, allowsEvery: true, as: identity, store: store) {
+            switch try await BridgeProfileReach.choice(request, allowsEvery: true, for: .talk, as: identity, store: store) {
             case .failure(let trouble): return .failure(trouble.sentence)
             case .success(.own): break
             case .success(let choice): return try await across(choice.profiles, store: store)

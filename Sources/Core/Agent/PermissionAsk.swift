@@ -151,6 +151,7 @@ public struct PermissionAsk: Sendable, Hashable, Identifiable {
 
     public var canWiden: Bool {
         !isQuestion && !isPlanApproval && !rules.isEmpty && !suppressesAlwaysAllow && !requiresUserInteraction
+            && !BridgeToolApproval.crossesProfile(toolName: toolName, input: input)
     }
 
     public var subject: String {
@@ -307,7 +308,7 @@ public enum PermissionAnswer {
         case .allow(let scope):
             response["behavior"] = .string("allow")
             response["updatedInput"] = ask.input
-            if scope != .once, let suggestion = ask.allowSuggestion {
+            if scope != .once, ask.canWiden, let suggestion = ask.allowSuggestion {
                 response["updatedPermissions"] = .array([suggestion.aimed(at: .session).raw])
             }
             response["decision"] = .string(scope == .once ? "user_temporary" : "user_permanent")

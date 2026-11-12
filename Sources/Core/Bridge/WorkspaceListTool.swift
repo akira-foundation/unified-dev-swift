@@ -7,7 +7,7 @@ public struct WorkspaceListTool: BridgeToolHandling {
 
     public func isServed(to identity: BridgeIdentity, store: Store) async -> Bool {
         guard identity.role == .workspace else { return true }
-        return (try? await BridgeProfileReach.mayLeaveOwnProfile(identity, store: store)) ?? false
+        return (try? await BridgeProfileReach.mayLeaveOwnProfile(identity, for: .talk, store: store)) ?? false
     }
 
     public let tool = BridgeTool(
@@ -19,7 +19,9 @@ public struct WorkspaceListTool: BridgeToolHandling {
             for it.
 
             Only the workspaces in the caller's profile are listed, unless profile names another \
-            this connection can reach.
+            this connection can reach. A workspace that is not its project's orchestrator is shown \
+            the orchestrators alone, by id, name and project, since another profile is reached \
+            through them.
 
             Each one carries its id, name, branch, base branch and worktree path, its project, \
             whether it is active or archived, how far its setup script got, whether an agent is \
@@ -91,7 +93,7 @@ public struct WorkspaceListTool: BridgeToolHandling {
 
         do {
             let choice: BridgeProfileChoice
-            switch try await BridgeProfileReach.choice(request, allowsEvery: true, as: identity, store: store) {
+            switch try await BridgeProfileReach.choice(request, allowsEvery: true, for: .talk, as: identity, store: store) {
             case .failure(let trouble): return .failure(trouble.sentence)
             case .success(let resolved): choice = resolved
             }
@@ -124,20 +126,23 @@ public struct WorkspaceListTool: BridgeToolHandling {
             let census = reached.isEmpty
                 ? try await BridgeWorkspaceCensus.read(for: identity, from: store)
                 : try await BridgeWorkspaceCensus.read(in: reached, from: store)
-            let workspaces = census.listing(
-                repoID: project?.id, includeArchived: includeArchived
-            )
+            let caller = try await BridgeProfileReach.caller(of: identity, store: store)
+            let briefly = caller == .workspace
+            let workspaces = census.listing(repoID: project?.id, includeArchived: includeArchived)
+                .filter { BridgeProfileReach.lists($0, to: caller) }
 
             let names = Dictionary(uniqueKeysWithValues: projects.map { ($0.id, $0) })
             var rows: [JSONValue] = []
             for workspace in workspaces {
-                let listed = await row(
-                    for: workspace,
-                    project: names[workspace.repoID],
-                    census: census,
-                    includeGitHub: includeGitHub,
-                    store: store
-                )
+                let listed = briefly
+                    ? WorkspaceListBriefRow.row(workspace, project: names[workspace.repoID])
+                    : await row(
+                        for: workspace,
+                        project: names[workspace.repoID],
+                        census: census,
+                        includeGitHub: includeGitHub,
+                        store: store
+                    )
                 let owner = reached.first { $0.id == names[workspace.repoID]?.profileID }
                 rows.append(owner.map { BridgeProfileReach.tagged(listed, profile: $0) } ?? listed)
             }
