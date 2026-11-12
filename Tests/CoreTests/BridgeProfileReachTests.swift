@@ -7,23 +7,27 @@ struct BridgeProfileReachTests {
     @Test(
         "the rule for crossing",
         arguments: [
-            (BridgeProfileCaller.owner, false, true, true),
-            (.owner, true, false, false),
-            (.owner, false, false, false),
-            (.orchestrator, true, true, true),
-            (.orchestrator, false, true, false),
-            (.orchestrator, true, false, false),
-            (.confined, true, true, false),
-        ] as [(BridgeProfileCaller, Bool, Bool, Bool)]
+            (BridgeProfileCaller.owner, BridgeProfilePurpose.read, false, true, true),
+            (.owner, .talk, true, false, false),
+            (.owner, .read, false, false, false),
+            (.orchestrator, .read, true, true, true),
+            (.orchestrator, .talk, false, true, false),
+            (.orchestrator, .read, true, false, false),
+            (.workspace, .talk, true, true, true),
+            (.workspace, .read, true, true, false),
+            (.workspace, .talk, false, true, false),
+            (.workspace, .talk, true, false, false),
+            (.confined, .talk, true, true, false),
+        ] as [(BridgeProfileCaller, BridgeProfilePurpose, Bool, Bool, Bool)]
     )
-    func rule(caller: BridgeProfileCaller, ownOpen: Bool, targetOpen: Bool, expected: Bool) {
-        #expect(BridgeProfileReach.mayCross(caller, ownOpen: ownOpen, targetOpen: targetOpen) == expected)
+    func rule(caller: BridgeProfileCaller, purpose: BridgeProfilePurpose, ownOpen: Bool, targetOpen: Bool, expected: Bool) {
+        #expect(BridgeProfileReach.mayCross(caller, for: purpose, ownOpen: ownOpen, targetOpen: targetOpen) == expected)
     }
 
     @Test("with the switches off, a real profile is refused in the words an invented one is")
     func offRefusesLikeNothing() async throws {
         let w = try await ProfileReachWorld.make("reach-off")
-        for identity in [w.lead, .owner] {
+        for identity in [w.lead, w.world.homeAgent] {
             let real = await w.say(as: identity, profile: "Akira")
             let invented = await w.say(as: identity, profile: "Invented")
             #expect(real.isError)
@@ -33,10 +37,17 @@ struct BridgeProfileReachTests {
                     == invented.text.replacingOccurrences(of: "Invented", with: "X")
             )
         }
+        let real = await w.read(as: .owner, profile: "Akira")
+        let invented = await w.read(as: .owner, profile: "Invented")
+        #expect(real.text.contains(BridgeProfileTrouble.unreachable(given: "Akira").sentence))
+        #expect(
+            real.text.replacingOccurrences(of: "Akira", with: "X")
+                == invented.text.replacingOccurrences(of: "Invented", with: "X")
+        )
         #expect(w.window.sent.isEmpty)
     }
 
-    @Test("an ordinary workspace and a subagent are refused with both switches on")
+    @Test("an ordinary workspace and a subagent reach neither another profile's other chats nor its reads")
     func confinedIsRefused() async throws {
         let w = try await ProfileReachWorld.make("reach-confined")
         try await w.open(.initial, w.akira)
@@ -44,7 +55,9 @@ struct BridgeProfileReachTests {
             let told = await w.say(as: identity)
             let read = await w.read(as: identity, profile: "Akira")
             #expect(told.isError)
+            #expect(told.text.contains("is reached through its projects' orchestrators"))
             #expect(read.isError)
+            #expect(read.text.contains(BridgeProfileTrouble.readsGoThroughOrchestrator(given: "Akira").sentence))
             #expect(!read.text.contains(ProfileScopeWorld.farChat))
         }
         #expect(w.window.sent.isEmpty)
@@ -58,7 +71,7 @@ struct BridgeProfileReachTests {
 
         _ = try await w.store.setOrchestrator(false, workspaceID: try #require(w.lead.workspaceID))
 
-        #expect(await w.read(as: w.lead, profile: "Akira").text.contains("does not say whether one exists"))
+        #expect(await w.read(as: w.lead, profile: "Akira").text.contains("is left to its projects' orchestrators"))
     }
 
     @Test("an orchestrator needs both ends open, and the owner only the destination")
@@ -144,7 +157,7 @@ struct BridgeProfileReachTests {
         #expect(workspaces.text.contains("\"profile\" : \"Akira\""))
     }
 
-    @Test("workspace_list is served only to a caller allowed to leave")
+    @Test("workspace_list is served only to a caller allowed to leave, ordinary workspaces included")
     func listServing() async throws {
         let w = try await ProfileReachWorld.make("reach-serving")
         let tool = "workspace_list"
@@ -154,8 +167,8 @@ struct BridgeProfileReachTests {
         try await w.open(.initial)
 
         #expect(await w.listedTools(as: w.lead).contains(tool))
-        #expect(await w.listedTools(as: w.world.homeAgent).contains(tool) == false)
-        #expect(await w.listedTools(as: w.subagent).contains(tool) == false)
+        #expect(await w.listedTools(as: w.world.homeAgent).contains(tool))
+        #expect(await w.listedTools(as: w.subagent).contains(tool))
         #expect(await w.listedTools(as: .owner).contains(tool))
     }
 

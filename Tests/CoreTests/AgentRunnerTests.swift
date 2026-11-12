@@ -151,6 +151,7 @@ struct AgentRunnerArgvTests {
             "--permission-prompt-tool", "stdio",
             "--model", "opus",
             "--effort", "high",
+            "--settings", AgentRunner.settingsJSON(outputStyle: nil, guardsCrossing: true) ?? "",
         ])
     }
 
@@ -881,7 +882,7 @@ struct AgentRunnerProcessTests {
 
         let process = try #require(recorder.last)
         let index = try #require(process.launch.arguments.firstIndex(of: "--settings"))
-        #expect(process.launch.arguments[index + 1] == #"{"outputStyle":"Concise"}"#)
+        #expect(JSONValue.parse(process.launch.arguments[index + 1])?["outputStyle"] == .string("Concise"))
     }
 
     @Test("the stored executable reaches the process the runner spawns")
@@ -939,7 +940,7 @@ struct AgentRunnerProcessTests {
     @Test("a session with no output style spawns without a settings object")
     func spawnsWithoutSettingsByDefault() async throws {
         let store = try makeTestStore("agent")
-        let session = try await makeSession(store)
+        let session = try await makeSession(store, permissionMode: .bypassPermissions)
         let recorder = ProcessRecorder()
         let runner = AgentRunner(
             workspacePath: "/tmp/w", session: session, store: store, segmentID: try await activeSegmentID(store, session), makeProcess: recorder.factory

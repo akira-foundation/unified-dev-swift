@@ -25,6 +25,34 @@ public enum WorkSuggestionWording {
         }
     }
 
+    public static func awaitsOrchestrator(_ project: String) -> String {
+        """
+        \(project) has no orchestrator, so nothing has received this message. Starting one makes a new \
+        workspace there as its orchestrator and delivers the message to it, marked as coming from \
+        this workspace. If the project gains an orchestrator first, the message goes to that one.
+        """
+    }
+
+    public static let senderCannotCross = """
+        The chat that left this message cannot reach other profiles any more: its own profile was closed \
+        to them, its workspace was archived, or it no longer runs in a mode that asks you first. Nothing \
+        was started.
+        """
+
+    public static func senderLeads(_ name: String) -> String {
+        "\(WorkspaceMessage.oneLine(name)) left this message and is now that project's orchestrator itself, "
+            + "so there is nobody else to deliver it to. Dismiss the card."
+    }
+
+    public static func orchestratorTitle(_ project: String) -> String {
+        "A message for the orchestrator of \(WorkspaceMessage.oneLine(project))"
+    }
+
+    public static let orchestratorWhy = """
+        This chat sent a message to a project with no orchestrator. Unified Dev does not start one \
+        without you, so the message waits here.
+        """
+
     public static func cloneFirst(_ slug: String) -> String {
         "\(slug) is only on GitHub. Clone it and add it as a project, and then it can be started from here."
     }

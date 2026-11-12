@@ -19,7 +19,9 @@ claude
   --model <opus|sonnet|haiku|...>
   [--effort <level>]                 only when the session has one
   [--thinking disabled]              fast mode, and only when it is on
-  [--settings '{"outputStyle":"…"}'] only when a style was chosen
+  [--settings '{…}']                 an output style when one was chosen, and for a workspace chat
+                                     in acceptEdits, `ask` rules for the bridge tools that
+                                     can name another profile (see docs/BRIDGE.md)
   [--mcp-config <path>]              the workspace bridge, a file and never inline JSON
   [--resume <agent session id>]
 ```

@@ -209,28 +209,87 @@ this Mac rather than a profile.
 
 ### Reaching another profile
 
-A profile can be opened to the others, and a few callers can then cross into it. The default is closed:
-with every switch off, every tool answers as it does without this section.
+A profile can be opened to the others, and callers can then cross into it. The default is closed:
+with every switch off, every tool answers as it does without this section. The rule is about the
+destination: whatever comes from outside a profile goes through the orchestrator of the project it is
+for.
 
 **Who.** `BridgeProfileReach.caller` reads it from the rows on every call, and from what the chat's bridge token recorded when it launched.
+`BridgeProfileReach.mayCross` then decides it for one of two purposes: talking, which is `project_list`,
+`workspace_list` and `workspace_say`, and reading, which is `chat_list`, `chat_read` and `workspace_diff`.
 
-| Caller | May cross when |
-| --- | --- |
-| A top level chat of a project's orchestrator workspace, on Claude Code or Grok | Its own profile and the destination are both open, and the owner approves the call |
-| The owner's own clients: an Ask chat and the standalone token | The destination is open |
-| An ordinary workspace, a subagent, an orchestrator's included, or an orchestrator running on Codex | Never |
+| Caller | May talk when | May read when |
+| --- | --- | --- |
+| A top level chat of a project's orchestrator workspace, on Claude Code or Grok | Its own profile and the destination are both open, and the owner approves the call | The same |
+| The owner's own clients: an Ask chat and the standalone token | The destination is open | The destination is open |
+| Any other workspace chat on Claude Code, a subagent included, launched in Accept edits | Its own profile and the destination are both open, and the owner approves the call, and only to an orchestrator | Never |
+| Any other workspace chat on Claude Code launched in Auto, Plan or Bypass permissions | Never, and it is told why | Never |
+| Any other workspace chat on Grok, Cursor or OpenCode | Never | Never |
+| A chat running on Codex | Never | Never |
 
-A workspace that stops being the orchestrator stops reaching at its next call. `isOrchestrator` is written
-only by the app.
+A workspace that stops being the orchestrator becomes an ordinary workspace at its next call: it can still
+talk to another profile's orchestrators and can no longer read there. `isOrchestrator` is written only by
+the app.
 
-**The owner approves an orchestrator's crossing.** Every call from a workspace chat that names a `profile`
+**An ordinary workspace talks to the orchestrator.** Its `workspace_list` lists the orchestrators alone, in
+its own profile and in another, by id, name and project and nothing else, since those are the workspaces it
+may write to across profiles. `BridgeProfileReach.lists` decides which rows, and `WorkspaceListBriefRow` what
+they hold. In another profile, `workspace_say` from an ordinary workspace looks the name up among that
+profile's orchestrators alone, through `WorkspaceSayDestination.orchestrators`, so any other workspace there
+is refused in the same words as one that does not exist, and the refusal points at `workspace_list` and at
+passing the project. A read in another profile is refused with a sentence that points at the orchestrator,
+which can read and answer. A message may name the project instead of the workspace, and goes to that
+project's orchestrator; naming both is refused.
+
+**A project with no orchestrator.** A message for one does not start anything. It becomes a card for the
+owner below the sender's message, in the shape of `work_suggest`, carrying the message, and the answer says
+so. Only the owner's click on Start Orchestrator acts on it: `OrchestratorRequestLaunch` starts a workspace
+in that project as its orchestrator and delivers the message to it, in the same envelope as any message from
+outside. If the project has gained an orchestrator by then, the message goes to that one and nothing new is
+started. The click is judged again: a card from a workspace whose profile, or whose destination, has since
+been closed, whose chat has moved to Codex, or whose workspace was archived, is
+refused and stays waiting, and the refusal says which side closed. A card whose sender has since become that
+project's orchestrator is not delivered to itself. A card from the owner's Ask chat always arrives in the
+envelope from outside, with its profile given as unknown, since which profile that chat was in is not kept. A delivery
+that fails leaves the card waiting with the orchestrator already in place, and the next click delivers to it.
+`notify_when_done` does not apply to a message waiting on a card. The sender can withdraw it with
+`work_withdraw`. No bridge tool starts an orchestrator.
+
+**A closed destination is named.** When the profile a message names exists and the owner has not opened
+it, `workspace_say` says that its orchestrators do not accept messages from outside it, instead of the
+answer it gives for a profile that does not exist. That holds only for talking, and only for a caller that
+could otherwise leave its own profile; the lists and the reads still answer a closed profile and an
+invented one in the same words.
+
+**The owner approves a workspace's crossing.** Every call from a workspace chat that names a `profile`
 stops on the permission card, reads included, because what it reads could steer it and what it sends wakes
 an agent. `BridgeToolApproval.isSelfApproved(toolName:input:inWorkspace:)` decides it, and the same call
 decides how a stored card reads afterwards. This rule adds no card for an Ask chat or the owner's standalone client,
 which are the owner's own. Codex has no approval request for an MCP tool call, so nothing could stop it, and
 `BridgeProfileReach.caller` confines it instead. An orchestrator always launches in a mode that asks, and
 that launch is what the bridge token records: a chat at rest when its workspace becomes the orchestrator
-cannot cross until its next start, which is its next message. An "always allow" the owner grants holds for that chat, by the owner's choice.
+cannot cross until its next start, which is its next message.
+
+**An ordinary workspace crosses only from a chat launched asking.** Claude Code puts every call to the
+owner in Accept edits; in Auto a classifier may let it through, Bypass permissions, which is the default,
+never asks, and Plan does ask but approving the plan moves the same process to Auto or Bypass
+permissions. Accept edits is kept until the app starts the CLI again, whatever the chat's row says
+meanwhile, since a change of mode in the app starts it again, so the bridge token records it: `BridgeServer.attach` sets `launchedAsking` from
+`BridgeProfileReach.asksTheOwner`, and an orchestrator's launch, which always asks, sets it too.
+`BridgeProfileReach.caller` makes an ordinary chat launched any other way `.unasked`, which reaches no other
+profile. Naming a profile that exists answers with `BridgeProfileTrouble.asksNobody`, which says why and what
+the owner can change; a profile that does not exist is answered as before. A chat switched to Accept edits
+crosses from its next start, which is its next message. Grok, Cursor and OpenCode stay confined:
+an approval Grok remembers covers a whole tool, so a call allowed in a chat's own profile would carry every
+later call that names another.
+
+A call that names a `profile` can never be allowed always: `PermissionAsk.canWiden` is false for it, so the
+card offers no "always allow", `PermissionAnswer.encode` sends the CLI nothing to remember, and
+`SessionGrants` stores no grant from it. This holds for an orchestrator too. An ordinary chat launched
+asking also gets `ask` rules for the tools that can name a profile, `BridgeToolApproval.claudeCrossingPermissions`
+in its `--settings`, because Claude Code puts an `ask` rule above an `allow`: a rule allowing the bridge in
+the owner's own settings cannot skip the card. A call that names no profile is still approved by
+Unified Dev itself, so the rule adds no card the owner sees.
 
 **The role does not land on a workspace at work.** The limits on an orchestrator are applied when an agent
 launches, and a turn already running under `acceptEdits` or `bypassPermissions`, Codex's sandbox once its thread is
@@ -246,8 +305,8 @@ role where it stands.
 `chat_read`, `workspace_diff` and `workspace_say`. `workspace_start` stays inside the caller's profile, and
 `agent_say` and `agent_start` act inside one worktree, so they have nothing to cross.
 
-`workspace_list` has otherwise been the owner's alone. It is served to an orchestrator only while that
-orchestrator may leave its profile, and answers exactly as an unknown tool otherwise, in `tools/list` and in
+`workspace_list` has otherwise been the owner's alone. It is served to a workspace chat only while that
+chat may leave its profile to talk, and answers exactly as an unknown tool otherwise, in `tools/list` and in
 `tools/call`, through `BridgeToolHandling.isServed`. An orchestrator's list is always fenced.
 
 **The switch.** One per profile, in Profile Settings, under the key `ProfileBridgeSwitch.key(profile:)`,
@@ -283,9 +342,9 @@ the turn does not start and the chat says why.
 
 **What comes back.** `notify_when_done` crosses back to the asking chat, with the report fenced as usual and
 naming the other profile, and a watch made before a switch is turned off is still kept. An Ask chat has no chat
-to be told in, so it is not offered one. Answering with `workspace_say` is only for callers
-that may cross, so an ordinary workspace on the receiving side can finish its turn and cannot start a
-conversation. The announcement to a project's orchestrator is per project, so it never crosses a profile.
+to be told in, so it is not offered one. Answering with `workspace_say` follows the rule
+above: an orchestrator can answer any sender, and an ordinary workspace on the receiving side can answer
+only a sender that is an orchestrator, and the envelope says so. The announcement to a project's orchestrator is per project, so it never crosses a profile.
 
 **What this does not hold.** The scope is the bridge's. An agent runs as this user, and anything it can run
 outside the bridge is limited by what that user can read, as section 2 says of the token.

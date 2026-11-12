@@ -222,11 +222,19 @@ names the profile, and leaves the window where it is. Anything in another profil
 
 ### Connected to other profiles
 
-Profile Settings carries a switch, **Connected to other profiles**, off by default. Turned on, a
-project's orchestrator can list that profile's projects and workspaces, read its chats and changes, and
-send a message to one of its chats, if its own profile is on too, and the owner approves its calls.
-The owner's Ask chat and client need only the destination on. Ordinary workspaces,
-subagents and an orchestrator on Codex never cross, and nothing can be started in another profile.
+Profile Settings carries a switch, **Connected to other profiles**, off by default. Turned on, whatever
+comes from outside the profile goes through the orchestrator of the project it is for. Any workspace,
+subagents included, can list that profile's projects and their orchestrators and send one of those
+orchestrators a message, if its own profile is on too and its chat, on Claude Code, was launched in Accept
+edits, where the owner approves every such call; a chat launched in any other mode is told it cannot. A message to
+another of its workspaces is refused and pointed at the orchestrator. A project's orchestrator can also
+read the profile's chats and changes and write to any of its workspaces, and an ordinary workspace that
+needs to read there asks that orchestrator instead. The owner's Ask chat and client need only the
+destination on. A chat on Codex never crosses.
+
+A message for a project with no orchestrator becomes a card for the owner, carrying the message, and only
+the owner's click starts an orchestrator there and delivers it. A message to a profile that is off is told
+so plainly. Nothing else can be started in another profile.
 
 Every crossing names the profile, through a `profile` argument, or `all` on the two lists. A message
 from another profile says where it came from and does not carry the owner's authority, whoever sent it. The

@@ -20,7 +20,7 @@ struct WorkspaceListToolTests {
         try #require(workspaces(result).first { $0["name"]?.stringValue == name })
     }
 
-    @Test("the owner sees it, and a workspace that may not leave its profile does not")
+    @Test("the owner sees it, and a workspace sees it only once its profile may be left")
     func roleGate() async throws {
         let store = try makeTestStore("workspace-list-gate")
         let toolbox = BridgeToolbox(handlers: [WorkspaceListTool()])
@@ -28,13 +28,16 @@ struct WorkspaceListToolTests {
         let workspace = try await store.upsert(Workspace(
             repoID: repo.id, name: "w", branch: "b", path: TestScratch.unique("gate-tree"), baseBranch: "main"
         ))
-        let chat = try await store.upsert(Session(workspaceID: workspace.id, title: "c"))
-        try await ProfileBridgeSwitch.save(true, profile: .initial, to: store)
-        let agent = BridgeIdentity(sessionID: chat.id, workspaceID: workspace.id, role: .workspace)
+        let chat = try await store.upsert(Session(workspaceID: workspace.id, title: "c", permissionMode: .acceptEdits))
+        let agent = BridgeIdentity(sessionID: chat.id, workspaceID: workspace.id, role: .workspace, launchedAsking: true)
 
         #expect(await toolbox.tools(for: agent, store: store).isEmpty)
         #expect(await toolbox.tools(for: .owner, store: store).map(\.name) == ["workspace_list"])
         #expect(await toolbox.handler(named: "workspace_list", for: agent, store: store) == nil)
+
+        try await ProfileBridgeSwitch.save(true, profile: .initial, to: store)
+
+        #expect(await toolbox.tools(for: agent, store: store).map(\.name) == ["workspace_list"])
     }
 
     @Test("it is served by a Unified Dev with no app behind it, because it needs no seam into one")

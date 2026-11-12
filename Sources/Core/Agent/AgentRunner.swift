@@ -150,7 +150,10 @@ public actor AgentRunner {
         if isFastMode {
             arguments += ["--thinking", "disabled"]
         }
-        if let settings = settingsJSON(outputStyle: outputStyle, orchestrates: orchestrating) {
+        if let settings = settingsJSON(
+            outputStyle: outputStyle, orchestrates: orchestrating,
+            guardsCrossing: session.workspaceID != nil && BridgeProfileReach.asksTheOwner(session.permissionMode)
+        ) {
             arguments += ["--settings", settings]
         }
         if let mcpConfigPath, !mcpConfigPath.isEmpty {
@@ -168,12 +171,13 @@ public actor AgentRunner {
         return arguments
     }
 
-    public static func settingsJSON(outputStyle: String?, orchestrates: Bool = false) -> String? {
+    public static func settingsJSON(outputStyle: String?, orchestrates: Bool = false, guardsCrossing: Bool = false) -> String? {
         var object: [String: Any] = [:]
         if let outputStyle, !OutputStyle.isDefault(outputStyle) {
             object["outputStyle"] = outputStyle.trimmingCharacters(in: .whitespacesAndNewlines)
         }
         if orchestrates { object["permissions"] = OrchestratorToolGuard.claudePermissions }
+        if !orchestrates, guardsCrossing { object["permissions"] = BridgeToolApproval.claudeCrossingPermissions }
         guard !object.isEmpty,
               let data = try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]) else { return nil }
         return String(decoding: data, as: UTF8.self)

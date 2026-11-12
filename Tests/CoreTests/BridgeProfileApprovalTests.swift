@@ -77,7 +77,7 @@ struct BridgeProfileApprovalTests {
         #expect(await w.listedTools(as: identity).contains("workspace_list") == false)
     }
 
-    @Test("a chat already running when its workspace becomes the orchestrator does not cross")
+    @Test("a chat already running when its workspace becomes the orchestrator does not cross as one")
     func promotedWhileRunning() async throws {
         let w = try await ProfileReachWorld.make("reach-promoted")
         try await w.open(.initial, w.akira)
@@ -85,8 +85,9 @@ struct BridgeProfileApprovalTests {
             sessionID: w.leadChat.id, workspaceID: try #require(w.lead.workspaceID), role: .workspace
         )
 
-        #expect(try await BridgeProfileReach.caller(of: identity, store: w.store) == .confined)
+        #expect(try await BridgeProfileReach.caller(of: identity, store: w.store) == .unasked)
         #expect(await w.say(as: identity).isError)
+        #expect(await w.read(as: identity, profile: "Akira").isError)
     }
 
     @Test("the launch flag reaches the identity its token resolves to")
