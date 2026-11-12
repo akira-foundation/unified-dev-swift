@@ -609,7 +609,7 @@ workspace looks far more like a thing the window owns than a quick prompt does. 
 workspace's name is one column of the `workspaces` table, the sidebar draws it from there, and the
 sidebar re-reads on the `workspaces` domain already, because that is how it finds out about a
 rename typed into the row itself. The write goes through `Store.update(workspaceID:)` and never
-`upsert`: a diff stat refresh writes to that row every six seconds and an agent turn writes to it
+`upsert`: a diff stat refresh writes to that row every few seconds and an agent turn writes to it
 for ten minutes, and a whole-value write would put both back to whatever the rename had read. See
 `Tests/CoreTests/WorkspaceWriteIsolationTests.swift`, which is that bug written down.
 `workspace_diff` is on that side too: it reads a worktree through git, which needs no window

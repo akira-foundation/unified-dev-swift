@@ -179,6 +179,7 @@ final class AppModel {
     private var refreshTask: Task<Void, Never>?
     @ObservationIgnored var pullRequestTrackTask: Task<Void, Never>?
     @ObservationIgnored private var lastDiffRefresh: [WorkspaceID: Date] = [:]
+    @ObservationIgnored private var diffRefreshFailures: [WorkspaceID: DiffRefreshSchedule.Failure] = [:]
 
     @ObservationIgnored private var diffInvalidations = DiffRefreshInvalidations()
 
@@ -397,7 +398,14 @@ final class AppModel {
                 let landed = Set(reconciled.map(\.id))
                 pendingWorkspaces.removeAll { landed.contains($0.id) }
             }
-            worktreeWatcher.watch(roots: workspaces.map(\.path))
+            worktreeWatcher.watch(
+                roots: workspaces.map(\.path),
+                branches: Dictionary(
+                    workspaces.map {
+                        ($0.path, WorktreeWatcher.concernedBranches(branch: $0.branch, base: $0.baseBranch))
+                    }, uniquingKeysWith: { $0.union($1) }
+                )
+            )
             for workspace in workspaces {
                 CenterTabStore.shared.load(workspaceID: workspace.id)
                 if let existing = workspaceModels[workspace.id], existing.workspace != workspace {
@@ -614,12 +622,15 @@ final class AppModel {
             busy: busy,
             selected: selection.workspaceID,
             activity: activity,
+            shown: Set(profileWorkspaces.map(\.id)),
+            failures: diffRefreshFailures,
             lastRefreshed: lastDiffRefresh,
             now: Date()
         ))
 
         let present = Set(workspaces.map(\.id))
         lastDiffRefresh = lastDiffRefresh.filter { present.contains($0.key) }
+        diffRefreshFailures = diffRefreshFailures.filter { present.contains($0.key) }
         diffInvalidations.retain(present)
 
         let pending = workspaces.filter {
@@ -648,7 +659,12 @@ final class AppModel {
                 diffInvalidations.finish(id, generation: generation, succeeded: succeeded)
                 if succeeded {
                     lastDiffRefresh[id] = Date()
+                    diffRefreshFailures[id] = nil
                     refreshed.insert(id)
+                }
+                if !succeeded, !Task.isCancelled {
+                    let previous = diffRefreshFailures[id] ?? DiffRefreshSchedule.Failure(count: 0, at: Date())
+                    diffRefreshFailures[id] = previous.after(another: Date())
                 }
                 if Task.isCancelled {
                     group.cancelAll()
