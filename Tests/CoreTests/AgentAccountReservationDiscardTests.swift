@@ -84,13 +84,17 @@ struct AgentAccountReservationDiscardTests {
             support: support
         )
         let reads = Reads()
+        var discarded = true
 
-        let discarded = await stray.discardOnceReleased(attempts: 3, pause: .zero, processes: {
-            _ = reads.next()
-            return []
-        })
+        let elapsed = await ContinuousClock().measure {
+            discarded = await stray.discardOnceReleased(attempts: 3, pause: .seconds(1), processes: {
+                _ = reads.next()
+                return []
+            })
+        }
 
         #expect(!discarded)
         #expect(reads.next() == 0)
+        #expect(elapsed < .seconds(1))
     }
 }
