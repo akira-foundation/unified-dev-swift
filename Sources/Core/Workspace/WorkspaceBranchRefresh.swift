@@ -21,12 +21,14 @@ extension WorkspaceManager {
     private func checkedOutBranch(in path: String) async -> String? {
         if let read = Git.headBranch(in: path), read == "HEAD" || Git.isValidBranchName(read) { return read }
         guard let result = try? await Git.run(
-            ["rev-parse", "--show-toplevel", "--abbrev-ref", "HEAD"], in: path
+            ["rev-parse", "--show-toplevel", "--symbolic-full-name", "HEAD"], in: path
         ), result.ok else { return nil }
         let lines = result.lines
         guard lines.count == 2,
               URL(fileURLWithPath: lines[0]).resolvingSymlinksInPath().path
                 == URL(fileURLWithPath: path).resolvingSymlinksInPath().path else { return nil }
-        return lines[1]
+        let prefix = "refs/heads/"
+        guard lines[1].hasPrefix(prefix) else { return "HEAD" }
+        return String(lines[1].dropFirst(prefix.count))
     }
 }

@@ -16,6 +16,7 @@ public final class WorktreeWatcher: Sendable {
         var origins: [String: String] = [:]
         var metadata: [String: Set<String>] = [:]
         var branches: [String: Set<String>] = [:]
+        var metadataInline = false
     }
 
     private let watched = Mutex(Watched())
@@ -49,9 +50,10 @@ public final class WorktreeWatcher: Sendable {
             state.origins = origins
             state.matching = Self.ordered(Array(origins.keys))
             state.metadata = Self.metadataRoots(for: wanted)
-            state.stream = wanted.isEmpty ? nil : makeStream(for: wanted, metadata: false)
             state.metadataStream = state.metadata.isEmpty ? nil : makeStream(for: Array(state.metadata.keys), metadata: true)
-            if state.metadataStream == nil, !state.metadata.isEmpty { state.given = [] }
+            state.metadataInline = state.metadataStream == nil && !state.metadata.isEmpty
+            let streamed = state.metadataInline ? Array(Set(wanted + Array(state.metadata.keys))) : wanted
+            state.stream = wanted.isEmpty ? nil : makeStream(for: streamed, metadata: false)
         }
     }
 
@@ -66,6 +68,7 @@ public final class WorktreeWatcher: Sendable {
             state.origins = [:]
             state.metadata = [:]
             state.branches = [:]
+            state.metadataInline = false
         }
     }
 
@@ -125,20 +128,21 @@ public final class WorktreeWatcher: Sendable {
     }
 
     private func report(_ paths: [String]) {
-        let (matching, origins, metadata) = watched.withLock { ($0.matching, $0.origins, $0.metadata) }
+        let (matching, origins, metadata, inline, branches) = watched.withLock {
+            ($0.matching, $0.origins, $0.metadata, $0.metadataInline, $0.branches)
+        }
         let files = paths.filter { path in
             !metadata.keys.contains { path == $0 || path.hasPrefix($0 + "/") }
         }
-        let changed = Set(Self.roots(of: files, in: matching).compactMap { origins[$0] })
+        var changed = Set(Self.roots(of: files, in: matching).compactMap { origins[$0] })
+        if inline { changed.formUnion(Self.metadataWorktrees(changed: paths, metadata: metadata, branches: branches)) }
         guard !changed.isEmpty else { return }
         onChange(changed)
     }
 
     private func reportMetadata(_ paths: [String]) {
         let (metadata, branches) = watched.withLock { ($0.metadata, $0.branches) }
-        let relevant = paths.filter { !$0.contains("/objects/") }
-        guard !relevant.isEmpty else { return }
-        let changed = Self.metadataWorktrees(changed: relevant, metadata: metadata, branches: branches)
+        let changed = Self.metadataWorktrees(changed: paths, metadata: metadata, branches: branches)
         guard !changed.isEmpty else { return }
         onChange(changed)
     }
