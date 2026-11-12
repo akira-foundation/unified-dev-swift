@@ -50,6 +50,15 @@ enum StreamProbe {
 
         harness.markStarted()
 
+        if StreamToolResultsProbe.isRequested, let store = app.store {
+            let tools = await StreamToolResultsProbe.measure(transcript: transcript, store: store)
+            harness.write(.object([
+                "workspace": .string(workspaceID.rawValue),
+                "tools": .object(tools),
+            ].merging(harness.conditions(window: window)) { mine, _ in mine }))
+            exit(0)
+        }
+
         let typing = await measureTyping(editor: editor, transcript: transcript, recorder: recorder)
         let streaming = await measureStreaming(transcript: transcript, recorder: recorder)
 
