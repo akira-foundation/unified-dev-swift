@@ -18,6 +18,7 @@ struct UnifiedDevApp: App {
         if MenuBarSpendProbe.isRequested { MenuBarSpendProbe.schedule() }
         if SpendScreenProbe.isRequested { SpendScreenProbe.runAndExit() }
         if AgentAccountProbe.isRequested { AgentAccountProbe.runAndExit() }
+        if MergeConfirmationProbe.isRequested { MergeConfirmationProbe.runAndExit() }
         if OrchestratorSidebarProbe.isRequested { OrchestratorSidebarProbe.runAndExit() }
         if RepoOrchestratorProbe.isRequested { RepoOrchestratorProbe.runAndExit() }
         if UpdateAlertProbe.isRequested { UpdateAlertProbe.runAndExit() }

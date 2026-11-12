@@ -162,9 +162,15 @@ public extension PullRequest {
         "Your agent will merge this pull request in the chat, where you can follow its progress."
     }
 
-    func mergeBranchDeletionMessage(deletesBranch: Bool) -> String? {
-        guard deletesBranch, !branch.isEmpty else { return nil }
-        return "After merging, \(branch) will be deleted on GitHub. Your local branch stays."
+    func mergeBranchDeletionMessage(authority: InstructionAuthority) -> String? {
+        guard !branch.isEmpty else { return nil }
+        switch authority {
+        case .project:
+            return "After merging, \(branch) will be deleted on GitHub. Your local branch stays."
+        case .appOnly:
+            return "After merging, the agent leaves \(branch) on GitHub, unless the repository deletes merged branches"
+                + " itself. Your local branch stays."
+        }
     }
 
     func mergeWarnings(base: String, local: LocalWork? = nil) -> [String] {
@@ -187,12 +193,12 @@ public extension PullRequest {
 
     func mergeConfirmation(
         base: String,
-        deletesBranch: Bool,
+        authority: InstructionAuthority,
         local: LocalWork? = nil
     ) -> String {
         (mergeWarnings(base: base, local: local)
             + [mergeConfirmationMessage]
-            + [mergeBranchDeletionMessage(deletesBranch: deletesBranch)].compactMap { $0 })
+            + [mergeBranchDeletionMessage(authority: authority)].compactMap { $0 })
             .joined(separator: "\n\n")
     }
 

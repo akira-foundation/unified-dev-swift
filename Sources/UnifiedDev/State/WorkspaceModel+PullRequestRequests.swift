@@ -104,12 +104,14 @@ extension WorkspaceModel {
         _ pullRequest: PullRequest,
         method: GitHub.MergeMethod,
         overrides: PromptOverrides = PromptOverrides(),
-        from source: AppRequest.Source
+        from source: AppRequest.Source,
+        confirmed: InstructionAuthority? = nil
     ) async -> String? {
+        let authority = await instructionAuthority(for: pullRequest)
+        if let refusal = InstructionAuthority.mergeRefusal(confirmed: confirmed, sending: authority) { return refusal }
         guard let session = await sessionToWriteInto(titledIfNew: "Merge") else {
             return "Could not open a session in \(workspace.name) to send the request to."
         }
-        let authority = await instructionAuthority(for: pullRequest)
         let chat = transcript(for: session)
         let isBusy = chat.isRunning || chat.queuesNextMessage || chat.sending != nil
         if let refusal = AppRequest.mergeRefusal(from: source, agentIsBusy: isBusy) { return refusal }
@@ -122,7 +124,7 @@ extension WorkspaceModel {
         return await send(text, to: session, from: source)
     }
 
-    private func instructionAuthority(for pullRequest: PullRequest?) async -> InstructionAuthority {
+    func instructionAuthority(for pullRequest: PullRequest?) async -> InstructionAuthority {
         await GitHub.instructionAuthority(
             for: workspace,
             pullRequest: pullRequest,

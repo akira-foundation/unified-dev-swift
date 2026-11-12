@@ -52,6 +52,12 @@ public enum InstructionAuthority: Sendable, Hashable {
         return .project
     }
 
+    public static func mergeRefusal(confirmed: InstructionAuthority?, sending: InstructionAuthority) -> String? {
+        guard let confirmed, confirmed != sending else { return nil }
+        return "This pull request or its checkout changed after you confirmed, so what the confirmation said about"
+            + " its branch no longer holds. Nothing was sent: merge again to see what happens now."
+    }
+
     static func staysInOnlyRemote(config: [String: String], branch: String) -> Bool {
         guard config["branch.\(branch).merge"]?.hasPrefix("refs/pull/") != true else { return false }
 

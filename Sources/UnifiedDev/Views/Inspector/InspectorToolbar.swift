@@ -91,13 +91,15 @@ enum InspectorToolbar {
             )
         }
 
-        private func merge(_ method: GitHub.MergeMethod) {
+        private func merge(_ method: GitHub.MergeMethod, confirmed: InstructionAuthority) {
             guard let pullRequest = model.pullRequest else { return }
             isWorking = true
             model.pullRequestNotice = nil
             Task {
                 defer { isWorking = false }
-                if let refusal = await model.requestMerge(pullRequest, method: method, from: .inspectorToolbar) {
+                if let refusal = await model.requestMerge(
+                    pullRequest, method: method, from: .inspectorToolbar, confirmed: confirmed
+                ) {
                     model.pullRequestNotice = PullRequestNotice(
                         tone: .info, title: "Nothing was sent", message: refusal
                     )
