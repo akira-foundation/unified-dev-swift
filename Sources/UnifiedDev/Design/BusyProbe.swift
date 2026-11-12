@@ -13,6 +13,7 @@ enum BusyProbe {
     private static var seconds: Int { ProbeHarness.count("--busy-seconds", or: 60) }
     private static var writeEvery: Int { ProbeHarness.count("--busy-write-every", or: 2) }
     private static var quietSelection: Bool { ProbeHarness.isPresent("--busy-quiet-selected") }
+    private static var subagentCount: Int { ProbeHarness.count("--busy-subagents", or: 0) }
 
     static func schedule() {
         Task { @MainActor in await run() }
@@ -48,6 +49,18 @@ enum BusyProbe {
         }
 
         try? await Task.sleep(for: .seconds(12))
+        if subagentCount > 0 {
+            guard let transcript = app.selectedModel?.activeTranscript else {
+                harness.fail("the selected workspace has no open chat to run subagents in")
+            }
+            for index in 0..<subagentCount {
+                transcript.probeApply(.started(SubagentStart(
+                    id: SubagentID("probe-\(index)"), toolUseID: "toolu_probe_\(index)",
+                    description: "Probe subagent \(index)", type: "general-purpose"
+                )))
+            }
+            try? await Task.sleep(for: .seconds(2))
+        }
         let spawnsBefore = Shell.spawnCount
         let tallyBefore = ActivityTally.read()
         let mainBefore = ProbeHarness.mainThreadCPUSeconds()
@@ -79,6 +92,11 @@ enum BusyProbe {
             "changeReads": .integer(tally.changeReads),
             "changeGenerations": .integer(tally.changeGenerations),
             "quietSelection": .bool(quietSelection),
+            "subagentsStarted": .integer(subagentCount),
+            "subagentRowsShown": .integer(app.selection.workspaceID.map { app.subagents(of: $0).count } ?? 0),
+            "subagentRowWrites": .integer(tally.subagentRowWrites),
+            "sidebarReflows": .integer(tally.sidebarReflows),
+            "sidebarRowWrites": .integer(tally.sidebarRowWrites),
             "inboxReloadsPerMinute": .number(Double(tally.inboxReloads) / minutes),
             "mainThreadCpuMs": .number(mainCPU * 1000),
             "mainThreadCpuMsPerMinute": .number(mainCPU * 1000 / minutes),

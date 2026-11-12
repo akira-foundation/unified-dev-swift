@@ -863,7 +863,12 @@ final class AppModel {
         let now = Date()
         let rows = SubagentRetention.rows(roster, now: now, opened: selection.subagentID)
         let shownRows = rows.isEmpty ? nil : rows
-        if subagentRows[workspaceID] != shownRows { subagentRows[workspaceID] = shownRows }
+        if subagentRows[workspaceID] != shownRows {
+            subagentRows[workspaceID] = shownRows
+            #if DEBUG
+            ActivityTally.subagentRowWrites += 1
+            #endif
+        }
 
         let failures = SubagentRetention.failureCount(roster)
         let shownFailures = failures == 0 ? nil : failures

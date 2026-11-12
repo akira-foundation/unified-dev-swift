@@ -63,6 +63,10 @@ final class SidebarPane {
     }
 
     func reflow(_ app: AppModel, shape: Shape) {
+        #if DEBUG
+        ActivityTally.sidebarReflows += 1
+        ActivityTally.sidebarRowWrites += 1
+        #endif
         switch shape.grouping {
         case .projects:
             statusArrangement = []
