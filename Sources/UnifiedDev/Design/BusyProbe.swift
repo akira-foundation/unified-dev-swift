@@ -1,3 +1,4 @@
+#if DEBUG
 import AppKit
 import Foundation
 import Core
@@ -6,7 +7,7 @@ import Core
 enum BusyProbe {
     private static let harness = ProbeHarness(subject: "busy")
 
-    static var isRequested: Bool { harness.isRequested }
+    static var isRequested: Bool { harness.isRequested && (try? PreviewLaunch.root()) != nil }
 
     private static var busyCount: Int { ProbeHarness.count("--busy-workspaces", or: 5) }
     private static var seconds: Int { ProbeHarness.count("--busy-seconds", or: 60) }
@@ -98,3 +99,4 @@ enum BusyProbe {
         try? Data(lines.utf8).write(to: file)
     }
 }
+#endif
