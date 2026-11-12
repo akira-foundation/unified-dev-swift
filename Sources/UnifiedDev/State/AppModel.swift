@@ -186,6 +186,7 @@ final class AppModel {
         Task { @MainActor in self?.noteWorktreesChanged(paths) }
     }
     private var storeObservationTask: Task<Void, Never>?
+    @ObservationIgnored private var diffStatReads = 0
     private var sessionObservationTask: Task<Void, Never>?
     private var quotaObservationTask: Task<Void, Never>?
     @ObservationIgnored var pullRequestAutoFixesUnderWay: Set<WorkspaceID> = []
@@ -372,7 +373,9 @@ final class AppModel {
 
     func reload() async {
         guard let store else { return }
+        #if DEBUG
         ActivityTally.reloads += 1
+        #endif
         let known = Set(workspaces.map(\.id))
         do {
             try await reloadProfiles()
@@ -389,7 +392,6 @@ final class AppModel {
             if accountChoices != loadedChoices { accountChoices = loadedChoices }
             if repos != loadedRepos { repos = loadedRepos }
             if workspaces != reconciled { workspaces = reconciled }
-            await adoptDiffStats()
             settleSelectionInActiveProfile()
             if !pendingWorkspaces.isEmpty {
                 let landed = Set(reconciled.map(\.id))
@@ -405,6 +407,7 @@ final class AppModel {
             if let crew { applyCrew(crew) }
             await refreshProjectActivity()
             await adoptSelectedAccounts()
+            await adoptDiffStats()
         } catch {
             alert = AppAlert(
                 title: "Could not read workspaces",
@@ -487,7 +490,9 @@ final class AppModel {
     }
 
     private func adoptDiffStats() async {
-        guard let store, let stats = try? await store.diffStats() else { return }
+        diffStatReads &+= 1
+        let read = diffStatReads
+        guard let store, let stats = try? await store.diffStats(), read == diffStatReads else { return }
         let moved = WorkspaceDiffStat.changes(stats, to: workspaces)
         guard !moved.isEmpty else { return }
         var updated = workspaces

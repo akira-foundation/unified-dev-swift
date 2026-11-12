@@ -1,3 +1,4 @@
+#if DEBUG
 import Foundation
 
 @MainActor
@@ -18,3 +19,4 @@ enum ActivityTally {
         Reading(reloads: reloads, inboxReloads: inboxReloads)
     }
 }
+#endif
