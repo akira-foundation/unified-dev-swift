@@ -13,7 +13,9 @@ final class WorkspaceModel {
     var workspace: Workspace
     private unowned let app: AppModel
 
-    var sessions: [Session] = []
+    var sessions: [Session] = [] {
+        didSet { app.noteSubagentsChanged(workspaceID: workspace.id) }
+    }
     var sideConversations: [SessionID: SideConversationState] = [:]
 
     private(set) var hasReadSessions = false

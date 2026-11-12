@@ -28,7 +28,7 @@ public struct SubagentRow: Sendable, Hashable, Identifiable {
             return since
         }
 
-        public func text(at now: Date = Date()) -> String {
+        public func text(at now: Date) -> String {
             switch self {
             case .elapsed(let since): SubagentRow.duration(max(0, Int(now.timeIntervalSince(since))))
             case .retrying(let retry): retry.readout
@@ -65,7 +65,7 @@ public struct SubagentRow: Sendable, Hashable, Identifiable {
         spokenState = Self.spokenState(of: subagent)
     }
 
-    public func spokenValue(at now: Date = Date()) -> String {
+    public func spokenValue(at now: Date) -> String {
         let text = detail.text(at: now)
         return text.isEmpty ? spokenState : "\(spokenState), \(text)"
     }
@@ -81,7 +81,7 @@ public struct SubagentRow: Sendable, Hashable, Identifiable {
         switch subagent.state {
         case .running:
             if let retry = subagent.retry { return .retrying(retry) }
-            return .elapsed(since: subagent.workingSince(at: now))
+            return .elapsed(since: subagent.workingSince)
         case .completed, .failed, .stopped:
             let summary = shorten(subagent.summary)
             return summary.isEmpty ? .none : .summary(summary)
