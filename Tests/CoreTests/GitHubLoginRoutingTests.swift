@@ -128,6 +128,34 @@ struct GitHubLoginRoutingTests {
         #expect(seen == ["/support/GitHubLogins/debtges", "/support/GitHubLogins/debtges"])
     }
 
+    @Test func gitFindsTheLoginFromTheDirectoryItFetchesInOrClonesInto() async throws {
+        let bin = TestScratch.unique("fake-git-routed")
+        try FileManager.default.createDirectory(atPath: bin, withIntermediateDirectories: true)
+        let record = bin + "/seen"
+        let script = bin + "/git"
+        try "#!/bin/sh\nprintf '%s\\n' \"${GH_CONFIG_DIR-unset}\" >> '\(record)'\n"
+            .write(toFile: script, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script)
+        let own = GitHubLogin.profile(ProfileID("debtges"), directory: URL(filePath: "/support/GitHubLogins/debtges"))
+        let project = bin + "/project"
+        let destination = bin + "/clone/site"
+        let routed: Set<String> = [project, destination]
+
+        try await Shell.$executableLookup.withValue({ _ in script }) {
+            try await GitHub.$loginResolverOverride.withValue({ routed.contains($0) ? own : nil }) {
+                try FileManager.default.createDirectory(atPath: project, withIntermediateDirectories: true)
+                _ = await Git.fetchBranches(from: "origin", in: project)
+                _ = await Git.fetchBranches(from: "origin", in: bin)
+                try await Git.clone("https://github.com/example/site.git", into: destination)
+            }
+        }
+        let seen = try String(contentsOfFile: record, encoding: .utf8).split(separator: "\n").map(String.init)
+        #expect(seen.count == 3)
+        #expect(seen.first == "/support/GitHubLogins/debtges")
+        #expect(seen.dropFirst().first != "/support/GitHubLogins/debtges")
+        #expect(seen.last == "/support/GitHubLogins/debtges")
+    }
+
     @Test func aChatRunsUnderTheLoginOfItsWorkspacesProfileOrTheProfileItIsPinnedTo() async throws {
         let store = try makeTestStore("github-login-scope")
         let debtges = try await store.createProfile(name: "Debtges", colour: Accent.all[1], symbol: "star")
@@ -174,7 +202,8 @@ struct GitHubLoginRoutingTests {
                 ]
             }
         }
-        #expect(answers == ["/support/GitHubLogins/debtges|", "/support/GitHubLogins/debtges|"])
+        let refused = "/support/GitHubLogins/debtges|" + GitHubLogin.signedOutToken
+        #expect(answers == [refused, refused])
     }
 
     @Test func ghRunsUnderTheLoginOfTheDirectoryItRunsIn() async throws {
@@ -222,7 +251,7 @@ struct GitHubLoginRoutingTests {
         try await store.setGitHubSource(.own, for: debtges.id)
         let variables = manager.environment(for: workspace, repo: repo, port: 3000)
         #expect(variables["GH_CONFIG_DIR"] == store.gitHubLogin(for: debtges.id).directory?.path)
-        #expect(variables["GH_TOKEN"] == "")
+        #expect(variables["GH_TOKEN"] == GitHubLogin.signedOutToken)
     }
 
     @Test func anAgentLaunchCarriesTheLoginAndDropsInheritedTokens() async throws {
@@ -234,7 +263,7 @@ struct GitHubLoginRoutingTests {
         )
         let launch = await runner.launch()
         #expect(launch.environment["GH_CONFIG_DIR"] == "/support/GitHubLogins/debtges")
-        #expect(launch.environment["GH_TOKEN"] == nil)
+        #expect(launch.environment["GH_TOKEN"] == GitHubLogin.signedOutToken)
         #expect(launch.environment["GITHUB_TOKEN"] == nil)
     }
 }

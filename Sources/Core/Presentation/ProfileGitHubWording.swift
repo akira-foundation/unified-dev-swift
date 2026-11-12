@@ -35,8 +35,7 @@ public enum ProfileGitHubWording {
                 return "\(profileName) has no GitHub login yet. Pull requests, checks and agents in its "
                     + "projects stop at GitHub until you sign in here, and never use this Mac's login."
             }
-            return "Pull requests, checks and agents in \(profileName)'s projects run as \(user), "
-                + "kept apart from this Mac's login."
+            return "Pull requests, checks and agents in \(profileName)'s projects run as \(user)."
         }
     }
 }

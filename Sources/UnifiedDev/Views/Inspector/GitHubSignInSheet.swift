@@ -223,7 +223,7 @@ struct GitHubSignInSheet: View {
         session?.stop()
 
         let executable = access == .notInstalled ? "brew" : "gh"
-        let arguments = access == .notInstalled ? ["install", "gh"] : ["auth", "login"]
+        let arguments = access == .notInstalled ? ["install", "gh"] : request.login.signInArguments
         guard request.login.acceptsSignIn else {
             phase = .failed(Self.unresolvedRefusal)
             return

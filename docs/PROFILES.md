@@ -116,16 +116,18 @@ Unified's until it is told otherwise, and Unified's is this Mac's own `gh` login
 Unified always uses it. The section says which login the profile uses and who it is signed in as.
 
 A profile with its own login keeps it in a folder of its own, `GitHubLogins/<profile id>` beside the
-database, which Unified Dev creates when the profile first signs in. Signing in runs `gh auth login` in the
-section's sheet with `GH_CONFIG_DIR` set to that folder. `gh` keeps the token in the login Keychain, under
-the host and the user name, and the folder records which user is signed in. Two profiles signed in as the
-same GitHub user therefore share one Keychain entry, and `gh auth logout` run in either removes it for both
-and for this Mac's own login when that is the same user too. Unified Dev never signs out on its own.
+database, which Unified Dev creates when the profile first signs in, readable by this user alone. Signing in
+runs `gh auth login --insecure-storage` in the section's sheet with `GH_CONFIG_DIR` set to that folder, so
+the token is written to `hosts.yml` in the folder and never to the login Keychain. That is deliberate: `gh`
+keeps one Keychain entry per host for the active login whatever `GH_CONFIG_DIR` says, so a profile signing in
+there would replace this Mac's own login, and a profile with nobody signed in would read this Mac's token
+back from it. Unified Dev never signs out on its own.
 
-A profile with its own login and nobody signed in does not fall back to this Mac's login. Its pull
-requests, checks and agents stop at GitHub and ask for a sign in, so the work of one organisation cannot
-run under the identity of another. Switching back to Unified's login keeps the folder, and switching to
-its own again finds the same login. Deleting a profile leaves its folder and its Keychain entry where they are.
+A profile with its own login and nobody signed in does not fall back to this Mac's login. Unified Dev sets
+`GH_TOKEN` to a value GitHub refuses whenever the folder holds no token, which `gh` prefers to the Keychain,
+so its pull requests, checks, agents and git credentials stop at GitHub and ask for a sign in, and the work of
+one organisation cannot run under the identity of another. Switching back to Unified's login keeps the folder, and switching to
+its own again finds the same login. Deleting a profile leaves its folder, and the token in it, where they are.
 
 `GitHubLoginRoutes` decides which profile a directory belongs to, from the projects and workspaces that hold
 it, as written first and then through any symbolic link, ignoring case on a disk that ignores it, and `ProfileGitHubLogins` decides which login
@@ -133,7 +135,8 @@ that profile uses. A directory no project holds runs under this Mac's login. Whe
 to tell, and some profile has a login of its own, the call runs signed out rather than under this Mac's login.
 A workspace chat's agent runs under the login of its project's profile, and an Ask chat's under that of the
 profile its turn is pinned to. The app sets `GH_CONFIG_DIR` for the profile's login and clears `GH_TOKEN`, `GITHUB_TOKEN`,
-`GH_ENTERPRISE_TOKEN` and `GITHUB_ENTERPRISE_TOKEN`, which `gh` would otherwise prefer to the folder.
+`GH_ENTERPRISE_TOKEN` and `GITHUB_ENTERPRISE_TOKEN`, which `gh` would otherwise prefer to the folder, except
+for the refused `GH_TOKEN` of a profile nobody has signed in to.
 Agents get them when their process starts, and terminals when their shell or tmux session starts, so a
 running one keeps the login it started with. Creating a repository from Add Project runs under the active
 profile's login, and filing feedback about Unified Dev itself runs under this Mac's.

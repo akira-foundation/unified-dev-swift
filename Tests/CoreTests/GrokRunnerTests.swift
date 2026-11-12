@@ -71,7 +71,7 @@ struct GrokRunnerTests {
         try await runner.send("first")
         let environment = seen.value.withLock { $0 }
         #expect(environment["GH_CONFIG_DIR"] == "/support/GitHubLogins/debtges")
-        #expect(environment["GH_TOKEN"] == nil)
+        #expect(environment["GH_TOKEN"] == GitHubLogin.signedOutToken)
     }
 
     @Test("a restarted server can reuse a permission RPC id without inheriting its old decision")

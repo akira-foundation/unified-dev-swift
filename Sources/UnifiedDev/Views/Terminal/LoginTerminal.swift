@@ -23,7 +23,7 @@ final class LoginTerminalSession {
     ) {
         guard let path = Shell.which(executable) else { return nil }
 
-        let variables = AgentAccountEnvironment.login(for: account, inheriting: gitHub.applied(to: Shell.environment()))
+        let variables = AgentAccountEnvironment.login(for: account, inheriting: gitHub.signInEnvironment(from: Shell.environment()))
 
         label = ([executable] + arguments).joined(separator: " ")
         launch = TerminalLaunch(

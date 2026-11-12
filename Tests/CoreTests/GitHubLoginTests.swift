@@ -33,21 +33,42 @@ struct GitHubLoginTests {
         #expect(GitHubLogin.thisMac.applied(to: inherited) == inherited)
     }
 
-    @Test func anOwnLoginNamesItsDirectoryAndSilencesEveryTokenVariable() {
+    @Test func anOwnLoginWithNoSessionNamesItsDirectoryAndRefusesEveryOtherToken() {
         let login = GitHubLogin.profile(debtges, directory: root.appending(path: "debtges"))
         let variables = login.variables
         #expect(variables["GH_CONFIG_DIR"] == "/support/GitHubLogins/debtges")
-        for name in ["GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN"] {
+        #expect(variables["GH_TOKEN"] == GitHubLogin.signedOutToken)
+        for name in ["GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN"] {
             #expect(variables[name] == "")
         }
 
-        let applied = login.applied(to: ["GH_TOKEN": "a", "GITHUB_TOKEN": "b", "GH_ENTERPRISE_TOKEN": "c", "PATH": "/bin"])
-        #expect(applied == ["GH_CONFIG_DIR": "/support/GitHubLogins/debtges", "PATH": "/bin"])
+        let inherited = ["GH_TOKEN": "a", "GITHUB_TOKEN": "b", "GH_ENTERPRISE_TOKEN": "c", "PATH": "/bin"]
+        #expect(login.applied(to: inherited) == [
+            "GH_CONFIG_DIR": "/support/GitHubLogins/debtges", "GH_TOKEN": GitHubLogin.signedOutToken, "PATH": "/bin",
+        ])
+        #expect(login.signInEnvironment(from: inherited) == ["GH_CONFIG_DIR": "/support/GitHubLogins/debtges", "PATH": "/bin"])
+    }
+
+    @Test func anOwnLoginWithASessionLetsGhReadItsOwnFile() throws {
+        let directory = URL(filePath: TestScratch.unique("signed-in-profile"), directoryHint: .isDirectory)
+        let login = GitHubLogin.profile(debtges, directory: directory)
+        try login.prepare()
+        try "github.com:\n    oauth_token: \"\"\n    user: client-bot\n"
+            .write(to: directory.appending(path: "hosts.yml"), atomically: true, encoding: .utf8)
+        #expect(!login.holdsToken)
+
+        try "github.com:\n    oauth_token: not-a-real-token\n    user: client-bot\n"
+            .write(to: directory.appending(path: "hosts.yml"), atomically: true, encoding: .utf8)
+        #expect(login.holdsToken)
+        #expect(login.variables["GH_TOKEN"] == "")
+        #expect(login.applied(to: ["GH_TOKEN": "a", "PATH": "/bin"]) == ["GH_CONFIG_DIR": directory.path, "PATH": "/bin"])
     }
 
     @Test func theSignInCommandToCopyNamesTheProfilesDirectory() {
         let login = GitHubLogin.profile(debtges, directory: URL(filePath: "/support/it's here", directoryHint: .isDirectory))
-        #expect(login.signInCommand == #"GH_CONFIG_DIR='/support/it'\''s here' gh auth login"#)
+        #expect(login.signInCommand == #"GH_CONFIG_DIR='/support/it'\''s here' gh auth login --insecure-storage"#)
+        #expect(login.signInArguments == ["auth", "login", "--insecure-storage"])
+        #expect(GitHubLogin.thisMac.signInArguments == ["auth", "login"])
         #expect(GitHubLogin.thisMac.signInCommand == "gh auth login")
     }
 
@@ -72,7 +93,7 @@ struct GitHubLoginTests {
 
         let unresolved = ProfileGitHubLogins(sources: [debtges: .own], root: root).unresolved
         #expect(unresolved.directory?.path == "/support/GitHubLogins/.unresolved")
-        #expect(unresolved.variables["GH_TOKEN"] == "")
+        #expect(unresolved.variables["GH_TOKEN"] == GitHubLogin.signedOutToken)
         #expect(!unresolved.acceptsSignIn)
         #expect(GitHubLogin.thisMac.acceptsSignIn)
     }

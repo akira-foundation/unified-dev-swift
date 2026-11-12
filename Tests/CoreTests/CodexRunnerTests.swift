@@ -84,7 +84,7 @@ private func eventually(
         try await runner.send("first turn")
         let environment = seen.value.withLock { $0 }
         #expect(environment["GH_CONFIG_DIR"] == "/support/GitHubLogins/debtges")
-        #expect(environment["GH_TOKEN"] == nil)
+        #expect(environment["GH_TOKEN"] == GitHubLogin.signedOutToken)
     }
 
     @Test(arguments: [false, true])
