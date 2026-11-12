@@ -1594,9 +1594,9 @@ public actor Store {
                   let workspace = try workspace(id: workspaceID), workspace.state == .active else {
                 throw SQLiteError(message: "This chat cannot start a side conversation.", sql: nil)
             }
-            if let existing = try sessions(workspaceID: workspaceID).first(where: {
-                $0.sideConversationParentID == parentID
-            }) { return existing }
+            for leftover in try sessions(workspaceID: workspaceID) where leftover.sideConversationParentID == parentID {
+                _ = try update(sessionID: leftover.id) { $0.sideConversationParentID = nil }
+            }
             let recent = try db.query(
                 "SELECT * FROM messages WHERE session_id = ? ORDER BY seq DESC LIMIT 300",
                 [.text(parentID)]
@@ -1692,6 +1692,14 @@ public actor Store {
         try update(sessionID: sessionID) { row in
             row.sideConversationParentID = nil
         }
+    }
+
+    @discardableResult
+    public func closeSideConversation(sessionID: SessionID) throws -> Bool {
+        guard let row = try session(id: sessionID), row.sideConversationParentID != nil,
+              row.archivedAt == nil else { return false }
+        _ = try update(sessionID: sessionID) { $0.archivedAt = Date() }
+        return true
     }
 
     public func sessions(workspaceID: WorkspaceID) throws -> [Session] {

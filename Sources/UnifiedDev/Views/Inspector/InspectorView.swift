@@ -99,6 +99,10 @@ struct InspectorView: View {
             FileTreeView(model: model, query: $fileQuery)
         case .changes:
             ChangedFileList(model: model, query: $fileQuery)
+        case .side:
+            if let parent = model.inspectorSideParent, let state = model.inspectorSideConversation {
+                SideConversationView(parent: parent, state: state, model: model)
+            }
         case .tasks:
             BackgroundTasksView(model: model)
         case .checks:
