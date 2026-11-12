@@ -71,6 +71,7 @@ struct ClaudeAliasProbeIsolationTests {
         let record = TestScratch.path("record")
         try FileManager.default.createDirectory(atPath: record, withIntermediateDirectories: true)
         let cli = try fakeCLI("""
+        printf '%s\\0' "$@" > "$PROBE_RECORD/args"
         env > "$PROBE_RECORD/env.partial" && mv "$PROBE_RECORD/env.partial" "$PROBE_RECORD/env"
         while [ ! -e "$PROBE_RECORD/go" ]; do /bin/sleep 0.05; done
         echo '{"type":"system","subtype":"init","model":"claude-opus-5-5"}'
@@ -92,13 +93,17 @@ struct ClaudeAliasProbeIsolationTests {
                 guard let equals = line.firstIndex(of: "=") else { return }
                 found[String(line[..<equals])] = String(line[line.index(after: equals)...])
             }
+        let arguments = try String(contentsOfFile: record + "/args", encoding: .utf8).split(separator: "\0").map(String.init)
+        let settingsAt = try #require(arguments.firstIndex(of: "--settings"))
+        let settings = try JSONDecoder().decode(SettingsEnvironment.self, from: Data(arguments[settingsAt + 1].utf8)).env
+        let named = ["ANTHROPIC_BASE_URL"] + Self.proxyNames
         let base = try #require(environment["ANTHROPIC_BASE_URL"].flatMap(LoopbackExchange.port(of:)))
-        let proxies = ClaudeAliasProbe.proxyVariables.sorted().map { environment[$0].flatMap(LoopbackExchange.port(of:)) }
+        let proxies = Self.proxyNames.map { environment[$0].flatMap(LoopbackExchange.port(of:)) }
         let modelRequest = LoopbackExchange.send(
-            "POST /v1/messages HTTP/1.1\r\nHost: api.anthropic.com\r\n\r\n", to: base, waiting: .milliseconds(300)
+            "POST /v1/messages HTTP/1.1\r\nHost: api.anthropic.com\r\n\r\n", to: base, waiting: .seconds(2)
         )
         let proxied = proxies.compactMap(\.self).map {
-            LoopbackExchange.send("CONNECT api.anthropic.com:443 HTTP/1.1\r\n\r\n", to: $0, waiting: .seconds(5))
+            LoopbackExchange.send("CONNECT api.anthropic.com:443 HTTP/1.1\r\n\r\n", to: $0, waiting: .seconds(2))
         }
         try "".write(toFile: record + "/go", atomically: true, encoding: .utf8)
         let resolved = await answers.wait(upTo: .seconds(20))
@@ -106,8 +111,15 @@ struct ClaudeAliasProbeIsolationTests {
         #expect(resolved?.probed == ["opus": "claude-opus-5-5"])
         #expect(modelRequest?.isStillWaiting == true)
         #expect(proxies.allSatisfy { $0 != nil && $0 != base })
-        #expect(proxied.count == ClaudeAliasProbe.proxyVariables.count)
-        #expect(proxied.allSatisfy { $0 != nil && $0?.wasAnswered == false && $0?.isStillWaiting == false })
+        #expect(proxied.count == Self.proxyNames.count)
+        #expect(proxied.allSatisfy { $0?.wasClosedUnanswered == true })
+        #expect(named.allSatisfy { settings[$0] != nil && settings[$0] == environment[$0] })
+    }
+
+    private static let proxyNames = ["ALL_PROXY", "HTTPS_PROXY", "HTTP_PROXY", "all_proxy", "http_proxy", "https_proxy"]
+
+    private struct SettingsEnvironment: Decodable {
+        let env: [String: String]
     }
 
     @Test("each probe runs in a directory of its own, found empty and removed afterwards")

@@ -1,11 +1,13 @@
 import Foundation
 
 struct LoopbackExchange {
+    let connected: Bool
     let received: Int
     let failure: Int32
 
     var wasAnswered: Bool { received > 0 }
-    var isStillWaiting: Bool { received < 0 && (failure == EAGAIN || failure == EWOULDBLOCK) }
+    var isStillWaiting: Bool { connected && received < 0 && (failure == EAGAIN || failure == EWOULDBLOCK) }
+    var wasClosedUnanswered: Bool { connected && (received == 0 || (received < 0 && failure == ECONNRESET)) }
 
     static func port(of url: String) -> UInt16? {
         guard let components = URLComponents(string: url), components.scheme == "http",
@@ -17,6 +19,7 @@ struct LoopbackExchange {
         let client = socket(AF_INET, SOCK_STREAM, 0)
         guard client >= 0 else { return nil }
         defer { close(client) }
+        _ = fcntl(client, F_SETFD, FD_CLOEXEC)
         var on: Int32 = 1
         setsockopt(client, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
         var address = sockaddr_in()
@@ -29,13 +32,14 @@ struct LoopbackExchange {
                 connect(client, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
             }
         }
-        guard connected == 0 else { return LoopbackExchange(received: -1, failure: errno) }
+        guard connected == 0 else { return LoopbackExchange(connected: false, received: -1, failure: errno) }
         _ = request.withCString { Darwin.send(client, $0, strlen($0), 0) }
         let microseconds = waiting.components.seconds * 1_000_000 + waiting.components.attoseconds / 1_000_000_000_000
         var wait = timeval(tv_sec: Int(microseconds / 1_000_000), tv_usec: Int32(microseconds % 1_000_000))
         setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &wait, socklen_t(MemoryLayout<timeval>.size))
         var buffer = [UInt8](repeating: 0, count: 64)
-        let received = recv(client, &buffer, buffer.count, 0)
-        return LoopbackExchange(received: received, failure: received < 0 ? errno : 0)
+        var received = recv(client, &buffer, buffer.count, 0)
+        while received < 0, errno == EINTR { received = recv(client, &buffer, buffer.count, 0) }
+        return LoopbackExchange(connected: true, received: received, failure: received < 0 ? errno : 0)
     }
 }
