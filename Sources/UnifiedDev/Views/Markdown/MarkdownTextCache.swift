@@ -25,6 +25,15 @@ private final class MarkdownTextKeyBox: NSObject {
 final class MarkdownStreamSlot {
     var key: MarkdownTextKey?
     var text: MarkdownText?
+    private var parse = MarkdownStreamParse()
+    private var parsed: (text: String, blocks: [MarkdownBlock])?
+
+    func blocks(streaming text: String) -> [MarkdownBlock] {
+        if let parsed, parsed.text == text { return parsed.blocks }
+        let blocks = parse.blocks(for: text)
+        parsed = (text, blocks)
+        return blocks
+    }
 }
 
 @MainActor
