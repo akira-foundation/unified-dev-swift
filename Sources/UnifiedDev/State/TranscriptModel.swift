@@ -374,6 +374,7 @@ final class TranscriptModel {
         indexByRefID = built.index
         highestSeenMessageSeq = built.highestMessageSeq
         rowsReleased = false
+        releasedNotes = [:]
     }
 
     var retention: TranscriptRetention.Chat {
@@ -422,7 +423,6 @@ final class TranscriptModel {
         for index in restored.indices {
             if let note = releasedNotes[restored[index].seq] { restored[index].permissionNote = note }
         }
-        releasedNotes = [:]
         adopt((rows: restored, index: built.index, highestMessageSeq: max(ceiling, built.highestMessageSeq)))
     }
 
