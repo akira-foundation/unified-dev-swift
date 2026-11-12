@@ -1187,8 +1187,14 @@ final class WorkspaceModel {
             changesError = failure.message
 
         case .success(let answer):
+            #if DEBUG
+            ActivityTally.changeReads += 1
+            #endif
             hasReadChanges = true
             changesGeneration &+= 1
+            #if DEBUG
+            ActivityTally.changeGenerations += 1
+            #endif
             reconcileCanvasDocuments()
             if changesError != nil { changesError = nil }
             if changedFiles != answer.files { changedFiles = answer.files }
