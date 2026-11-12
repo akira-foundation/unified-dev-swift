@@ -1139,4 +1139,22 @@ extension CodexRunnerTests {
         #expect(box.process.sentMethods.contains("thread/revert"))
         await runner.shutdown()
     }
+
+    @Test func aRewindForgetsTheRowsItWasHoldingForTheScreen() async throws {
+        let store = try makeTestStore("codex-rewind-forgets-held-rows")
+        let (session, _) = try await makeCodexSession(store)
+        let box = rewindableBox()
+        let runner = try await makeRunner(store: store, session: session, box: box)
+        let relay = try #require(runner.storedMessages)
+        relay.deposit(Message(sessionID: session.id, seq: 9, kind: .notice, payload: Data("{}".utf8)))
+        try await runner.send("Start")
+        box.process.emit(#"{"method":"turn/completed","params":{"threadId":"\#(Self.parentThread)","turn":{"id":"\#(Self.parentTurn)","status":"completed","items":[]}}}"#)
+        await eventually("idle turn") { await runner.currentSession.state == .idle }
+        #expect(relay.heldCount > 0)
+
+        try await runner.rewind(beforeTurnID: Self.parentTurn)
+
+        #expect(relay.heldCount == 0)
+        await runner.shutdown()
+    }
 }

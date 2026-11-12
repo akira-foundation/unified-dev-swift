@@ -36,6 +36,7 @@ public actor CodexRunner: SessionRunner {
     private let pending = PendingAsks()
     private let handle = CodexTurnHandle()
     private let sink = AgentPresentationFeed()
+    private let announced = StoredMessageRelay()
     private var sendsInFlight = 0
     private var wasEvicted = false
 
@@ -78,6 +79,7 @@ public actor CodexRunner: SessionRunner {
 
     public nonisolated var events: AsyncStream<AgentEvent> { sink.stream() }
     public nonisolated var presentationFeed: AgentPresentationFeed? { sink }
+    public nonisolated var storedMessages: StoredMessageRelay? { announced }
 
     public var isProcessAlive: Bool { connection.current?.isProcessAlive ?? false }
 
@@ -445,6 +447,7 @@ public actor CodexRunner: SessionRunner {
         let thread = try await reopenStoredThread(on: connection)
         try await connection.rewindThread(threadID: thread, beforeTurnID: beforeTurnID)
         items.removeAll()
+        announced.clear()
     }
 
     public func turnPresence(_ turnID: String) async throws -> ConversationTurnPresence {
@@ -636,6 +639,7 @@ public actor CodexRunner: SessionRunner {
         }
 
         if let endingTurn, !handle.acceptsTerminal(turnID: endingTurn, intent: intent) { return }
+        if let storedMessage { announced.deposit(storedMessage) }
         sink.yield(event, messageSeq: storedMessage?.seq)
     }
 
