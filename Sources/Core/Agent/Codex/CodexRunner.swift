@@ -447,6 +447,7 @@ public actor CodexRunner: SessionRunner {
         let thread = try await reopenStoredThread(on: connection)
         try await connection.rewindThread(threadID: thread, beforeTurnID: beforeTurnID)
         items.removeAll()
+        announced.clear()
     }
 
     public func turnPresence(_ turnID: String) async throws -> ConversationTurnPresence {

@@ -280,7 +280,6 @@ final class TranscriptModel {
 
     func reloadAfterRewind() async {
         guard let store else { return }
-        runner?.storedMessages?.clear()
         chatStop = chatStop.afterRewind
         sending = nil
         steering = nil
@@ -1840,7 +1839,7 @@ final class TranscriptModel {
             settleRetryRun()
             let runningTool = streamingToolName
             let callsBefore = freshCalls
-            await appendLatestMessages()
+            await appendLatestMessages(announced: presentationMessageSeq)
             clearStreaming()
             if case .toolUse = event, !freshCalls.isSubset(of: callsBefore) {
                 streamingToolName = runningTool
@@ -1851,7 +1850,7 @@ final class TranscriptModel {
             steering = nil
             abandonRetryRun()
             clearStreaming()
-            await appendLatestMessages()
+            await appendLatestMessages(announced: presentationMessageSeq)
             if let store { await history.finish(store: store, cwd: cwd, endSeq: presentationMessageSeq ?? highestSeenMessageSeq, captureFiles: !isReplayingPastTurn) }
             setRunning(false)
             statusLabel = nil
@@ -1891,7 +1890,7 @@ final class TranscriptModel {
             history.isFinalisingTurn = true
             if result.succeeded { settleRetryRun() } else { abandonRetryRun() }
             clearStreaming()
-            await appendLatestMessages()
+            await appendLatestMessages(announced: presentationMessageSeq)
             fileRecoveredRun()
             if let store { await history.finish(store: store, cwd: cwd, endSeq: presentationMessageSeq ?? highestSeenMessageSeq, captureFiles: !isReplayingPastTurn) }
             setRunning(false)
@@ -1912,7 +1911,7 @@ final class TranscriptModel {
 
         case .permissionAsk:
             clearStreaming()
-            await appendLatestMessages()
+            await appendLatestMessages(announced: presentationMessageSeq)
             statusLabel = "Waiting on you"
             refreshAwaitingPermission()
             await refreshSession()
@@ -1939,7 +1938,7 @@ final class TranscriptModel {
 
         case .subagent(let signal):
             subagents.apply(signal)
-            if case .reported = signal, !isRunning { await appendLatestMessages() }
+            if case .reported = signal, !isRunning { await appendLatestMessages(announced: presentationMessageSeq) }
 
         case .hook, .unknown:
             break
@@ -2010,10 +2009,10 @@ final class TranscriptModel {
         presentationRevision += 1
     }
 
-    private func appendLatestMessages() async {
+    private func appendLatestMessages(announced: Int? = nil) async {
         guard let store else { return }
         await loader.wait()
-        let fresh = await latestDecided(from: store)
+        let fresh = await latestDecided(from: store, announced: announced)
         guard !fresh.isEmpty else { return }
         let appendedFrom = rows.count
         var calls: [String] = []
@@ -2029,8 +2028,8 @@ final class TranscriptModel {
         noteContextWindow(in: rows[min(appendedFrom, rows.count)...])
     }
 
-    private func latestDecided(from store: Store) async -> [DecidedMessage] {
-        let relayed = presentationMessageSeq.flatMap {
+    private func latestDecided(from store: Store, announced: Int?) async -> [DecidedMessage] {
+        let relayed = announced.flatMap {
             (probeRelay ?? runner?.storedMessages)?.take(after: highestSeenMessageSeq, through: $0)
         }
         if let relayed { return await DecidedMessage.deciding(relayed) }
