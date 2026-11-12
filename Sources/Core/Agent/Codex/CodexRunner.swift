@@ -36,6 +36,7 @@ public actor CodexRunner: SessionRunner {
     private let pending = PendingAsks()
     private let handle = CodexTurnHandle()
     private let sink = AgentPresentationFeed()
+    private let decided = DecidedMessageRelay()
     private var sendsInFlight = 0
     private var wasEvicted = false
 
@@ -78,6 +79,7 @@ public actor CodexRunner: SessionRunner {
 
     public nonisolated var events: AsyncStream<AgentEvent> { sink.stream() }
     public nonisolated var presentationFeed: AgentPresentationFeed? { sink }
+    public nonisolated var decidedMessages: DecidedMessageRelay? { decided }
 
     public var isProcessAlive: Bool { connection.current?.isProcessAlive ?? false }
 
@@ -636,6 +638,7 @@ public actor CodexRunner: SessionRunner {
         }
 
         if let endingTurn, !handle.acceptsTerminal(turnID: endingTurn, intent: intent) { return }
+        if let storedMessage { decided.deposit(DecidedMessage(storedMessage)) }
         sink.yield(event, messageSeq: storedMessage?.seq)
     }
 

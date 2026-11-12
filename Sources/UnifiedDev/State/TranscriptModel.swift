@@ -199,6 +199,7 @@ final class TranscriptModel {
     private var isReconcilingPresentation = false
     private var isReplayingPastTurn = false
     private var presentationMessageSeq: Int?
+    @ObservationIgnored private var probeRelay: DecidedMessageRelay?
     private var dispatchingDeliveryID: DeliveryID?
     private var activeInteractionMode: InteractionMode?
     private var runner: (any SessionRunner)?
@@ -317,7 +318,7 @@ final class TranscriptModel {
             for message in messages {
                 highestMessageSeq = max(highestMessageSeq, message.seq)
                 Self.absorb(
-                    message,
+                    DecidedMessage(message),
                     decisions: decisions,
                     answers: answers,
                     inWorkspace: inWorkspace,
@@ -358,28 +359,27 @@ final class TranscriptModel {
     }
 
     nonisolated private static func absorb(
-        _ message: Message,
+        _ decided: DecidedMessage,
         decisions: [String: String],
         answers: [String: [String: String]] = [:],
         inWorkspace: Bool,
         into rows: inout [TranscriptRow],
         indexByRefID: inout [String: Int]
     ) {
+        let message = decided.message
         if message.kind == .toolResult, let refID = message.refID,
            let index = indexByRefID[refID] {
             rows[index].resultPayload = message.payload
-            let summary = ToolResultSummary.decode(message.payload)
-            rows[index].isError = summary.isError
-            rows[index].refusal = summary.refusal
-            rows[index].refusalReason = summary.reason
+            rows[index].isError = decided.result.isError
+            rows[index].refusal = decided.result.refusal
+            rows[index].refusalReason = decided.result.reason
             if let duration = message.durationMS { rows[index].durationMS = duration }
             return
         }
 
         var row = TranscriptRow(message: message)
-        row.parentToolUseID = ParentProbe.parentToolUseID(message.payload)
-        if message.kind == .permissionAsk,
-           let ask = PermissionAsk.decode(payload: message.payload) {
+        row.parentToolUseID = decided.parentToolUseID
+        if let ask = decided.ask {
             row.permissionDecision = ask.standing(in: decisions, inWorkspace: inWorkspace)
             row.isQuestion = ask.isQuestion
             row.permissionAnswers = answers[ask.requestID] ?? [:]
@@ -394,18 +394,19 @@ final class TranscriptModel {
         var built: [TranscriptRow] = []
         var indexByRefID: [String: Int] = [:]
         for message in messages {
-            Self.absorb(message, decisions: [:], inWorkspace: false, into: &built, indexByRefID: &indexByRefID)
+            Self.absorb(DecidedMessage(message), decisions: [:], inWorkspace: false, into: &built, indexByRefID: &indexByRefID)
         }
         return built
     }
 
-    private func absorb(_ message: Message, decisions: [String: String] = [:]) {
+    private func absorb(_ decided: DecidedMessage, decisions: [String: String] = [:]) {
+        let message = decided.message
         messageArrivals.persisted(seq: message.seq, kind: message.kind, sending: sending?.id)
         let changedIndex = message.kind == .toolResult
             ? message.refID.flatMap { indexByRefID[$0] } ?? rows.count : rows.count
         foldCache.invalidate(row: changedIndex)
         Self.absorb(
-            message, decisions: decisions, inWorkspace: session.workspaceID != nil,
+            decided, decisions: decisions, inWorkspace: session.workspaceID != nil,
             into: &rows, indexByRefID: &indexByRefID
         )
         presentationRevision += 1
@@ -1798,6 +1799,14 @@ final class TranscriptModel {
         await handle(event)
     }
 
+    func acceptForProbe(_ event: AgentEvent, messageSeq: Int, relayedBy relay: DecidedMessageRelay? = nil) async {
+        presentationMessageSeq = messageSeq
+        probeRelay = relay
+        await handle(event)
+        probeRelay = nil
+        presentationMessageSeq = nil
+    }
+
     private func handle(_ event: AgentEvent) async {
         switch event {
         case .initialized:
@@ -2003,21 +2012,29 @@ final class TranscriptModel {
     private func appendLatestMessages() async {
         guard let store else { return }
         await loader.wait()
-        let fresh = (
-            try? await store.messages(sessionID: session.id, afterSeq: highestSeenMessageSeq)
-        ) ?? []
+        let fresh = await latestDecided(from: store)
         guard !fresh.isEmpty else { return }
         let appendedFrom = rows.count
         var calls: [String] = []
-        for message in fresh where message.seq > highestSeenMessageSeq {
+        for decided in fresh where decided.message.seq > highestSeenMessageSeq {
+            let message = decided.message
             highestSeenMessageSeq = max(highestSeenMessageSeq, message.seq)
             if message.kind == .toolUse, let id = message.refID { calls.append(id) }
-            absorb(message)
+            absorb(decided)
         }
-        let stopsOnAQuestion = fresh.contains { $0.kind == .permissionAsk }
+        let stopsOnAQuestion = fresh.contains { $0.message.kind == .permissionAsk }
         if stopsOnAQuestion { endFreshCalls(Array(freshCalls)) }
         if !stopsOnAQuestion, !calls.isEmpty { beginFreshCalls(calls) }
         noteContextWindow(in: rows[min(appendedFrom, rows.count)...])
+    }
+
+    private func latestDecided(from store: Store) async -> [DecidedMessage] {
+        if let last = presentationMessageSeq,
+           let relayed = (probeRelay ?? runner?.decidedMessages)?.take(after: highestSeenMessageSeq, through: last) {
+            return relayed
+        }
+        let fresh = (try? await store.messages(sessionID: session.id, afterSeq: highestSeenMessageSeq)) ?? []
+        return await DecidedMessage.deciding(fresh)
     }
 
     private func beginFreshCalls(_ calls: [String]) {
@@ -2129,14 +2146,5 @@ final class TranscriptModel {
         await app.archiveIfRequested(
             workspaceNow, endedIn: session.id, wasStopped: wasStoppedByHand
         )
-    }
-}
-
-enum ParentProbe {
-    static func parentToolUseID(_ payload: Data) -> String? {
-        guard let object = try? JSONSerialization.jsonObject(with: payload) as? [String: Any] else {
-            return nil
-        }
-        return object["parent_tool_use_id"] as? String
     }
 }
