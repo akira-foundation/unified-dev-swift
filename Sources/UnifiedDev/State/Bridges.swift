@@ -4,7 +4,7 @@ import Core
 
 enum GitHubBridge {
     static func readPullRequest(for workspace: Workspace, maxAge: Duration = .zero) async -> PullRequestRead {
-        let availability = await GitHubAvailability.shared.check()
+        let availability = await GitHubAvailability.shared.check(directory: workspace.path)
         if availability == .notInstalled {
             return .unavailable(GitHubReadFailure(reason: .unavailable, message: "Install the GitHub CLI to refresh pull requests."))
         }

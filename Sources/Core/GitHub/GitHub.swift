@@ -141,6 +141,7 @@ private actor GitHubCache {
         let worktree: String
         let lookup: Lookup
         let repository: String?
+        var login: GitHubLogin = .thisMac
     }
 
     struct Entry: Sendable {
@@ -202,21 +203,32 @@ public enum GitHub {
 
     public static let checksUnavailableSummary = "Checks unavailable"
 
-    public static func isAvailable() async -> Bool {
-        await access() == .ready
+    public static func isAvailable(directory: String? = nil) async -> Bool {
+        await access(directory: directory) == .ready
     }
 
-    public static func access() async -> GitHubAccess {
+    public static func access(directory: String? = nil) async -> GitHubAccess {
+        await access(login: await login(forDirectory: directory))
+    }
+
+    public static func access(login: GitHubLogin) async -> GitHubAccess {
         await LoginShellPath.ready()
         guard Shell.which("gh") != nil else { return .notInstalled }
-        guard let result = try? await authStatus() else { return .signedOut }
+        guard let result = try? await authStatus(login: login) else { return .signedOut }
         return result.ok ? .ready : .signedOut
     }
 
-    private static func authStatus() async throws -> ShellResult {
+    public static func signedInUser(login: GitHubLogin) async -> String? {
+        guard let result = try? await $login.withValue(login, operation: {
+            try await run("gh", ["api", "user", "--jq", ".login"], timeout: .seconds(15))
+        }), result.ok, isPlausibleLogin(result.trimmed) else { return nil }
+        return result.trimmed
+    }
+
+    private static func authStatus(login: GitHubLogin) async throws -> ShellResult {
         let arguments = ["auth", "status"]
-        if let commandOverride { return try await commandOverride(arguments, nil) }
-        return try await Shell.run("gh", arguments, timeout: .seconds(20))
+        if let commandOverride { return try await $login.withValue(login) { try await commandOverride(arguments, nil) } }
+        return try await Shell.run("gh", arguments, env: login.variables, timeout: .seconds(20))
     }
 
     public static func pullRequest(
@@ -384,14 +396,15 @@ public enum GitHub {
     static func viewPullRequest(
         _ selector: [String], worktree: String, repositoryContext: GitRepositoryContext? = nil
     ) async throws -> PullRequestView {
-        let knownUnreadable = await unreadableChecks.contains(worktree)
+        let unreadableKey = worktree + "\n" + (await login(forDirectory: worktree).directory?.path ?? "")
+        let knownUnreadable = await unreadableChecks.contains(unreadableKey)
         let arguments = ["pr", "view"] + selector + ["--json", knownUnreadable ? fieldsWithoutChecks : fields]
         let result = try await run("gh", arguments, cwd: worktree, repositoryContext: repositoryContext)
         guard !knownUnreadable, !result.ok, indicatesUnreadableChecks(stderr: result.stderr) else {
             return PullRequestView(result: result, arguments: arguments, checksReadable: !knownUnreadable)
         }
 
-        await unreadableChecks.record(worktree)
+        await unreadableChecks.record(unreadableKey)
         let bare = ["pr", "view"] + selector + ["--json", fieldsWithoutChecks]
         let retried = try await run("gh", bare, cwd: worktree, repositoryContext: repositoryContext)
         return PullRequestView(result: retried, arguments: bare, checksReadable: false)
@@ -419,7 +432,8 @@ public enum GitHub {
                     context?.headRemoteURL, context?.headBranch,
                     context?.headIsTracked == false ? "untracked" : nil,
                 ] + (context?.remoteURLs ?? [])
-            ).compactMap { $0 }.joined(separator: "\n")
+            ).compactMap { $0 }.joined(separator: "\n"),
+            login: await login(forDirectory: worktree)
         )
         if let cached = await cache.value(for: key, maxAge: maxAge) { return cached }
 
@@ -470,7 +484,10 @@ public enum GitHub {
         guard number > 0 else { return nil }
         try Task.checkCancellation()
         let context = try? await Git.repositoryContext(in: worktree)
-        let key = GitHubCache.Key(worktree: worktree, lookup: .number(number), repository: context?.baseRemoteURL)
+        let key = GitHubCache.Key(
+            worktree: worktree, lookup: .number(number), repository: context?.baseRemoteURL,
+            login: await login(forDirectory: worktree)
+        )
         if let cached = await cache.value(for: key, maxAge: maxAge) { return cached }
         let view = try await viewPullRequest([String(number)], worktree: worktree, repositoryContext: context)
         let result = view.result

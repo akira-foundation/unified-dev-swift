@@ -21,13 +21,18 @@ private func makeGrokSession(
     ))
 }
 
-private func makeRunner(store: Store, session: Session, box: ProcessBox) async throws -> GrokRunner {
+private func makeRunner(
+    store: Store, session: Session, box: ProcessBox,
+    gitHub: GitHubLogin = .thisMac, seen: SeenEnvironment? = nil
+) async throws -> GrokRunner {
     GrokRunner(
         workspacePath: "/tmp/w",
         session: session,
         store: store, segmentID: try await activeSegmentID(store, session),
+        gitHub: gitHub,
         makeClient: { configuration in
-            GrokClient(configuration: configuration, makeProcess: box.factory)
+            seen?.value.withLock { $0 = configuration.environment }
+            return GrokClient(configuration: configuration, makeProcess: box.factory)
         }
     )
 }
@@ -53,6 +58,22 @@ private func eventually(
 
 @Suite(.scratchDirectory)
 struct GrokRunnerTests {
+    @Test("the server starts under the profile's GitHub login")
+    func startsUnderTheProfilesGitHubLogin() async throws {
+        let store = try makeTestStore("grok-github-login")
+        let session = try await makeGrokSession(store)
+        let seen = SeenEnvironment()
+        let runner = try await makeRunner(
+            store: store, session: session, box: scriptedGrokBox(),
+            gitHub: GitHubLogin.profile(ProfileID("debtges"), directory: URL(filePath: "/support/GitHubLogins/debtges")), seen: seen
+        )
+        defer { runner.terminateNow() }
+        try await runner.send("first")
+        let environment = seen.value.withLock { $0 }
+        #expect(environment["GH_CONFIG_DIR"] == "/support/GitHubLogins/debtges")
+        #expect(environment["GH_TOKEN"] == GitHubLogin.signedOutToken)
+    }
+
     @Test("a restarted server can reuse a permission RPC id without inheriting its old decision")
     func permissionIDsSurviveReconnect() async throws {
         let store = try makeTestStore("grok-permission-reconnect")

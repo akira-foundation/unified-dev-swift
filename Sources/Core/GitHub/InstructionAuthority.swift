@@ -72,11 +72,12 @@ public enum InstructionAuthority: Sendable, Hashable {
 }
 
 public extension GitHub {
-    static func viewerLogin(forPullRequestAt url: String) async -> String? {
+    static func viewerLogin(forPullRequestAt url: String, from directory: String? = nil) async -> String? {
+        let login = await login(forDirectory: directory)
         guard let host = repositoryHost(url),
-              let result = try? await run(
-                  "gh", ["api", "user", "--hostname", host, "--jq", ".login"], timeout: .seconds(10)
-              ),
+              let result = try? await $login.withValue(login, operation: {
+                  try await run("gh", ["api", "user", "--hostname", host, "--jq", ".login"], timeout: .seconds(10))
+              }),
               result.ok, !result.trimmed.isEmpty
         else { return nil }
         return result.trimmed
@@ -94,7 +95,7 @@ public extension GitHub {
                 pullRequest,
                 checkedOutBranch: checkedOut,
                 checkedOutCommit: try? await Git.headSHA(of: workspace.path),
-                viewer: await viewerLogin(forPullRequestAt: pullRequest.url)
+                viewer: await viewerLogin(forPullRequestAt: pullRequest.url, from: workspace.path)
             )
         }
 

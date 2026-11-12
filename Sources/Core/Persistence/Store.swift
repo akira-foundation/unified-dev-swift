@@ -4,6 +4,8 @@ import Synchronization
 public actor Store {
     private let db: SQLiteDatabase
     public nonisolated let path: String
+    let gitHubLoginBook: Mutex<ProfileGitHubLogins>
+    private var gitHubRouteCache: (signature: String, routes: GitHubLoginRoutes)?
 
     public static let primaryBundleIdentifier = "io.akira.unifieddev"
     public static let devBundleIdentifier = "io.akira.unifieddev.dev"
@@ -39,10 +41,14 @@ public actor Store {
     }
 
     public init(path: String) throws {
+        let database = try SQLiteDatabase(path: path)
+        try Self.migrate(database)
+        try database.transaction { try Self.seedOceans(database) }
+        let sources = try ProfileGitHubColumn.sources { try database.query($0) }
+        let support = URL(filePath: path).deletingLastPathComponent()
         self.path = path
-        self.db = try SQLiteDatabase(path: path)
-        try Self.migrate(db)
-        try db.transaction { try Self.seedOceans(db) }
+        self.db = database
+        self.gitHubLoginBook = Mutex(ProfileGitHubLogins(sources: sources, root: ProfileGitHubLogins.root(support: support)))
     }
 
     private nonisolated static func seedOceans(_ db: SQLiteDatabase) throws {
@@ -687,6 +693,7 @@ public actor Store {
             { try PreAccountChatOwners.record($0, predatingAccounts: current <= beforeAccounts.count) },
             sql(InboxNotificationColumns.createTable),
             { try UndatedArchives.stamp($0) },
+            ProfileGitHubColumn.migrate,
         ]
 
         guard current >= 0, current <= migrations.count else {
@@ -884,6 +891,39 @@ public actor Store {
     @discardableResult
     public func setAccountSource(_ source: ProfileAccountSource, for profile: ProfileID) throws -> [RepoID] {
         try db.transaction { try writeAccountSource(source, for: profile) }
+    }
+
+    func gitHubLoginRoutes() throws -> GitHubLoginRoutes {
+        let rows = try db.query(
+            """
+            SELECT path, profile_id FROM repos
+            UNION ALL
+            SELECT workspaces.path, repos.profile_id FROM workspaces JOIN repos ON repos.id = workspaces.repo_id
+            ORDER BY 1, 2
+            """
+        )
+        let pairs = rows.compactMap { row -> (String, String)? in
+            guard let path = row.string("path"), let profile = row.string("profile_id") else { return nil }
+            return (path, profile)
+        }
+        let signature = pairs.map { $0.0 + "\u{0}" + $0.1 }.joined(separator: "\n")
+        if let cached = gitHubRouteCache, cached.signature == signature { return cached.routes }
+        let routes = GitHubLoginRoutes(routes: pairs.flatMap { path, profile -> [GitHubLoginRoutes.Route] in
+            let resolved = URL(filePath: path).resolvingSymlinksInPath().path
+            return Set([path, resolved]).map { GitHubLoginRoutes.Route(path: $0, profile: ProfileID(profile)) }
+        })
+        gitHubRouteCache = (signature, routes)
+        return routes
+    }
+
+    func refreshGitHubLogins() throws {
+        let sources = try ProfileGitHubColumn.sources { try db.query($0) }
+        gitHubLoginBook.withLock { $0 = ProfileGitHubLogins(sources: sources, root: $0.root) }
+    }
+
+    func writeGitHubSource(_ source: ProfileGitHubSource, for profile: ProfileID) throws {
+        try db.run(ProfileGitHubColumn.setSource, [.text(source.rawValue), .text(profile)])
+        try refreshGitHubLogins()
     }
 
     func writeAccountSource(_ source: ProfileAccountSource, for profile: ProfileID) throws -> [RepoID] {

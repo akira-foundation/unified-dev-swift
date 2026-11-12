@@ -22,7 +22,7 @@ struct PreviewScenarioProfilesTests {
             ],
             profiles: [
                 PreviewScenario.Profile(name: "Akira", colour: "4C8DF6", symbol: "building.2"),
-                PreviewScenario.Profile(name: "Debtges", colour: "E06C2A", symbol: "briefcase"),
+                PreviewScenario.Profile(name: "Debtges", colour: "E06C2A", symbol: "briefcase", github: .own),
             ],
             activeProfile: "Akira"
         )
@@ -44,6 +44,8 @@ struct PreviewScenarioProfilesTests {
         #expect(placed["almanac"] == .initial)
         #expect(placed["ledger"] == byName["Akira"])
         #expect(placed["tides"] == byName["Debtges"])
+        #expect(store.gitHubLogins().source(of: try #require(byName["Akira"])) == .inherits)
+        #expect(store.gitHubLogins().source(of: try #require(byName["Debtges"])) == .own)
     }
 
     @Test("the scenario opens on the profile it names")

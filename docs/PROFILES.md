@@ -106,6 +106,50 @@ accounts and of this Mac's own login. Turns run outside every project are Unifie
 of the account the active profile runs, for the selected workspace or, on Home, for the profile's
 default.
 
+## GitHub
+
+Every `gh` call Unified Dev makes for a project, and every agent and terminal a workspace starts, runs
+under the GitHub login of the project's profile. Profile Settings has a GitHub section for it.
+
+A profile either uses Unified's GitHub login or has its own, chosen in that section. A new profile uses
+Unified's until it is told otherwise, and Unified's is this Mac's own `gh` login, in `~/.config/gh`.
+Unified always uses it. The section says which login the profile uses and who it is signed in as.
+
+A profile with its own login keeps it in a folder of its own, `GitHubLogins/<profile id>` beside the
+database, which Unified Dev creates when the profile first signs in, readable by this user alone. Signing in
+runs `gh auth login --insecure-storage` in the section's sheet with `GH_CONFIG_DIR` set to that folder, so
+the token is written to `hosts.yml` in the folder and never to the login Keychain. That is deliberate: `gh`
+keeps one Keychain entry per host for the active login whatever `GH_CONFIG_DIR` says, so a profile signing in
+there would replace this Mac's own login, and a profile with nobody signed in would read this Mac's token
+back from it. Unified Dev never signs out on its own.
+
+A profile with its own login and nobody signed in does not fall back to this Mac's login. Unified Dev sets
+`GH_TOKEN` to a value GitHub refuses whenever the folder holds no token for github.com, and
+`GH_ENTERPRISE_TOKEN` likewise when it holds none for another host, which `gh` prefers to the Keychain,
+so its pull requests, checks, agents and git credentials stop at GitHub and ask for a sign in, and the work of
+one organisation cannot run under the identity of another. Switching back to Unified's login keeps the folder, and switching to
+its own again finds the same login. Deleting a profile leaves its folder, and the token in it, where they are.
+
+`GitHubLoginRoutes` decides which profile a directory belongs to, from the projects and workspaces that hold
+it, as written first and then through any symbolic link, ignoring case on a disk that ignores it, and `ProfileGitHubLogins` decides which login
+that profile uses. A directory no project holds runs under this Mac's login. When the database cannot be read
+to tell, and some profile has a login of its own, the call runs signed out rather than under this Mac's login.
+A workspace chat's agent runs under the login of its project's profile, and an Ask chat's under that of the
+profile its turn is pinned to. The app sets `GH_CONFIG_DIR` for the profile's login and clears `GH_TOKEN`, `GITHUB_TOKEN`,
+`GH_ENTERPRISE_TOKEN` and `GITHUB_ENTERPRISE_TOKEN`, which `gh` would otherwise prefer to the folder, except
+for the refused values of a profile nobody has signed in to.
+Agents get them when their process starts, and terminals when their shell or tmux session starts, so a
+running one keeps the login it started with. Creating a repository from Add Project runs under the active
+profile's login, and filing feedback about Unified Dev itself runs under this Mac's.
+
+The `git` commands Unified Dev runs against a remote get the same variables: push, fetch, clone,
+`ls-remote`, `remote prune` and submodule updates. A sign in is refused when Unified Dev cannot tell which
+profile a directory belongs to, so nobody signs in to a login no profile owns. A `git push`,
+by Unified Dev or by an agent, uses the profile's login only when git asks `gh` for credentials, which is what
+`gh auth setup-git` configures. With the macOS Keychain helper, or an SSH remote, git pushes with whatever
+those hold, whichever profile the project is in. The default branch prefix taken from the GitHub user name
+is read from this Mac's login.
+
 ## Moving a project
 
 Project menu, Move to Profile, in the sidebar and on Home. Only the project's row changes. Its
@@ -193,19 +237,19 @@ asked for it. [BRIDGE.md](BRIDGE.md) has the rules, under "Reaching another prof
 ## In a preview scenario
 
 A scenario may declare `profiles` (`name`, `colour` as a hex string without `#`, `symbol`, and
-`accounts` as `own` or `inherits`), name one for a project with `profile`, and open on one with
+`accounts` and `github`, each `own` or `inherits`), name one for a project with `profile`, and open on one with
 `activeProfile`. A labelled account that names a `profile` is added to it, and `isProfileDefault` makes
 it that profile's default; a labelled account that names none belongs to Unified, and the one with no
 label is this Mac's own login, which cannot name a profile. A project that names no profile
 is in Unified. `reachableProfiles` names the profiles to open to the others, and
 `Tools/scenarios/profiles-reach.json` seeds an orchestrator in Unified with Akira open and Debtges closed.
 `Tools/scenarios/profiles.json` seeds Unified, Akira and Debtges with two projects
-each, Akira with two Claude Code accounts and a Codex one of its own and Debtges using Unified's. A
+each, Akira with two Claude Code accounts and a Codex one of its own and Debtges using Unified's, and
+Akira with a GitHub login of its own, signed out until someone signs in, and Debtges using Unified's. A
 scenario may also declare `notifications` for the bell (`event`, `project`, `workspace`, optional
 `chat`, `detail`, `minutesAgo` and `read`, and `removed` for a workspace that no longer exists). See [PREVIEW-APPS.md](PREVIEW-APPS.md).
 
 ## Not there yet
 
 - The oceans chart is global: it shows every profile's.
-- GitHub accounts per profile.
 - Moving a project's existing worktrees into its new profile's folder.

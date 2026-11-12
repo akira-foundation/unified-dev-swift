@@ -43,6 +43,7 @@ public actor CodexRunner: SessionRunner {
 
     private let bridge: BridgeAttachment?
     private let account: AgentAccountHome?
+    private let gitHub: GitHubLogin
 
     public init(
         workspacePath: String,
@@ -51,6 +52,7 @@ public actor CodexRunner: SessionRunner {
         segmentID: SessionSegmentID,
         bridge: BridgeAttachment? = nil,
         account: AgentAccountHome? = nil,
+        gitHub: GitHubLogin = .thisMac,
         makeClient: @escaping @Sendable (CodexClient.Configuration) -> CodexClient = CodexRunner.spawn
     ) {
         self.workspacePath = workspacePath
@@ -59,6 +61,7 @@ public actor CodexRunner: SessionRunner {
         self.store = store
         self.bridge = bridge
         self.account = account
+        self.gitHub = gitHub
         self.segment = RunnerSegment(sessionID: session.id, store: store, id: segmentID)
         self.makeClient = makeClient
         self.grants = SessionGrants(store: store, workspaceID: session.workspaceID)
@@ -315,6 +318,7 @@ public actor CodexRunner: SessionRunner {
             account: account,
             clientName: "Unified Dev",
             clientVersion: Self.clientVersion,
+            environment: gitHub.applied(to: Shell.environment()),
             bridge: bridge,
             contextWindow: contextWindow
         ))

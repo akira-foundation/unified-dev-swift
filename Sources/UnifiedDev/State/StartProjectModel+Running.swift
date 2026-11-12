@@ -44,11 +44,12 @@ extension StartProjectModel {
         adopt(fetching: target)
         stage = .fetching
 
+        let login = gitHubLogin
         run { [self] in
             do {
-                let cloned = try await RepositoryCloner.clone(
-                    target.remote, into: target.destination
-                )
+                let cloned = try await GitHub.$login.withValue(login) {
+                    try await RepositoryCloner.clone(target.remote, into: target.destination)
+                }
                 guard !Task.isCancelled else { return }
                 finish(StartedProject(path: cloned.path, opensWorkspace: false))
             } catch let failure as CloneFailure {

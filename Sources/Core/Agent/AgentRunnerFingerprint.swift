@@ -9,8 +9,12 @@ public struct AgentRunnerFingerprint: Sendable, Equatable {
     public let accountDirectory: String?
     public let orchestrates: Bool
     public let segment: SessionSegmentID
+    public let gitHub: GitHubLogin
 
-    public init(session: Session, account: AgentAccountHome?, orchestrates: Bool, segment: SessionSegmentID) {
+    public init(
+        session: Session, account: AgentAccountHome?, orchestrates: Bool, segment: SessionSegmentID,
+        gitHub: GitHubLogin = .thisMac
+    ) {
         model = session.model
         effort = session.effort
         permissionMode = session.permissionMode
@@ -19,5 +23,6 @@ public struct AgentRunnerFingerprint: Sendable, Equatable {
         accountDirectory = account?.directory.path
         self.orchestrates = orchestrates
         self.segment = segment
+        self.gitHub = gitHub
     }
 }
