@@ -3,7 +3,7 @@ import Foundation
 final class WatchdogGates: @unchecked Sendable {
     private let lock = NSLock()
     private var requested: [Duration] = []
-    private var waiting: [UUID: CheckedContinuation<Void, Error>] = [:]
+    private var waiting: [UUID: UnsafeContinuation<Void, Error>] = [:]
     private var watcher: (count: Int, continuation: CheckedContinuation<Void, Never>)?
     private var closed = false
 
@@ -14,7 +14,7 @@ final class WatchdogGates: @unchecked Sendable {
     func sleep(_ duration: Duration) async throws {
         let id = UUID()
         try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            try await withUnsafeThrowingContinuation { (continuation: UnsafeContinuation<Void, Error>) in
                 park(id, asking: duration, continuation)
             }
         } onCancel: {
@@ -32,7 +32,7 @@ final class WatchdogGates: @unchecked Sendable {
         }
     }
 
-    private func park(_ id: UUID, asking duration: Duration, _ continuation: CheckedContinuation<Void, Error>) {
+    private func park(_ id: UUID, asking duration: Duration, _ continuation: UnsafeContinuation<Void, Error>) {
         lock.lock()
         requested.append(duration)
         let cancelled = Task.isCancelled
