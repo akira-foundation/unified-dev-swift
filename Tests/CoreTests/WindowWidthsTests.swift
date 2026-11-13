@@ -102,12 +102,13 @@ import Testing
         #expect(widths.holding(sidebarContent: [900]).sidebarMinimum == widths.sidebar)
     }
 
-    @Test func theWindowMinimumAlreadyHoldsTheSidebarAtItsNewMinimum() {
+    @Test func aWindowAtItsMinimumStillDrawsTheSidebarAtItsNewMinimum() {
         let held = widths.holding(sidebarContent: [312])
         for showing in [true, false] {
             let window = held.minimum(withInspector: showing)
-            #expect(window == widths.minimum(withInspector: showing))
-            #expect(window >= held.sidebarMinimum + held.divider + held.detailHalf(withInspector: showing))
+            let room = held.sidebarMaximum(sharing: window, withInspector: showing)
+            #expect(room != nil)
+            #expect((room ?? 0) >= held.sidebarMinimum)
         }
     }
 

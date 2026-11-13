@@ -16,6 +16,7 @@ struct RootView: View {
     @State private var centreWidth: CGFloat = 0
     @State private var sidebarWidth = Metrics.sidebarWidth
     @State private var sidebarFooterWidth: CGFloat = 0
+    @State private var profileNameWidth: CGFloat?
     @State private var fullScreenBarIsHidden = false
     @State private var isStartingProject = false
 
@@ -79,6 +80,10 @@ struct RootView: View {
             .keepsToolbarGroundAtToolbarHeight()
 
             .focusedSceneValue(\.isMainWindowFocused, true)
+
+            .onChange(of: app.activeProfile?.name, initial: true) { _, name in
+                profileNameWidth = name.map(ProfileSwitcherMenu.nameWidth)
+            }
 
             .onChange(of: columns.reach, initial: true) { _, reach in
                 columnVisibility = reach == .all ? .all : .doubleColumn
@@ -253,9 +258,7 @@ struct RootView: View {
     }
 
     private var widths: WindowWidths {
-        let titleBar = app.activeProfile.map {
-            ProfileToolbarLabel.titleBarWidth(forNameWidth: ProfileSwitcherMenu.nameWidth($0.name))
-        }
+        let titleBar = profileNameWidth.map(ProfileToolbarLabel.titleBarWidth(forNameWidth:))
         return UnifiedDevApp.widths.holding(sidebarContent: [titleBar, sidebarFooterWidth].compactMap { $0 })
     }
 

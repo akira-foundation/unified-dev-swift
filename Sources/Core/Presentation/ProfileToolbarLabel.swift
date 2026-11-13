@@ -33,14 +33,13 @@ public struct ProfileToolbarLabel: Equatable, Sendable {
 
     public static func resolve(profileName: String, drawsSidebar: Bool, barIsHidden: Bool = false, sidebarWidth: CGFloat) -> ProfileToolbarLabel {
         let room = (sidebarWidth - occupiedBesideMenu).rounded(.down)
-        let showsName = drawsSidebar && !barIsHidden
-        let menu = max(room, smallestMenuWithName)
+        let showsName = drawsSidebar && !barIsHidden && room >= smallestMenuWithName
         return ProfileToolbarLabel(
-            menuWidth: showsName ? menu : nil,
+            menuWidth: showsName ? room : nil,
             sitsOnGlass: !showsName,
             help: "Switch profile, \(profileName)",
             accessibilityLabel: "Profile, \(profileName)",
-            measureKey: "\(profileName)|\(showsName ? menu : 0)|\(barIsHidden)"
+            measureKey: "\(profileName)|\(showsName ? room : 0)|\(barIsHidden)"
         )
     }
 }
