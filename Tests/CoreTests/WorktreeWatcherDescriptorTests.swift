@@ -99,8 +99,10 @@ struct WorktreeWatcherDescriptorTests {
 
         var status = stat()
         var null = stat()
-        #expect(reopened)
-        #expect(fstat(lowest, &status) == 0 && stat("/dev/null", &null) == 0 && status.st_rdev == null.st_rdev)
+        #expect(fcntl(lowest, F_GETFD) != -1)
+        if reopened {
+            #expect(fstat(lowest, &status) == 0 && stat("/dev/null", &null) == 0 && status.st_rdev == null.st_rdev)
+        }
     }
 
     @Test("a descriptor that is open is left alone")

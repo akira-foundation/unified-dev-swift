@@ -122,12 +122,12 @@ public final class WorktreeWatcher: Sendable {
 
         FSEventStreamSetDispatchQueue(stream, queue)
         guard FSEventStreamStart(stream) else {
+            FSEventStreamInvalidate(stream)
+            FSEventStreamRelease(stream)
             let restored = Self.reopenNullDevice(ifClosed: STDIN_FILENO)
             Self.log.error(
                 "could not start watching \(roots.count, privacy: .public) roots, standard input restored: \(restored, privacy: .public)"
             )
-            FSEventStreamInvalidate(stream)
-            FSEventStreamRelease(stream)
             return nil
         }
         return stream
