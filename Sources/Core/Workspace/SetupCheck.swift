@@ -167,7 +167,7 @@ public struct SetupReport: Sendable, Hashable {
         guard isSettled else { return .checking }
         if !outcome(for: .git).isReady { return .blocked }
         if !hasRunnableAgent { return .blocked }
-        let everythingIsReady = checks.filter { !$0.tool.isOptional }.allSatisfy { $0.outcome.isReady }
+        let everythingIsReady = checks.allSatisfy { $0.outcome.isReady }
         return everythingIsReady ? .ready : .readyWithNotes
     }
 

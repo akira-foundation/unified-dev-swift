@@ -23,13 +23,14 @@ struct SetupBitbucketTests {
         #expect(!SetupTool.gitHub.isOptional)
     }
 
-    @Test("without it everything else still reads as all set", arguments: [
+    @Test("without it nothing is blocked and the sentence does not name it", arguments: [
         SetupOutcome.missing, .needsSignIn(detail: nil),
     ])
     func optional(outcome: SetupOutcome) {
         let setup = report(bitbucket: outcome)
 
-        #expect(setup.verdict == .ready)
+        #expect(setup.verdict == .readyWithNotes)
+        #expect(setup.sentence.hasPrefix("Unified Dev has what it needs."))
         #expect(setup.blocking.isEmpty)
         #expect(setup.severity(for: .bitbucket) == .note)
         #expect(!setup.sentence.contains("Bitbucket"))
@@ -59,6 +60,7 @@ struct SetupBitbucketTests {
         (#"{"hosts": [{"key": "api.bitbucket.org", "kind": "cloud"}], "contexts": null}"#, 0, true),
         (#"{"hosts": [{"key": "bitbucket.example.com", "kind": "dc"}], "contexts": []}"#, 0, false),
         (#"{"hosts": null, "contexts": null}"#, 0, false),
+        (#"{"hosts": [{"key": "api.bitbucket.org", "kind": "cloud"}], "contexts": null}"#, 1, false),
         ("", 1, false),
     ] as [(String, Int32, Bool)])
     func readsStatus(stdout: String, status: Int32, ready: Bool) {
