@@ -42,8 +42,8 @@ struct PullRequestBarLine: View {
                     .font(Typo.caption)
                     .monospacedDigit()
                     .fixedSize()
-                    .help("Open #\(number) on GitHub: \(standing.headline)")
-                    .accessibilityHint("Opens on GitHub")
+                    .help("Open #\(number) on \(ForgeRepository.kind(ofRemote: url).displayName): \(standing.headline)")
+                    .accessibilityHint("Opens on \(ForgeRepository.kind(ofRemote: url).displayName)")
             }
         }
     }

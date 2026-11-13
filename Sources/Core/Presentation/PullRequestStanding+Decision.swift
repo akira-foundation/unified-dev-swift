@@ -258,7 +258,7 @@ public extension PullRequestStanding {
         PullRequestStepLink(
             step: .pullRequest,
             reach: .pullRequestPage(pullRequest.url),
-            announcement: "Opens #\(pullRequest.number) on GitHub"
+            announcement: "Opens #\(pullRequest.number) on \(pullRequest.hostName)"
         )
     }
 
