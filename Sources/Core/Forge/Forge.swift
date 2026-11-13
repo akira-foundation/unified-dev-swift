@@ -1,27 +1,44 @@
 import Foundation
 
+public struct ForgeCheckout: Sendable, Hashable {
+    public let base: ForgeRepository?
+    public let remotes: [ForgeRepository]
+
+    public init(base: ForgeRepository?, remotes: [ForgeRepository]) {
+        self.base = base
+        self.remotes = remotes
+    }
+
+    init(baseRemote: String?, remotes: [String]) {
+        self.init(
+            base: baseRemote.flatMap(ForgeRepository.parse(remoteURL:)),
+            remotes: remotes.compactMap(ForgeRepository.parse(remoteURL:))
+        )
+    }
+}
+
 public enum Forge {
-    private static let repositories = SharedReadings<String, ForgeRepository?>(retention: .seconds(600))
+    private static let checkouts = SharedReadings<String, ForgeCheckout>(retention: .seconds(600))
     private static let rememberedFor = Duration.seconds(300)
 
     @TaskLocal static var remoteOverride: (@Sendable (String) async -> String?)?
 
     public static func kind(forDirectory directory: String) async -> ForgeKind {
-        guard let repository = await repository(forDirectory: directory) else { return .gitHub }
-        return repository.kind
+        await repository(forDirectory: directory)?.kind ?? .gitHub
     }
 
     public static func repository(forDirectory directory: String) async -> ForgeRepository? {
-        let read: @Sendable () async throws -> ForgeRepository? = {
-            guard let remote = try await baseRemoteURL(in: directory) else { return nil }
-            return ForgeRepository.parse(remoteURL: remote)
-        }
-        if remoteOverride != nil { return try? await read() }
-        return try? await repositories.value(for: directory, notOlderThan: rememberedFor, read: read)
+        await checkout(forDirectory: directory)?.base
     }
 
-    private static func baseRemoteURL(in directory: String) async throws -> String? {
-        if let remoteOverride { return await remoteOverride(directory) }
-        return try await Git.repositoryContext(in: directory).baseRemoteURL
+    public static func checkout(forDirectory directory: String) async -> ForgeCheckout? {
+        if let remoteOverride {
+            let remote = await remoteOverride(directory)
+            return ForgeCheckout(baseRemote: remote, remotes: remote.map { [$0] } ?? [])
+        }
+        return try? await checkouts.value(for: directory, notOlderThan: rememberedFor) {
+            let context = try await Git.repositoryContext(in: directory)
+            return ForgeCheckout(baseRemote: context.baseRemoteURL, remotes: context.remoteURLs)
+        }
     }
 }

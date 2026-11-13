@@ -65,7 +65,7 @@ struct BitbucketFallbackTests {
     func unreadableBuilds() async throws {
         let reading = await read(workspace(), calls: Calls()) { arguments in
             if arguments[1].hasSuffix("/statuses") {
-                return ShellResult(status: 1, stdout: "", stderr: "HTTP 403 Forbidden")
+                return ShellResult(status: 1, stdout: "", stderr: "Error: 403 Forbidden")
             }
             let page = "{\"values\": [\(BitbucketPullRequestTests.pullRequestJSON())]}"
             return ShellResult(status: 0, stdout: page, stderr: "")
@@ -96,8 +96,8 @@ struct BitbucketFallbackTests {
     }
 
     @Test("a recorded number Bitbucket no longer knows reads as no pull request", arguments: [
-        ShellResult(status: 1, stdout: "", stderr: "HTTP 404 Not Found"),
-        ShellResult(status: 1, stdout: #"{"type": "error", "error": {"message": "404"}}"#, stderr: ""),
+        ShellResult(status: 1, stdout: "", stderr: "Error: 404 Not Found: pull request not found"),
+        ShellResult(status: 1, stdout: "Error: 404 Not Found", stderr: ""),
     ])
     func forgottenNumber(answer: ShellResult) async {
         let reading = await read(workspace(number: 9999), calls: Calls()) { arguments in
@@ -111,6 +111,35 @@ struct BitbucketFallbackTests {
         #expect(found == nil)
     }
 
+    @Test("another failure that happens to carry 404 in its text is not read as a forgotten number")
+    func failureMentioningFourOhFour() async {
+        let reading = await read(workspace(number: 9999), calls: Calls()) { arguments in
+            arguments[1].hasSuffix("/pullrequests/9999")
+                ? ShellResult(status: 1, stdout: "", stderr: "Error: 500 Internal Server Error: request 404a1f")
+                : ShellResult(status: 0, stdout: Self.emptyPage, stderr: "")
+        }
+
+        guard case .unavailable = reading?.pullRequest else {
+            Issue.record("expected a failure, got \(String(describing: reading?.pullRequest))")
+            return
+        }
+    }
+
+    @Test("a build list that fails for another reason is an error, not an empty list")
+    func buildsFailLoudly() async {
+        let reading = await read(workspace(), calls: Calls()) { arguments in
+            if arguments[1].hasSuffix("/statuses") {
+                return ShellResult(status: 1, stdout: "", stderr: "Error: 502 Bad Gateway")
+            }
+            return ShellResult(status: 0, stdout: "{\"values\": [\(BitbucketPullRequestTests.pullRequestJSON())]}", stderr: "")
+        }
+
+        guard case .unavailable = reading?.pullRequest else {
+            Issue.record("expected a failure, got \(String(describing: reading?.pullRequest))")
+            return
+        }
+    }
+
     @Test("a head that is not a hash is never put in a path")
     func refusesOddHead() async throws {
         let calls = Calls()
@@ -119,7 +148,7 @@ struct BitbucketFallbackTests {
             ShellResult(status: 0, stdout: "{\"values\": [\(odd)]}", stderr: "")
         }
 
-        #expect(try #require(pullRequest(of: reading)).checks == PullRequest.Checks.none)
+        #expect(try #require(pullRequest(of: reading)).checks == .unavailable)
         #expect(await !calls.seen.contains { $0[1].hasSuffix("/statuses") })
     }
 }

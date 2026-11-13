@@ -5,6 +5,8 @@ public enum Bitbucket {
     public static let notInstalledMessage = "Install the Bitbucket CLI (bkt) to refresh pull requests."
     public static let signedOutMessage = "Sign in to Bitbucket with bkt to refresh pull requests."
     static let appContext = "unifieddev"
+    static let notFound = "404 Not Found"
+    static let refusals = ["401 Unauthorized", "403 Forbidden", notFound]
 
     @TaskLocal static var commandOverride: (@Sendable ([String], String?) async throws -> ShellResult)?
 
@@ -30,18 +32,19 @@ public enum Bitbucket {
     }
 
     static func snapshot(for workspace: Workspace, maxAge: Duration) async throws -> PullRequestSnapshot? {
-        guard let repository = await Forge.repository(forDirectory: workspace.path),
-              repository.kind == .bitbucket else {
+        guard let checkout = await Forge.checkout(forDirectory: workspace.path),
+              let repository = checkout.base, repository.kind == .bitbucket else {
             throw GitHubReadFailure(reason: .unavailable, message: "This workspace has no Bitbucket remote.")
         }
+        let own = Set(checkout.remotes.filter { $0.kind == .bitbucket }.map(\.fullName))
         let head = await GitHub.headBranch(of: workspace)
         let key = ReadingKey(path: workspace.path, branch: head, number: workspace.pullRequestNumber)
         return try await readings.value(for: key, notOlderThan: maxAge) {
             let context = try await session(in: workspace.path)
             guard let payload = try await pullRequest(
-                of: workspace, onBranch: head, in: repository, context: context
+                of: workspace, onBranch: head, in: repository, ownRepositories: own, context: context
             ) else { return nil }
-            let runs = try? await statuses(
+            let runs = try await statuses(
                 of: payload.source?.commit?.hash, in: repository, context: context, directory: workspace.path
             )
             return PullRequestSnapshot(pullRequest: payload.pullRequest(runs: runs), runs: runs ?? [])
@@ -49,9 +52,12 @@ public enum Bitbucket {
     }
 
     static func choose(
-        _ found: [BitbucketPullRequestPayload], createdAt: Date
+        _ found: [BitbucketPullRequestPayload], createdAt: Date, ownRepositories: Set<String> = []
     ) -> BitbucketPullRequestPayload? {
-        let candidates = found.filter { $0.isFromFork != true }
+        let candidates = found.filter { candidate in
+            guard candidate.isFromFork == true else { return true }
+            return candidate.sourceRepository.map { ownRepositories.contains($0.lowercased()) } ?? false
+        }
         if let open = candidates.first(where: { $0.unifiedState == "OPEN" }) { return open }
         return candidates.first { candidate in
             guard let closed = BitbucketDates.parse(candidate.updatedOn) else { return false }
@@ -118,8 +124,7 @@ public enum Bitbucket {
         if let failure = error as? GitHubReadFailure { return failure }
         let message = String(describing: error)
         let lower = ((error as? ShellError)?.stderr ?? message).lowercased()
-        let authentication = lower.contains("401") || lower.contains("unauthorized")
-            || lower.contains("bkt auth login") || lower.contains("token expired")
+        let authentication = ["401 unauthorized", "bkt auth login", "token expired"].contains(where: lower.contains)
         return GitHubReadFailure(
             reason: authentication ? .authentication : .unavailable,
             message: authentication ? signedOutMessage : String(message.prefix(1_000))
@@ -127,12 +132,13 @@ public enum Bitbucket {
     }
 
     private static func pullRequest(
-        of workspace: Workspace, onBranch head: String, in repository: ForgeRepository, context: String
+        of workspace: Workspace, onBranch head: String, in repository: ForgeRepository,
+        ownRepositories: Set<String>, context: String
     ) async throws -> BitbucketPullRequestPayload? {
         let found = try await pullRequest(
             onBranch: head, in: repository, context: context, directory: workspace.path
         )
-        if let chosen = found.flatMap({ choose($0, createdAt: workspace.createdAt) }) { return chosen }
+        if let chosen = found.flatMap({ choose($0, createdAt: workspace.createdAt, ownRepositories: ownRepositories) }) { return chosen }
         guard let number = workspace.pullRequestNumber else { return nil }
         return try await pullRequest(number: number, in: repository, context: context, directory: workspace.path)
     }
@@ -154,7 +160,7 @@ public enum Bitbucket {
         let arguments = ["api", "\(path(of: repository))/pullrequests/\(number)", "--context", context]
         let result = try await run(arguments, directory: directory)
         guard result.ok else {
-            if (result.stderr + result.stdout).contains("404") { return nil }
+            if (result.stderr + result.stdout).contains(notFound) { return nil }
             throw shellError(arguments, result: result)
         }
         return try decodePullRequest(result.stdout)
@@ -162,11 +168,15 @@ public enum Bitbucket {
 
     private static func statuses(
         of commit: String?, in repository: ForgeRepository, context: String, directory: String
-    ) async throws -> [CheckRun] {
-        guard let commit, !commit.isEmpty, commit.allSatisfy(\.isHexDigit) else { return [] }
+    ) async throws -> [CheckRun]? {
+        guard let commit, !commit.isEmpty, commit.allSatisfy(\.isHexDigit) else { return nil }
         let arguments = statusArguments(commit: commit, in: repository, context: context)
         let result = try await run(arguments, directory: directory)
-        guard result.ok else { throw shellError(arguments, result: result) }
+        guard result.ok else {
+            let output = result.stderr + result.stdout
+            if refusals.contains(where: output.contains) { return nil }
+            throw shellError(arguments, result: result)
+        }
         return try decodeStatuses(result.stdout)
     }
 

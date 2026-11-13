@@ -74,6 +74,8 @@ struct BitbucketPullRequestPayload: Decodable {
         return nil
     }
 
+    var sourceRepository: String? { source?.repository?.fullName }
+
     var isFromFork: Bool? {
         guard let head = source?.repository?.fullName, let base = destination?.repository?.fullName else {
             return nil
@@ -93,7 +95,7 @@ struct BitbucketPullRequestPayload: Decodable {
         return PullRequest(
             number: id ?? 0,
             title: title ?? "",
-            url: links?.html?.href ?? pageFallback,
+            url: links?.html?.href.flatMap { $0.isEmpty ? nil : $0 } ?? pageFallback,
             state: unifiedState,
             isDraft: draft ?? false,
             checks: checks,

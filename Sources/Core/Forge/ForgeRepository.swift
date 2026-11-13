@@ -25,6 +25,8 @@ public struct ForgeRepository: Sendable, Hashable {
         self.name = name
     }
 
+    public var fullName: String { "\(owner)/\(name)".lowercased() }
+
     public static func kind(ofHost host: String) -> ForgeKind {
         let host = host.lowercased()
         return bitbucketCloudHosts.contains(host) ? .bitbucket : .gitHub
@@ -40,7 +42,7 @@ public struct ForgeRepository: Sendable, Hashable {
         var segments = parts.path.split(separator: "/").map(String.init)
         guard segments.count == 2 else { return nil }
         if segments[1].hasSuffix(".git") { segments[1].removeLast(4) }
-        guard segments.allSatisfy({ !$0.isEmpty && !$0.hasPrefix("-") && !$0.hasPrefix(".") }) else { return nil }
+        guard segments.allSatisfy({ !$0.isEmpty && !$0.hasPrefix("-") && $0 != "." && $0 != ".." }) else { return nil }
         return ForgeRepository(
             kind: kind(ofHost: parts.host), host: parts.host, owner: segments[0], name: segments[1]
         )

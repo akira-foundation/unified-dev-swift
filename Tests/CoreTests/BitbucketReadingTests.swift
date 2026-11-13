@@ -118,7 +118,7 @@ struct BitbucketReadingTests {
         #expect(failure.reason == .unavailable)
     }
 
-    @Test("a refused token reads as a sign-in to redo", arguments: ["HTTP 401 Unauthorized", "token expired"])
+    @Test("a refused token reads as a sign-in to redo", arguments: ["Error: 401 Unauthorized", "token expired", "run `bkt auth login` first"])
     func refusedToken(stderr: String) {
         let failure = Bitbucket.failure(ShellError(command: "bkt api", status: 1, stderr: stderr))
 

@@ -7,7 +7,7 @@ struct PullRequestBarLine: View {
     var worktree: String
 
     @State private var login: GitHubLogin?
-    @State private var forge = ForgeKind.gitHub
+    @State private var forge: ForgeKind?
 
     private var github: GitHubAvailability.State {
         login.map { GitHubAvailability.shared.state(for: $0) } ?? .unknown
@@ -23,6 +23,7 @@ struct PullRequestBarLine: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityText)
         .task(id: worktree) {
+            forge = nil
             forge = await Forge.kind(forDirectory: worktree)
             let resolved = await GitHub.login(forDirectory: worktree)
             login = resolved

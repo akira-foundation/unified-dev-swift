@@ -83,11 +83,12 @@ shared between the pull request bar and the checks tab, runs `bkt auth status --
    them. A branch name is reused: `issue/10.2.x/upmerge` on `atlassian/aui` carried one open pull
    request and nine merged ones, so an open one wins and a closed one counts only if it was last
    updated after the workspace was made. A pull request from a fork whose branch has the same name
-   is somebody else's and is skipped. With none on the branch and a number recorded on the workspace, the pull request is read
+   is skipped, unless the fork is one of this checkout's own remotes. With none on the branch and a number recorded on the workspace, the pull request is read
    by number.
 2. `/repositories/{workspace}/{repo}/commit/{hash}/statuses` for the source commit, one page of
-   100. The 12 character hash a pull request reports is accepted. When the statuses cannot be read
-   the pull request is still shown, with its checks unreadable.
+   100. The 12 character hash a pull request reports is accepted. When Bitbucket refuses the statuses
+   (`401 Unauthorized`, `403 Forbidden`, `404 Not Found`, which is how bkt prints them) the pull
+   request is still shown, with its checks unreadable; any other failure fails the read.
 
 | Bitbucket | Unified Dev |
 | --- | --- |

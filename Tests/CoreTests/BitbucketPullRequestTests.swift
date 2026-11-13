@@ -142,6 +142,16 @@ struct BitbucketPullRequestTests {
 
         #expect(Bitbucket.choose([fork], createdAt: .distantPast) == nil)
         #expect(Bitbucket.choose([fork, own], createdAt: .distantPast)?.id == 5400)
+        #expect(Bitbucket.choose([fork], createdAt: .distantPast, ownRepositories: ["someone/aui"])?.id == 5490)
+    }
+
+    @Test("an empty page link is treated as no link")
+    func emptyLink() throws {
+        let json = Self.pullRequestJSON().replacingOccurrences(
+            of: "https://bitbucket.org/atlassian/aui/pull-requests/5486", with: ""
+        )
+
+        #expect(try Bitbucket.decodePullRequest(json).pullRequest(runs: []).url.hasPrefix("https://bitbucket.org/"))
     }
 
     @Test("a pull request with no page link still names Bitbucket, so its merge stays held")
