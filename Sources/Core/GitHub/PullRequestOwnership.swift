@@ -29,10 +29,14 @@ public enum PullRequestOwnership {
 public struct PullRequestHeadMatch: Sendable, Hashable {
     public let number: Int
     public let closedAt: Date?
+    public let isOpen: Bool
+    public let headCommit: String?
 
-    public init(number: Int, closedAt: Date?) {
+    public init(number: Int, closedAt: Date?, isOpen: Bool, headCommit: String? = nil) {
         self.number = number
         self.closedAt = closedAt
+        self.isOpen = isOpen
+        self.headCommit = headCommit
     }
 }
 
