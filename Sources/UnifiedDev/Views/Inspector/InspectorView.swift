@@ -35,6 +35,7 @@ struct InspectorView: View {
                 RefreshFailureRow(
                     failure: failure,
                     hasPullRequest: model.pullRequest != nil,
+                    worktree: model.workspace.path,
                     onDismiss: { WorkspacePullRequests.shared.dismissFailure(for: model.workspace.id) }
                 )
             }
@@ -114,65 +115,89 @@ struct InspectorView: View {
 private struct RefreshFailureRow: View {
     var failure: GitHubReadFailure
     var hasPullRequest: Bool
+    var worktree: String
     var onDismiss: @MainActor () -> Void
 
     @State private var isExpanded = false
+    @State private var forge: ForgeKind = .gitHub
+
+    private var hostName: String { forge.displayName }
 
     var body: some View {
-        DisclosureGroup(isExpanded: $isExpanded) {
-            VStack(alignment: .leading, spacing: InspectorLayout.gap) {
-                Text(failure.summary)
-                    .font(Typo.caption)
-                    .foregroundStyle(Palette.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .textSelection(.enabled)
-
-                if let transcript = failure.transcript {
-                    ScrollView(.horizontal) {
-                        Text(transcript)
-                            .font(Typo.codeSmall)
-                            .foregroundStyle(Palette.textSecondary)
-                            .textSelection(.enabled)
-                    }
-                    .frame(maxHeight: 140)
-                    .padding(InspectorLayout.tight)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Palette.surfaceRaised, in: .rect(cornerRadius: Metrics.cornerSmall))
-                }
-
-                if let retryAt = failure.retryAt {
-                    Text("Next refresh after \(retryAt.formatted(date: .omitted, time: .shortened))")
-                        .font(Typo.micro)
-                        .foregroundStyle(Palette.textTertiary)
-                }
-            }
-            .padding(.top, InspectorLayout.tight)
-            .frame(maxWidth: .infinity, alignment: .leading)
-        } label: {
-            HStack(alignment: .firstTextBaseline, spacing: InspectorLayout.gap) {
-                Button {
-                    isExpanded.toggle()
-                } label: {
-                    Label(
-                        hasPullRequest ? "Showing the last GitHub update" : "GitHub could not refresh",
-                        systemImage: "exclamationmark.triangle"
-                    )
-                    .font(Typo.caption)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(.rect)
-                }
-                .buttonStyle(.plain)
-
-                Button("Dismiss", systemImage: "xmark", action: onDismiss)
-                    .labelStyle(.iconOnly)
-                    .buttonStyle(.borderless)
-                    .controlSize(.small)
-                    .foregroundStyle(Palette.textTertiary)
-                    .help("Dismiss")
+        VStack(alignment: .leading, spacing: InspectorLayout.tight) {
+            header
+            if isExpanded {
+                details
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, InspectorLayout.inset)
         .padding(.vertical, Metrics.spacing)
         .accessibilityElement(children: .contain)
+        .task(id: worktree) {
+            forge = await Forge.kind(forDirectory: worktree)
+        }
+    }
+
+    private var header: some View {
+        HStack(alignment: .firstTextBaseline, spacing: InspectorLayout.gap) {
+            Button {
+                isExpanded.toggle()
+            } label: {
+                HStack(spacing: InspectorLayout.tight) {
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .foregroundStyle(Palette.textTertiary)
+                        .accessibilityHidden(true)
+                    Label(
+                        hasPullRequest ? "Showing the last \(hostName) update" : "\(hostName) could not refresh",
+                        systemImage: "exclamationmark.triangle"
+                    )
+                    .lineLimit(1)
+                }
+                .font(Typo.caption)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
+
+            Button("Dismiss", systemImage: "xmark", action: onDismiss)
+                .labelStyle(.iconOnly)
+                .buttonStyle(.borderless)
+                .controlSize(.small)
+                .foregroundStyle(Palette.textTertiary)
+                .help("Dismiss")
+        }
+    }
+
+    private var details: some View {
+        VStack(alignment: .leading, spacing: InspectorLayout.gap) {
+            Text(failure.summary)
+                .font(Typo.caption)
+                .foregroundStyle(Palette.textSecondary)
+                .lineLimit(8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .textSelection(.enabled)
+
+            if let transcript = failure.transcript {
+                ScrollView(.horizontal) {
+                    Text(transcript)
+                        .font(Typo.codeSmall)
+                        .foregroundStyle(Palette.textSecondary)
+                        .textSelection(.enabled)
+                }
+                .frame(maxHeight: 140)
+                .padding(InspectorLayout.tight)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Palette.surfaceRaised, in: .rect(cornerRadius: Metrics.cornerSmall))
+            }
+
+            if let retryAt = failure.retryAt {
+                Text("Next refresh after \(retryAt.formatted(date: .omitted, time: .shortened))")
+                    .font(Typo.micro)
+                    .foregroundStyle(Palette.textTertiary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
