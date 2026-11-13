@@ -1074,6 +1074,29 @@ extension CodexRunnerTests {
         await #expect(throws: ProviderIdleError.self) { try await runner.send("must use a new runner") }
         await runner.shutdown()
     }
+
+    @Test func theNextSendAfterAnIdleEvictionResumesTheSameThread() async throws {
+        let store = try makeTestStore("codex-idle-resume")
+        let (session, _) = try await makeCodexSession(store)
+        let first = scriptedBox()
+        let evicted = try await makeRunner(store: store, session: session, box: first)
+        try await evicted.send("first")
+        first.process.emit(#"{"method":"turn/completed","params":{"threadId":"01a02144-3b7e-7233-97f2-73ebd5105085","turn":{"id":"01a02144-3bab-7fe3-a92c-6eec594d84fd","status":"completed","items":[]}}}"#)
+        await eventually("idle turn") { await evicted.currentSession.state == .idle }
+        let wasEvicted = await evicted.evictIfIdle(for: .zero)
+        #expect(wasEvicted)
+
+        let reopened = try #require(try await store.session(id: session.id))
+        let second = scriptedBox()
+        let resumed = try await makeRunner(store: store, session: reopened, box: second)
+        try await resumed.send("second")
+
+        let resume = second.process.sentFrame { $0["method"]?.stringValue == "thread/resume" }
+        #expect(first.process.sentMethods.contains("thread/start"))
+        #expect(!second.process.sentMethods.contains("thread/start"))
+        #expect(resume?["params"]?["threadId"]?.stringValue == "01a02144-3b7e-7233-97f2-73ebd5105085")
+        await resumed.shutdown()
+    }
 }
 
 extension CodexRunnerTests {

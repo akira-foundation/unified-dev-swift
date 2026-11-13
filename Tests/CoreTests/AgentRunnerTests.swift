@@ -790,6 +790,38 @@ struct AgentRunnerProcessTests {
         #expect(activity.beginProbe(account))
     }
 
+    @Test("the next send after an idle eviction resumes the same conversation")
+    func theNextSendAfterAnIdleEvictionResumes() async throws {
+        let store = try makeTestStore("agent")
+        let session = try await makeSession(store)
+        let recorder = ProcessRecorder()
+        let segmentID = try await activeSegmentID(store, session)
+        let evicted = AgentRunner(
+            workspacePath: "/tmp/w", session: session, store: store, segmentID: segmentID, makeProcess: recorder.factory
+        )
+        try await evicted.send("hello")
+        let first = try #require(recorder.last)
+        first.emit(#"{"type":"system","subtype":"init","session_id":"s-evicted","cwd":"/tmp/w","model":"opus"}"#)
+        first.emit(#"{"type":"result","subtype":"success","is_error":false,"duration_api_ms":1,"num_turns":1,"session_id":"s-evicted","total_cost_usd":0,"result":"done","duration_ms":10,"uuid":"u"}"#)
+        await waitUntil("the turn ended") { await evicted.currentSession.state == .idle }
+        let wasEvicted = await evicted.evictIfIdle(for: .zero)
+        #expect(wasEvicted)
+        #expect(first.wasTerminated)
+
+        let reopened = try #require(try await store.session(id: session.id))
+        let resumed = AgentRunner(
+            workspacePath: "/tmp/w", session: reopened, store: store, segmentID: segmentID, makeProcess: recorder.factory
+        )
+        try await resumed.send("again")
+
+        #expect(recorder.all.count == 2)
+        let arguments = try #require(recorder.last).launch.arguments
+        let resumeIndex = try #require(arguments.firstIndex(of: "--resume"))
+        #expect(arguments.indices.contains(resumeIndex + 1) && arguments[resumeIndex + 1] == "s-evicted")
+        #expect(!first.launch.arguments.contains("--resume"))
+        recorder.last?.endOutput()
+    }
+
     @Test("a failed send leaves a process alone once a turn has been written to it")
     func aFailedSendKeepsAPromptedProcess() async throws {
         let store = try makeTestStore("agent")

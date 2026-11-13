@@ -1613,8 +1613,7 @@ final class TranscriptModel {
     private func evictIdleProvider() async {
         guard let store, let current = runner, !isRunning, !isAwaitingPermission,
               sending == nil, pendingDeliveries.isEmpty, !subagents.isAnythingRunning else { return }
-        let stored = try? await store.setting(ProviderIdlePolicy.settingKey)
-        guard let duration = ProviderIdlePolicy.duration(stored: stored),
+        guard let duration = await ProviderIdlePolicy.duration(in: store),
               let waiting = try? await store.pendingDeliveries(sessionID: session.id), waiting.isEmpty,
               !isRunning, sending == nil else { return }
         guard await current.evictIfIdle(for: duration), runner === current else { return }
