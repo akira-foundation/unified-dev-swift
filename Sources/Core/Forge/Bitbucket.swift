@@ -40,7 +40,7 @@ public enum Bitbucket {
         let head = await GitHub.headBranch(of: workspace)
         let key = ReadingKey(path: workspace.path, branch: head, number: workspace.pullRequestNumber)
         return try await readings.value(for: key, notOlderThan: maxAge) {
-            let context = try await session(in: workspace.path)
+            let context = try await session(in: workspace.path, for: repository)
             guard let payload = try await pullRequest(
                 of: workspace, onBranch: head, in: repository, ownRepositories: own, context: context
             ) else { return nil }
@@ -65,7 +65,7 @@ public enum Bitbucket {
         }
     }
 
-    static func session(in directory: String) async throws -> String {
+    static func session(in directory: String, for repository: ForgeRepository) async throws -> String {
         if commandOverride == nil {
             await LoginShellPath.ready()
             guard Shell.which(executable) != nil else {
@@ -80,7 +80,10 @@ public enum Bitbucket {
             throw GitHubReadFailure(reason: .authentication, message: signedOutMessage)
         }
         if let context = status.cloudContext { return context }
-        let create = ["context", "create", appContext, "--host", BitbucketAuthStatus.cloudHostKey]
+        let create = [
+            "context", "create", appContext,
+            "--host", BitbucketAuthStatus.cloudHostKey, "--workspace", repository.owner,
+        ]
         let created = try await run(create, directory: directory)
         guard created.ok else { throw shellError(create, result: created) }
         return appContext

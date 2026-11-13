@@ -80,7 +80,7 @@ struct BitbucketReadingTests {
         #expect(await calls.seen.count == 1)
     }
 
-    @Test("a sign-in with no context of its own gets one made for it")
+    @Test("a sign-in with no context of its own gets one made for it, bound to the repository's workspace")
     func createsContext() async {
         let calls = Calls()
         let bare = #"{"hosts": [{"key": "api.bitbucket.org", "kind": "cloud"}], "contexts": null}"#
@@ -91,7 +91,9 @@ struct BitbucketReadingTests {
         }, calls: calls)
 
         let seen = await calls.seen
-        #expect(seen[1] == ["context", "create", Bitbucket.appContext, "--host", "api.bitbucket.org"])
+        #expect(seen[1] == [
+            "context", "create", Bitbucket.appContext, "--host", "api.bitbucket.org", "--workspace", "atlassian",
+        ])
         #expect(seen[2].suffix(2) == ["--context", Bitbucket.appContext])
     }
 
