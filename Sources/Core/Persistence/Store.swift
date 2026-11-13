@@ -694,6 +694,7 @@ public actor Store {
             sql(InboxNotificationColumns.createTable),
             { try UndatedArchives.stamp($0) },
             ProfileGitHubColumn.migrate,
+            QuotaAccountColumn.migrate,
         ]
 
         guard current >= 0, current <= migrations.count else {
@@ -728,7 +729,7 @@ public actor Store {
     }
 
     public func forgetAgentAccount(_ id: AgentAccountID) throws {
-        let stored = try db.query("SELECT is_default FROM agent_accounts WHERE id = ?", [.text(id)]).first
+        let stored = try db.query("SELECT is_default, provider FROM agent_accounts WHERE id = ?", [.text(id)]).first
         guard !AgentAccountHome.isDefaultID(id), stored?.bool("is_default") != true else {
             throw AgentAccountError.isDefault(id)
         }
@@ -741,6 +742,9 @@ public actor Store {
             try db.run(SessionSegmentColumns.forgetHistory, [.text(id)])
             try db.run(AgentAccountColumns.release("session_segments"), [.text(id)])
             try db.run(AgentAccountColumns.delete, [.text(id)])
+            if let provider = stored?.string("provider") {
+                try db.run(QuotaAccountColumn.forget, [.text(provider), .text(id)])
+            }
             for key in ClaudeResolvedModel.settingKeys(account: id) {
                 try db.run("DELETE FROM settings WHERE key = ?", [.text(key)])
             }
@@ -2453,10 +2457,10 @@ public actor Store {
             try db.run(
                 """
                 INSERT INTO agent_quotas
-                    (provider, window_key, window_label, window_seconds,
+                    (provider, account_id, window_key, window_label, window_seconds,
                      used, limit_value, unit, resets_at, observed_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(provider, window_key) DO UPDATE SET
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(provider, account_id, window_key) DO UPDATE SET
                     window_label = excluded.window_label,
                     window_seconds = excluded.window_seconds,
                     used = excluded.used,
@@ -2468,6 +2472,7 @@ public actor Store {
                 """,
                 [
                     .text(quota.provider.rawValue),
+                    QuotaAccountColumn.value(quota.account),
                     .text(quota.window.key),
                     .text(quota.window.label),
                     quota.window.duration.map { SQLValue.double($0) } ?? .null,
@@ -2512,7 +2517,8 @@ public actor Store {
             ),
             measure: measure,
             resetsAt: row.double("resets_at").map { Date(timeIntervalSince1970: $0) },
-            observedAt: row.double("observed_at").map { Date(timeIntervalSince1970: $0) } ?? Date()
+            observedAt: row.double("observed_at").map { Date(timeIntervalSince1970: $0) } ?? Date(),
+            account: QuotaAccountColumn.account(from: row)
         )
     }
 

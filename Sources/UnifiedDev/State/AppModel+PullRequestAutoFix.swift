@@ -53,16 +53,15 @@ extension AppModel {
 
     private func accountForAutoFix(_ session: Session?, in model: WorkspaceModel) async -> PullRequestAutoFix.Account {
         guard let session, let scope = model.existingTranscript(for: session.id)?.accountScope else { return .missing }
-        let isSameAccount: Bool
+        let chosen: AgentAccountHome?
         do {
-            let chosen = try await account(for: session.agentKind, in: scope)
-            let selected = try await account(for: session.agentKind, in: selectedAccountScope)
-            isSameAccount = chosen == selected
+            chosen = try await account(for: session.agentKind, in: scope)
         } catch {
             return .missing
         }
+        let own = QuotaScope(holders: [session.agentKind: QuotaHolder(provider: session.agentKind, home: chosen)])
         return PullRequestAutoFix.account(
-            isResolved: true, provider: session.agentKind, quotas: isSameAccount ? quotas : [], at: Date()
+            isResolved: true, provider: session.agentKind, quotas: storedQuotas.filter(own.shows), at: Date()
         )
     }
 

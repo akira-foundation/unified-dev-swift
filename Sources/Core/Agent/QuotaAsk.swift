@@ -32,6 +32,8 @@ public struct QuotaStanding: Sendable, Equatable {
 public protocol AgentQuotaSource: Sendable {
     static var provider: AgentKind { get }
 
+    var holder: QuotaHolder { get }
+
     func read() async -> Data?
 
     func standing() async -> QuotaStanding
@@ -40,6 +42,8 @@ public protocol AgentQuotaSource: Sendable {
 }
 
 extension AgentQuotaSource {
+    public var holder: QuotaHolder { QuotaHolder(provider: Self.provider, account: nil) }
+
     public func standing() async -> QuotaStanding { QuotaStanding(isInstalled: true) }
 
     public func account(from payload: Data, at now: Date) -> AgentAccount? {
@@ -130,6 +134,8 @@ public struct ClaudeCodeQuotaSource: AgentQuotaSource {
         self.clock = clock
         self.makeProcess = makeProcess
     }
+
+    public var holder: QuotaHolder { QuotaHolder(provider: Self.provider, home: account) }
 
     public func standing() async -> QuotaStanding {
         await LoginShellPath.ready()
@@ -231,6 +237,8 @@ public struct CodexQuotaSource: AgentQuotaSource {
         self.makeProcess = makeProcess
     }
 
+    public var holder: QuotaHolder { QuotaHolder(provider: Self.provider, home: account) }
+
     public func standing() async -> QuotaStanding {
         await LoginShellPath.ready()
         return QuotaStanding(isInstalled: Shell.which(executable) != nil)
@@ -253,78 +261,5 @@ public struct CodexQuotaSource: AgentQuotaSource {
         } catch {
             return nil
         }
-    }
-}
-
-public enum AgentQuotaSources {
-    public static func all(accounts: [AgentKind: AgentAccountHome] = [:]) -> [any AgentQuotaSource] {
-        [
-            ClaudeCodeQuotaSource(account: accounts[.claudeCode]),
-            CodexQuotaSource(account: accounts[.codex]),
-            GrokQuotaSource(account: accounts[.grok]),
-        ]
-    }
-
-    public static func readAll(
-        _ sources: [any AgentQuotaSource] = AgentQuotaSources.all(),
-        at now: Date = Date()
-    ) async -> [AgentQuota] {
-        await report(sources, at: now).quotas
-    }
-
-    public static func report(
-        _ sources: [any AgentQuotaSource] = AgentQuotaSources.all(),
-        at now: Date = Date()
-    ) async -> QuotaReport {
-        await withTaskGroup(of: QuotaReport.self) { group in
-            for source in sources {
-                group.addTask {
-                    let provider = type(of: source).provider
-                    let standing = await source.standing()
-                    guard standing.isInstalled else { return QuotaReport() }
-
-                    var report = QuotaReport()
-                    if let reportedAt = standing.lastReportedAt { report.lastReported[provider] = reportedAt }
-
-                    guard let payload = await source.read() else {
-                        report.unanswered = [provider]
-                        return report
-                    }
-                    report.quotas = AgentQuotaAdapters.quotas(fromRateLimitEvent: payload, at: now)
-                    report.accounts = source.account(from: payload, at: now).map { [$0] } ?? []
-                    if ClaudeCodeUsageAdapter.declinesLimits(payload) { report.withoutLimits = [provider] }
-                    return report
-                }
-            }
-            return await group.reduce(into: QuotaReport()) { total, next in
-                total.quotas += next.quotas
-                total.accounts += next.accounts
-                total.unanswered += next.unanswered
-                total.withoutLimits += next.withoutLimits
-                total.lastReported.merge(next.lastReported) { _, later in later }
-            }
-        }
-    }
-}
-
-public struct QuotaReport: Sendable {
-    public var quotas: [AgentQuota]
-    public var accounts: [AgentAccount]
-    public var unanswered: [AgentKind]
-    public var withoutLimits: [AgentKind]
-    public var lastReported: [AgentKind: Date]
-
-    public init(
-        quotas: [AgentQuota] = [],
-        accounts: [AgentAccount] = [],
-        unanswered: [AgentKind] = [],
-        withoutLimits: [AgentKind] = [],
-        lastReported: [AgentKind: Date] = [:]
-    ) {
-        self.quotas = quotas
-        self.accounts = accounts
-        self.unanswered = unanswered
-        self.withoutLimits = withoutLimits
-        self.lastReported = lastReported
     }
 }

@@ -11,6 +11,7 @@ public struct MenuBarPanelContent: Equatable, Sendable {
         public var unanswered: Set<AgentKind>
         public var withoutLimits: Set<AgentKind>
         public var lastReported: [AgentKind: Date]
+        public var pending: Set<AgentKind>
         public var layout: UsageLayout
         public var hold: KeepAwake.Hold
         public var now: Date
@@ -29,6 +30,7 @@ public struct MenuBarPanelContent: Equatable, Sendable {
             unanswered: Set<AgentKind>,
             withoutLimits: Set<AgentKind>,
             lastReported: [AgentKind: Date],
+            pending: Set<AgentKind> = [],
             layout: UsageLayout,
             hold: KeepAwake.Hold,
             now: Date,
@@ -45,6 +47,7 @@ public struct MenuBarPanelContent: Equatable, Sendable {
             self.unanswered = unanswered
             self.withoutLimits = withoutLimits
             self.lastReported = lastReported
+            self.pending = pending
             self.layout = layout
             self.hold = hold
             self.now = now
@@ -245,7 +248,9 @@ public struct MenuBarPanelContent: Equatable, Sendable {
     }
 
     static func knownProviders(in input: Input) -> Set<AgentKind> {
-        configuredProviders(in: input).union(input.unanswered.filter(\.publishesUsage))
+        configuredProviders(in: input)
+            .union(input.unanswered.filter(\.publishesUsage))
+            .union(input.pending.filter(\.publishesUsage))
     }
 
     static func providers(in input: Input) -> [Provider] {
@@ -259,6 +264,9 @@ public struct MenuBarPanelContent: Equatable, Sendable {
             .filter { known.contains($0) && input.layout.isEnabled($0) }
             .compactMap { kind -> Provider? in
                 let offer = input.offers[kind]
+                if input.pending.contains(kind), sections[kind] == nil {
+                    return Provider(kind: kind, reading: .unavailable, note: readingLine(for: kind), offer: offer)
+                }
                 if input.unanswered.contains(kind) {
                     return Provider(kind: kind, reading: .unavailable, note: reason(for: kind, in: input), offer: offer)
                 }

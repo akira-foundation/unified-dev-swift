@@ -180,7 +180,8 @@ struct PreviewScenarioSeederTests {
         let outcome = try await seeder.seed(scenario, at: now)
         #expect(outcome.quotas == 1)
         let stored = try await seeder.manager.store.quotas(at: now)
-        #expect(stored.map(\.id) == ["codex/primary"])
+        #expect(stored.map(\.window.key) == ["primary"])
+        #expect(stored.first?.holder == QuotaHolder(provider: .codex, account: AgentAccountHome.defaultID(for: .codex)))
         #expect(stored.first?.fraction == 1)
         #expect(stored.first?.resetsAt == now.addingTimeInterval(140_400))
     }
