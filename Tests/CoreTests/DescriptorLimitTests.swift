@@ -4,7 +4,7 @@ import Testing
 
 private let unlimited = rlim_t.max >> 1
 
-@Suite("Descriptor limit")
+@Suite("Descriptor limit", .serialized)
 struct DescriptorLimitTests {
     @Test("the launchd default is raised to the ceiling when the hard limit allows it")
     func raisesTheLaunchdDefault() {
@@ -25,12 +25,20 @@ struct DescriptorLimitTests {
         #expect(DescriptorLimit.target(soft: limits.soft, hard: limits.hard) == nil)
     }
 
-    @Test("raising applies the target to this process")
-    func raisingAppliesTheTarget() {
-        DescriptorLimit.raise()
+    @Test("raising lifts a lower soft limit of this process to the target")
+    func raisingAppliesTheTarget() throws {
+        var original = rlimit()
+        try #require(getrlimit(RLIMIT_NOFILE, &original) == 0)
+        try #require(original.rlim_max > 4096)
+        defer { setrlimit(RLIMIT_NOFILE, &original) }
+        var lowered = rlimit(rlim_cur: 4096, rlim_max: original.rlim_max)
+        try #require(setrlimit(RLIMIT_NOFILE, &lowered) == 0)
+
+        let raised = DescriptorLimit.raise()
 
         var limit = rlimit()
-        getrlimit(RLIMIT_NOFILE, &limit)
-        #expect(limit.rlim_cur >= min(limit.rlim_max, DescriptorLimit.ceiling))
+        try #require(getrlimit(RLIMIT_NOFILE, &limit) == 0)
+        #expect(raised)
+        #expect(limit.rlim_cur == min(original.rlim_max, DescriptorLimit.ceiling))
     }
 }
