@@ -229,6 +229,10 @@ final class TranscriptModel {
     private var resumeStopMark: Int?
     private var runnerIsSettled = false
 
+    var quotaHolder: QuotaHolder {
+        QuotaHolder(provider: session.agentKind, account: session.accountID)
+    }
+
     var accountScope: AccountScope {
         AccountScope.chat(
             workspace: workspace,
@@ -1866,7 +1870,9 @@ final class TranscriptModel {
         thinkingTokens = recovery.thinkingTokens
         if let status = recovery.status { await handle(.status(status)) }
         if let retry = recovery.retry { absorb(retry) }
-        if let quota = recovery.quota { await app.recordQuotas(AgentQuotaAdapters.quotas(fromRateLimitEvent: quota)) }
+        if let quota = recovery.quota {
+            await app.recordQuotas(AgentQuotaAdapters.quotas(fromRateLimitEvent: quota), heldBy: quotaHolder)
+        }
         if isAwaitingPermission { statusLabel = "Waiting on you" }
     }
 
@@ -2006,7 +2012,7 @@ final class TranscriptModel {
             await refreshSession()
 
         case .rateLimit(let raw):
-            await app.recordQuotas(AgentQuotaAdapters.quotas(fromRateLimitEvent: raw))
+            await app.recordQuotas(AgentQuotaAdapters.quotas(fromRateLimitEvent: raw), heldBy: quotaHolder)
             if let workspaceNow {
                 NotificationService.shared.rateLimitReported(raw, workspace: workspaceNow, sessionID: session.id)
             }

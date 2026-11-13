@@ -45,6 +45,8 @@ public struct GrokQuotaSource: AgentQuotaSource {
         self.loginShellReady = loginShellReady
     }
 
+    public var holder: QuotaHolder { QuotaHolder(provider: Self.provider, home: account) }
+
     public func standing() async -> QuotaStanding {
         await loginShellReady()
         let wouldReadTheOwnersLogin = account == nil && PreviewIdentity.isPreview(bundleIdentifier: bundleIdentifier)

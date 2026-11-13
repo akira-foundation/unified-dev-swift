@@ -25,11 +25,11 @@ final class AppModel {
     private(set) var workspaces: [Workspace] = []
     var projectActivity: [RepoID: Date] = [:]
     private(set) var isLoaded = false
-    private(set) var quotas: [AgentQuota] = []
-    private(set) var accounts: [AgentKind: AgentAccount] = [:]
-    private(set) var unansweredQuotaProviders: Set<AgentKind> = []
-    private(set) var quotalessProviders: Set<AgentKind> = []
-    private(set) var lastReportedQuotas: [AgentKind: Date] = [:]
+    private(set) var storedQuotas: [AgentQuota] = []
+    private(set) var quotaReadings = QuotaReadings()
+    private(set) var quotaScope: QuotaScope?
+    private(set) var quotaLedger = QuotaAskLedger()
+    private(set) var seededQuotaSilence: (silent: Set<AgentKind>, declining: Set<AgentKind>) = ([], [])
 
     var selection: SidebarSelection {
         get { storedSelection }
@@ -203,14 +203,12 @@ final class AppModel {
     private var quotaPollTask: Task<Void, Never>?
     private var quotaActivationTask: Task<Void, Never>?
     @ObservationIgnored var isMenuBarPanelOpen: @MainActor () -> Bool = { false }
-    private(set) var lastQuotaAskAt: Date?
     @ObservationIgnored var accountSyncKey: AccountFingerprint?
     private(set) var accountChoices = AgentAccountChoiceBook()
     @ObservationIgnored var selectedAccountHomes: [AgentKind: AgentAccountHome] = [:]
     let agentAccounts = AgentAccountsModel()
     let notificationInbox = NotificationInboxModel()
     var accountMarks = AgentAccountMarks()
-    private(set) var isAskingForQuotas = false
     private var identityTask: Task<Void, Never>?
     @ObservationIgnored var iconSearchTask: Task<Void, Never>?
 
@@ -438,45 +436,42 @@ final class AppModel {
 
     func recordQuotas(_ reported: [AgentQuota]) async {
         guard let store, !reported.isEmpty else { return }
-        let quotas = QuotaMerge.resolved(reported, against: self.quotas)
+        let quotas = QuotaMerge.resolved(reported, against: storedQuotas)
         try? await store.recordQuotas(quotas)
     }
 
     func reloadQuotas() async {
         guard let store else { return }
         let loaded = (try? await store.quotas()) ?? []
-        if quotas != loaded { quotas = loaded }
+        if storedQuotas != loaded { storedQuotas = loaded }
+    }
+
+    func adoptQuotaScope(_ scope: QuotaScope) {
+        guard quotaScope != scope else { return }
+        quotaScope = scope
+        Task { [weak self] in await self?.refreshQuotas(after: QuotaPollSchedule.onDemandFloor) }
     }
 
     func refreshQuotas(after gap: TimeInterval) async {
-        guard store != nil,
-              !isAskingForQuotas,
-              !UserDefaults.standard.bool(forKey: PreviewScenario.holdsQuotasKey),
-              QuotaPollSchedule.isDue(lastAskedAt: lastQuotaAskAt, at: Date(), after: gap)
-        else { return }
-        isAskingForQuotas = true
-        defer { isAskingForQuotas = false }
-        lastQuotaAskAt = Date()
+        guard store != nil, !UserDefaults.standard.bool(forKey: PreviewScenario.holdsQuotasKey) else { return }
+        if let quotaScope, quotaLedger.due(quotaScope.holders.values, at: Date(), after: gap).isEmpty { return }
         guard let resolution = await accountResolution(for: selectedAccountScope) else { return }
-        let report = await AgentQuotaSources.report(AgentQuotaSources.all(accounts: resolution.homes))
-        for account in report.accounts where accounts[account.provider] != account {
-            accounts[account.provider] = account
-        }
-        let unanswered = Set(report.unanswered)
-        if unansweredQuotaProviders != unanswered { unansweredQuotaProviders = unanswered }
-        let quotaless = Set(report.withoutLimits)
-        if quotalessProviders != quotaless { quotalessProviders = quotaless }
-        if lastReportedQuotas != report.lastReported { lastReportedQuotas = report.lastReported }
+        let sources = AgentQuotaSources.all(accounts: resolution.homes)
+        let due = quotaLedger.due(sources.map(\.holder), at: Date(), after: gap)
+        guard !due.isEmpty else { return }
+        quotaLedger.begin(due, at: Date())
+        defer { quotaLedger.end(due) }
+        let report = await AgentQuotaSources.report(sources.filter { due.contains($0.holder) })
+        var readings = quotaReadings
+        readings.adopt(report)
+        if readings != quotaReadings { quotaReadings = readings }
         await recordQuotas(report.quotas)
     }
 
     private func adoptSeededQuotaSilence() {
         let silent = UserDefaults.standard.stringArray(forKey: PreviewScenario.silentAgentsKey) ?? []
         let quotaless = UserDefaults.standard.stringArray(forKey: PreviewScenario.agentsWithoutLimitsKey) ?? []
-        let silenced = PreviewScenario.agents(storedAs: silent)
-        let declining = PreviewScenario.agents(storedAs: quotaless)
-        if unansweredQuotaProviders != silenced { unansweredQuotaProviders = silenced }
-        if quotalessProviders != declining { quotalessProviders = declining }
+        seededQuotaSilence = (PreviewScenario.agents(storedAs: silent), PreviewScenario.agents(storedAs: quotaless))
     }
 
     private func refreshQuotasIfDue() async {
