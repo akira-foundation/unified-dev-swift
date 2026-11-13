@@ -142,6 +142,7 @@ final class WorkspaceModel {
 
     var isLoadingPullRequest = false
     private(set) var hasReadPullRequest = false
+    private(set) var checkRuns: CheckRunsRead?
 
     private(set) var mergeMethod = MergeMethodChoice.fallback
     var pullRequestNotice: PullRequestNotice?
@@ -206,7 +207,7 @@ final class WorkspaceModel {
     private var arrivalTask: Task<Void, Never>?
 
     private var changesTask: Task<Result<ChangesAnswer, GitFailure>, Never>?
-    private var pullRequestTask: Task<PullRequestRead, Never>?
+    private var pullRequestTask: Task<PullRequestReading, Never>?
     @ObservationIgnored private var settingsRefresh = RefreshDemand()
     @ObservationIgnored private var settingsTask: Task<Void, Never>?
     private var setupTask: Task<Void, Never>?
@@ -1546,7 +1547,7 @@ final class WorkspaceModel {
         let asked = workspace
 
         let task = Task.detached(priority: .utility) {
-            await GitHubBridge.readPullRequest(for: asked, maxAge: maxAge)
+            await GitHubBridge.readPullRequestAndChecks(for: asked, maxAge: maxAge)
         }
         pullRequestTask = task
         if PullRequestProgress.announces(
@@ -1555,13 +1556,14 @@ final class WorkspaceModel {
             isLoadingPullRequest = true
         }
 
-        let read = await task.value
+        let reading = await task.value
 
         guard pullRequestTask == task, !task.isCancelled else { return }
         pullRequestTask = nil
         hasReadPullRequest = true
-        WorkspacePullRequests.shared.record(read, for: workspace.id)
-        guard case .current(let current) = read else {
+        if let checks = reading.checks, checks != checkRuns { checkRuns = checks }
+        WorkspacePullRequests.shared.record(reading.pullRequest, for: workspace.id)
+        guard case .current(let current) = reading.pullRequest else {
             isLoadingPullRequest = false
             return
         }

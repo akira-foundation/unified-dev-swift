@@ -6,8 +6,6 @@ struct PullRequestBar: View {
 
     @Environment(AppModel.self) private var app
 
-    private static let pollInterval = Duration.seconds(20)
-
     @State private var isWorking = false
     @State private var pendingArchive: ArchiveRequest?
     @State private var pendingMerge: GitHub.MergeMethod?
@@ -188,11 +186,12 @@ struct PullRequestBar: View {
     private func poll() async {
         await model.readRemote()
 
+        let reader = PullRequestReader.pullRequestBar
         var maxAge = WorkspaceModel.pullRequestArrivalMaxAge
         while !Task.isCancelled {
             await model.refreshPullRequest(maxAge: maxAge)
-            maxAge = .zero
-            try? await Task.sleep(for: Self.pollInterval)
+            maxAge = reader.maxAge
+            try? await Task.sleep(for: reader.interval)
         }
     }
 }

@@ -16,8 +16,6 @@ final class NotificationService {
     nonisolated private static let replyAction = "unifieddev.reply"
     nonisolated private static let openAction = "unifieddev.open"
 
-    private static let checksInterval = Duration.seconds(30)
-
     private(set) var authorization: UNAuthorizationStatus = .notDetermined
 
     private(set) var isRequestingPermission = false
@@ -264,7 +262,7 @@ final class NotificationService {
         checksTask?.cancel()
         checksTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: Self.checksInterval)
+                try? await Task.sleep(for: PullRequestReader.checksNotification.interval)
                 guard let self else { return }
                 await self.pollChecks()
             }
@@ -297,7 +295,8 @@ final class NotificationService {
             }
 
             if pullRequest.checks == .pending {
-                await app.existingModel(for: workspace.id)?.refreshPullRequest()
+                await app.existingModel(for: workspace.id)?
+                    .refreshPullRequest(maxAge: PullRequestReader.checksNotification.maxAge)
             }
         }
     }
