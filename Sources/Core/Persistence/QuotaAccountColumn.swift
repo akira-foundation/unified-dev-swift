@@ -21,6 +21,8 @@ enum QuotaAccountColumn {
         );
         """
 
+    static let forget = "DELETE FROM agent_quotas WHERE provider = ? AND account_id = ?"
+
     static func migrate(_ db: SQLiteDatabase) throws {
         let columns = Set(try db.query("PRAGMA table_info(agent_quotas);").compactMap { $0.string("name") })
         guard !columns.contains(column) else { return }

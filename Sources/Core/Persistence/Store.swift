@@ -729,7 +729,7 @@ public actor Store {
     }
 
     public func forgetAgentAccount(_ id: AgentAccountID) throws {
-        let stored = try db.query("SELECT is_default FROM agent_accounts WHERE id = ?", [.text(id)]).first
+        let stored = try db.query("SELECT is_default, provider FROM agent_accounts WHERE id = ?", [.text(id)]).first
         guard !AgentAccountHome.isDefaultID(id), stored?.bool("is_default") != true else {
             throw AgentAccountError.isDefault(id)
         }
@@ -742,6 +742,9 @@ public actor Store {
             try db.run(SessionSegmentColumns.forgetHistory, [.text(id)])
             try db.run(AgentAccountColumns.release("session_segments"), [.text(id)])
             try db.run(AgentAccountColumns.delete, [.text(id)])
+            if let provider = stored?.string("provider") {
+                try db.run(QuotaAccountColumn.forget, [.text(provider), .text(id)])
+            }
             for key in ClaudeResolvedModel.settingKeys(account: id) {
                 try db.run("DELETE FROM settings WHERE key = ?", [.text(key)])
             }

@@ -84,6 +84,9 @@ public struct QuotaShown: Sendable, Equatable {
             uniquingKeysWith: { first, _ in first }
         )
         let drawn = Set(quotas.map(\.provider)).union(accounts.keys)
+        let answered = Set(stored.map(\.provider))
+            .union(readings.identities.keys.map(\.provider))
+            .union(readings.lastReported.keys.map(\.provider))
         return QuotaShown(
             quotas: quotas,
             accounts: accounts,
@@ -93,7 +96,7 @@ public struct QuotaShown: Sendable, Equatable {
                 readings.lastReported.filter { inScope($0.key) }.map { ($0.key.provider, $0.value) },
                 uniquingKeysWith: { first, _ in first }
             ),
-            pending: Set(reading.filter(inScope).map(\.provider)).subtracting(drawn)
+            pending: Set(reading.filter(inScope).map(\.provider)).intersection(answered).subtracting(drawn)
         )
     }
 }

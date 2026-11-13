@@ -26,9 +26,8 @@ public enum AgentQuotaSources {
                     let provider = type(of: source).provider
                     let holder = source.holder
                     let standing = await source.standing()
-                    guard standing.isInstalled else { return QuotaReport() }
-
                     var report = QuotaReport(holders: [provider: holder])
+                    guard standing.isInstalled else { return report }
                     if let reportedAt = standing.lastReportedAt { report.lastReported[provider] = reportedAt }
 
                     guard let payload = await source.read() else {

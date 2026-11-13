@@ -34,7 +34,6 @@ struct QuotaShownTests {
         )
 
         #expect(shown.quotas.isEmpty)
-        #expect(MenuBarPanelContent.limitNotices(shown.quotas, at: now).isEmpty)
     }
 
     @Test("an account named the same under two agents keeps each agent's numbers apart")

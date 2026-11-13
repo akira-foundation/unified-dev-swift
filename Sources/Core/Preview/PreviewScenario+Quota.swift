@@ -37,7 +37,10 @@ extension PreviewScenario {
             self.account = account
         }
 
-        public var id: String { "\(provider.rawValue)/\(window)" }
+        public var id: String {
+            guard let account else { return "\(provider.rawValue)/\(window)" }
+            return "\(provider.rawValue)/\(account)/\(window)"
+        }
 
         public func quota(at now: Date) -> AgentQuota {
             let named = QuotaWindow.named(window)
