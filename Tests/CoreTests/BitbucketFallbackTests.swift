@@ -45,7 +45,7 @@ struct BitbucketFallbackTests {
         }
     }
 
-    private func pullRequest(of reading: PullRequestReading?) -> PullRequest? {
+    private func shown(in reading: PullRequestReading?) -> PullRequest? {
         guard case .current(let found) = reading?.pullRequest else { return nil }
         return found
     }
@@ -71,7 +71,7 @@ struct BitbucketFallbackTests {
             return ShellResult(status: 0, stdout: page, stderr: "")
         }
 
-        let pullRequest = try #require(pullRequest(of: reading))
+        let pullRequest = try #require(shown(in: reading))
         #expect(pullRequest.number == 5486)
         #expect(pullRequest.checks == .unavailable)
         #expect(pullRequest.hasFixableCheckFailure == nil)
@@ -91,7 +91,7 @@ struct BitbucketFallbackTests {
             return ShellResult(status: 0, stdout: Self.emptyPage, stderr: "")
         }
 
-        #expect(try #require(pullRequest(of: reading)).number == 5486)
+        #expect(try #require(shown(in: reading)).number == 5486)
         #expect(await calls.seen.contains { $0[1] == "/repositories/atlassian/aui/pullrequests/5486" })
     }
 
@@ -136,7 +136,7 @@ struct BitbucketFallbackTests {
             }
         }
 
-        #expect(try #require(pullRequest(of: reading)).number == 5490)
+        #expect(try #require(shown(in: reading)).number == 5490)
     }
 
     @Test("a build list that fails for another reason is an error, not an empty list")
@@ -162,7 +162,7 @@ struct BitbucketFallbackTests {
             ShellResult(status: 0, stdout: "{\"values\": [\(odd)]}", stderr: "")
         }
 
-        #expect(try #require(pullRequest(of: reading)).checks == .unavailable)
+        #expect(try #require(shown(in: reading)).checks == .unavailable)
         #expect(await !calls.seen.contains { $0[1].hasSuffix("/statuses") })
     }
 }
