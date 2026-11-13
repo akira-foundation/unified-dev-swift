@@ -21,7 +21,7 @@ extension AppModel {
         } ?? false
         switch decision {
         case .archiveNow:
-            await archiveOnMerge(workspace)
+            await archiveOnMerge(workspace, mergedBranch: pullRequest.branch)
         case .archiveAfterTurn:
             Log.archive.info(
                 "\(workspace.name, privacy: .public) merged mid turn and will be archived when the turn ends"
@@ -109,10 +109,17 @@ extension AppModel {
         }
     }
 
-    private func archiveOnMerge(_ workspace: Workspace) async {
+    private func archiveOnMerge(_ workspace: Workspace, mergedBranch: String? = nil) async {
         guard let store, !isArchiving(workspace.id) else { return }
         if let objection = await WorkspaceArchiveSafety.objection(to: workspace, excusing: nil, store: store) {
             refuseArchiveOnMerge(workspace, because: objection)
+            return
+        }
+        if let inFlight = await MergeArchiveInFlightRead.objection(
+            worktree: workspace.path, mergedBranch: mergedBranch
+        ) {
+            Log.archive.info("\(workspace.name, privacy: .public) merged with work still in flight")
+            refuseArchiveOnMerge(workspace, because: inFlight)
             return
         }
         Log.archive.info("\(workspace.name, privacy: .public) merged and is being archived")

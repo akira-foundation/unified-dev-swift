@@ -651,7 +651,7 @@ public enum GitHub {
         return result
     }
 
-    private static func shellError(arguments: [String], result: ShellResult) -> ShellError {
+    static func shellError(arguments: [String], result: ShellResult) -> ShellError {
         ShellError(
             command: "gh " + arguments.joined(separator: " "),
             status: result.status,
