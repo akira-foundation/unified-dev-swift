@@ -156,6 +156,7 @@ struct WorktreeWatcherBranchTests {
         defer { watcher.stop() }
         watcher.watch(roots: [pair.one, pair.two], branches: branches)
         try await Task.sleep(for: .milliseconds(500))
+        reported.withLock { $0.removeAll() }
 
         try await Shell.check("git", ["commit", "-q", "--allow-empty", "-m", "Move one"], cwd: pair.one)
 

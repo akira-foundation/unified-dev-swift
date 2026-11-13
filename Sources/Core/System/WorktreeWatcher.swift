@@ -1,12 +1,18 @@
 import Foundation
 import CoreServices
 import Synchronization
+import os
 
 public final class WorktreeWatcher: Sendable {
     private let onChange: @Sendable (Set<String>) -> Void
     private let onFilesChanged: (@Sendable ([(path: String, type: Int)]) -> Void)?
 
     public static let latency: TimeInterval = 1
+
+    private static let log = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "io.akira.unifieddev",
+        category: "worktree-watcher"
+    )
 
     private struct Watched {
         var stream: FSEventStreamRef?
@@ -35,6 +41,10 @@ public final class WorktreeWatcher: Sendable {
             state.stream = nil
             state.metadataStream = nil
         }
+    }
+
+    var isWatching: Bool {
+        watched.withLock { $0.stream != nil }
     }
 
     public func watch(roots: [String], branches: [String: Set<String>] = [:]) {
@@ -81,14 +91,7 @@ public final class WorktreeWatcher: Sendable {
             copyDescription: nil
         )
 
-        let flags = UInt32(
-            kFSEventStreamCreateFlagUseCFTypes
-                | kFSEventStreamCreateFlagNoDefer
-                | kFSEventStreamCreateFlagWatchRoot
-        )
-
-        let wantsFiles = metadata || onFilesChanged != nil
-        let fileFlags = wantsFiles ? UInt32(kFSEventStreamCreateFlagFileEvents) : UInt32(0)
+        let flags = Self.creationFlags(fileEvents: metadata || onFilesChanged != nil)
         let worktreeEvents: FSEventStreamCallback = { _, info, count, paths, eventFlags, _ in
             guard let info, count > 0 else { return }
             let watcher = Unmanaged<WorktreeWatcher>.fromOpaque(info).takeUnretainedValue()
@@ -108,16 +111,43 @@ public final class WorktreeWatcher: Sendable {
             roots as CFArray,
             FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
             Self.latency,
-            flags | fileFlags
-        ) else { return nil }
+            flags
+        ) else {
+            let restored = Self.reopenNullDevice(ifClosed: STDIN_FILENO)
+            Self.log.error(
+                "could not watch \(roots.count, privacy: .public) roots, standard input restored: \(restored, privacy: .public)"
+            )
+            return nil
+        }
 
         FSEventStreamSetDispatchQueue(stream, queue)
         guard FSEventStreamStart(stream) else {
             FSEventStreamInvalidate(stream)
             FSEventStreamRelease(stream)
+            let restored = Self.reopenNullDevice(ifClosed: STDIN_FILENO)
+            Self.log.error(
+                "could not start watching \(roots.count, privacy: .public) roots, standard input restored: \(restored, privacy: .public)"
+            )
             return nil
         }
         return stream
+    }
+
+    static func creationFlags(fileEvents: Bool) -> FSEventStreamCreateFlags {
+        let flags = kFSEventStreamCreateFlagUseCFTypes | kFSEventStreamCreateFlagNoDefer
+        return FSEventStreamCreateFlags(fileEvents ? flags | kFSEventStreamCreateFlagFileEvents : flags)
+    }
+
+    @discardableResult
+    static func reopenNullDevice(ifClosed descriptor: Int32) -> Bool {
+        guard fcntl(descriptor, F_GETFD) == -1 else { return false }
+        let opened = open("/dev/null", O_RDWR)
+        guard opened >= 0 else { return false }
+        guard opened == descriptor else {
+            close(opened)
+            return false
+        }
+        return true
     }
 
     private static func tearDown(_ stream: FSEventStreamRef?) {
