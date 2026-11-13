@@ -158,6 +158,26 @@ struct MergeArchiveInFlightTests {
         #expect(try await fixture.objection(mergedHead: nil, answers: [:]) == MergeArchiveInFlight.tooManyBranches)
     }
 
+    @Test("exactly as many branches as can be checked are all checked")
+    func checksUpToTheLimit() async throws {
+        let fixture = try await Fixture()
+        defer { fixture.cleanUp() }
+        for index in 1..<MergeArchiveInFlight.branchLimit {
+            try await fixture.git(["checkout", "-q", "-b", "fix/\(index)", "main"])
+        }
+        #expect(try await fixture.objection(mergedHead: nil, answers: [:]) == nil)
+    }
+
+    @Test("a detached head still checks the branches the worktree had checked out")
+    func detachedHead() async throws {
+        let fixture = try await Fixture()
+        defer { fixture.cleanUp() }
+        try await fixture.branch("fix/453-local", push: false)
+        try await fixture.git(["checkout", "-q", "--detach", "main"])
+        #expect(try await fixture.objection(mergedHead: nil, answers: [:])
+            == "fix/453-local has 1 commit that is not pushed. \(nextStep)")
+    }
+
     @Test("a directory git cannot read holds the archive back")
     func unreadableWorktree() async throws {
         let directory = TestScratch.unique("unifieddev-not-git")

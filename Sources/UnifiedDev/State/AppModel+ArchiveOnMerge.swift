@@ -118,12 +118,11 @@ extension AppModel {
             refuseArchiveOnMerge(workspace, because: objection)
             return
         }
-        if let inFlight = await MergeArchiveInFlightRead.objection(
-            worktree: workspace.path, mergedHead: mergedHead
-        ) {
-            guard !isArchiving(workspace.id) else { return }
+        let inFlight = await MergeArchiveInFlightRead.objection(worktree: workspace.path, mergedHead: mergedHead)
+        guard !isArchiving(workspace.id) else { return }
+        if let inFlight {
             Log.archive.info(
-                "\(workspace.name, privacy: .public) merged and was held back: \(inFlight, privacy: .public)"
+                "\(workspace.name, privacy: .public) merged and was held back: \(inFlight, privacy: .private)"
             )
             refuseArchiveOnMerge(workspace, because: inFlight)
             return
