@@ -88,23 +88,39 @@ struct WorktreeWatcherDescriptorTests {
         #expect(Self.standardInput() == input)
     }
 
-    @Test("a closed descriptor is reopened on the null device, and an open one is left alone")
-    func reopensAClosedDescriptorOnTheNullDevice() throws {
-        let probe = open("/dev/null", O_RDONLY)
-        try #require(probe >= 0)
-        let spare = dup2(probe, 900)
-        close(probe)
-        try #require(spare == 900)
-        close(spare)
-        defer { close(spare) }
+    @Test("the lowest closed descriptor is reopened on the null device")
+    func reopensTheLowestClosedDescriptor() throws {
+        let lowest = open("/dev/null", O_RDONLY)
+        try #require(lowest >= 0)
+        close(lowest)
 
-        let reopened = WorktreeWatcher.reopenNullDevice(ifClosed: spare)
-        let again = WorktreeWatcher.reopenNullDevice(ifClosed: spare)
+        let reopened = WorktreeWatcher.reopenNullDevice(ifClosed: lowest)
+        defer { if reopened { close(lowest) } }
 
         var status = stat()
         var null = stat()
         #expect(reopened)
-        #expect(!again)
-        #expect(fstat(spare, &status) == 0 && stat("/dev/null", &null) == 0 && status.st_rdev == null.st_rdev)
+        #expect(fstat(lowest, &status) == 0 && stat("/dev/null", &null) == 0 && status.st_rdev == null.st_rdev)
+    }
+
+    @Test("a descriptor that is open is left alone")
+    func leavesAnOpenDescriptorAlone() {
+        #expect(!WorktreeWatcher.reopenNullDevice(ifClosed: STDOUT_FILENO))
+        #expect(fcntl(STDOUT_FILENO, F_GETFD) != -1)
+    }
+
+    @Test("a closed descriptor that is not the lowest free one is not taken over")
+    func doesNotTakeOverAnotherNumber() throws {
+        let holder = open("/dev/null", O_RDONLY)
+        try #require(holder >= 0)
+        let high = fcntl(holder, F_DUPFD, 3000)
+        close(holder)
+        try #require(high >= 3000)
+        close(high)
+
+        let reopened = WorktreeWatcher.reopenNullDevice(ifClosed: high)
+
+        #expect(!reopened)
+        #expect(fcntl(high, F_GETFD) == -1)
     }
 }

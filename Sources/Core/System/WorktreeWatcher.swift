@@ -122,7 +122,10 @@ public final class WorktreeWatcher: Sendable {
 
         FSEventStreamSetDispatchQueue(stream, queue)
         guard FSEventStreamStart(stream) else {
-            Self.log.error("could not start watching \(roots.count, privacy: .public) roots")
+            let restored = Self.reopenNullDevice(ifClosed: STDIN_FILENO)
+            Self.log.error(
+                "could not start watching \(roots.count, privacy: .public) roots, standard input restored: \(restored, privacy: .public)"
+            )
             FSEventStreamInvalidate(stream)
             FSEventStreamRelease(stream)
             return nil
@@ -140,10 +143,11 @@ public final class WorktreeWatcher: Sendable {
         guard fcntl(descriptor, F_GETFD) == -1 else { return false }
         let opened = open("/dev/null", O_RDWR)
         guard opened >= 0 else { return false }
-        guard opened != descriptor else { return true }
-        let moved = dup2(opened, descriptor) == descriptor
-        close(opened)
-        return moved
+        guard opened == descriptor else {
+            close(opened)
+            return false
+        }
+        return true
     }
 
     private static func tearDown(_ stream: FSEventStreamRef?) {
