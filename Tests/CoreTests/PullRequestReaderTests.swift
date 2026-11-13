@@ -110,6 +110,44 @@ struct PullRequestReaderTests {
         if case .current(let earlier?) = first.pullRequest { #expect(earlier == pullRequest) }
     }
 
+    @Test func readersArrivingTogetherShareOneGhCall() async throws {
+        let calls = GhCalls()
+        let selected = workspace("together")
+        await GitHub.$commandOverride.withValue({ _, _ in
+            calls.note()
+            try? await Task.sleep(for: .milliseconds(200))
+            return ShellResult(status: 0, stdout: Self.pending, stderr: "")
+        }) {
+            async let bar = GitHub.readPullRequestAndChecks(for: selected, maxAge: PullRequestReader.pullRequestBar.maxAge)
+            async let checks = GitHub.readPullRequestAndChecks(for: selected, maxAge: PullRequestReader.checksTab.maxAge)
+            _ = await [bar.checks, checks.checks]
+        }
+
+        #expect(calls.made == 1)
+    }
+
+    @Test func aWorkspaceOnAnotherBranchOrPullRequestIsReadAgain() async throws {
+        let calls = GhCalls()
+        var selected = workspace("moved")
+        var made: [Int] = []
+        await GitHub.$commandOverride.withValue({ _, _ in
+            calls.note()
+            return ShellResult(status: 0, stdout: Self.pending, stderr: "")
+        }) {
+            _ = await GitHub.readPullRequestAndChecks(for: selected, maxAge: .seconds(20))
+            made.append(calls.made)
+            selected.branch = "elsewhere"
+            _ = await GitHub.readPullRequestAndChecks(for: selected, maxAge: .seconds(20))
+            made.append(calls.made)
+            selected.pullRequestNumber = 7
+            _ = await GitHub.readPullRequestAndChecks(for: selected, maxAge: .seconds(20))
+            made.append(calls.made)
+        }
+
+        #expect(made[0] < made[1])
+        #expect(made[1] < made[2])
+    }
+
     @Test func aReaderAskingForAFreshAnswerRunsGhAgain() async throws {
         let calls = GhCalls()
         let selected = workspace("fresh-read")
@@ -132,6 +170,23 @@ struct PullRequestReaderTests {
         }) {
             _ = await GitHub.readPullRequestAndChecks(for: workspace("selected"), maxAge: .seconds(20))
             _ = await GitHub.readPullRequestAndChecks(for: workspace("elsewhere"), maxAge: .seconds(20))
+        }
+
+        #expect(calls.made == 2)
+    }
+
+    @Test func anAnswerReadUnderOneLoginIsNotGivenToAnother() async throws {
+        let calls = GhCalls()
+        let selected = workspace("rerouted")
+        let own = GitHubLogin.profile(ProfileID("debtges"), directory: URL(filePath: "/support/GitHubLogins/debtges"))
+        await GitHub.$commandOverride.withValue({ _, _ in
+            calls.note()
+            return ShellResult(status: 0, stdout: Self.pending, stderr: "")
+        }) {
+            _ = await GitHub.readPullRequestAndChecks(for: selected, maxAge: .seconds(20))
+            await GitHub.$loginResolverOverride.withValue({ _ in own }) {
+                _ = await GitHub.readPullRequestAndChecks(for: selected, maxAge: .seconds(20))
+            }
         }
 
         #expect(calls.made == 2)

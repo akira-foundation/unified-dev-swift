@@ -146,4 +146,73 @@ private struct Refused: Error {}
 
         #expect(await readings.keptCount == 1)
     }
+    @Test func aCallerJoinsAReadInFlightOnlyWhileItIsYoungerThanItsAge() async throws {
+        let tally = Tally()
+        let clock = StoppedClock()
+        let readings = SharedReadings<String, Int>(now: { clock.now })
+        let slow: @Sendable () async throws -> Int = {
+            try? await Task.sleep(for: .milliseconds(200))
+            return tally.read()
+        }
+
+        async let first = readings.value(for: "a", notOlderThan: .seconds(20), read: slow)
+        try? await Task.sleep(for: .milliseconds(50))
+        clock.advance(.seconds(20))
+        let late = try await readings.value(for: "a", notOlderThan: .seconds(20), read: slow)
+        _ = try await first
+
+        #expect(tally.reads == 2)
+        #expect(late == 2)
+    }
+
+    @Test func anOlderReadFinishingLastNeitherReplacesTheNewerAnswerNorItsRead() async throws {
+        let tally = Tally()
+        let clock = StoppedClock()
+        let readings = SharedReadings<String, Int>(now: { clock.now })
+        let slowest: @Sendable () async throws -> Int = {
+            try? await Task.sleep(for: .milliseconds(400))
+            return 100 + tally.read()
+        }
+        let slow: @Sendable () async throws -> Int = {
+            try? await Task.sleep(for: .milliseconds(200))
+            return tally.read()
+        }
+
+        async let older = readings.value(for: "a", notOlderThan: .seconds(20), read: slowest)
+        try? await Task.sleep(for: .milliseconds(50))
+        clock.advance(.seconds(1))
+        async let newer = readings.value(for: "a", notOlderThan: .zero, read: slow)
+        _ = try await [older, newer]
+        clock.advance(.seconds(1))
+        let kept = try await readings.value(for: "a", notOlderThan: .seconds(20)) { tally.read() }
+
+        #expect(kept == 1)
+        #expect(tally.reads == 2)
+    }
+
+    @Test func aFinishedOlderReadLeavesTheNewerReadInFlightToJoin() async throws {
+        let tally = Tally()
+        let clock = StoppedClock()
+        let readings = SharedReadings<String, Int>(now: { clock.now })
+        let quick: @Sendable () async throws -> Int = {
+            try? await Task.sleep(for: .milliseconds(100))
+            return tally.read()
+        }
+        let slow: @Sendable () async throws -> Int = {
+            try? await Task.sleep(for: .milliseconds(400))
+            return tally.read()
+        }
+
+        async let older = readings.value(for: "a", notOlderThan: .seconds(20), read: quick)
+        try? await Task.sleep(for: .milliseconds(20))
+        clock.advance(.seconds(10))
+        async let newer = readings.value(for: "a", notOlderThan: .zero, read: slow)
+        _ = try await older
+        clock.advance(.seconds(15))
+        let joined = try await readings.value(for: "a", notOlderThan: .seconds(20), read: quick)
+        _ = try await newer
+
+        #expect(tally.reads == 2)
+        #expect(joined == 2)
+    }
 }

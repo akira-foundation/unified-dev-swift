@@ -53,9 +53,9 @@ struct WorkspacePullRequestKey: Hashable, Sendable {
     let baseBranch: String
     let pullRequestNumber: Int?
     let createdAt: Date
-    let login: GitHubLogin?
+    let login: GitHubLogin
 
-    init(_ workspace: Workspace, login: GitHubLogin?) {
+    init(_ workspace: Workspace, login: GitHubLogin) {
         self.workspace = workspace.id
         path = workspace.path
         branch = workspace.branch
@@ -79,9 +79,10 @@ public extension GitHub {
 
     internal static func snapshot(for workspace: Workspace, maxAge: Duration) async throws -> PullRequestSnapshot? {
         try await workspaceReadings.value(
-            for: WorkspacePullRequestKey(workspace, login: login), notOlderThan: maxAge
+            for: WorkspacePullRequestKey(workspace, login: await login(forDirectory: workspace.path)),
+            notOlderThan: maxAge
         ) {
-            try await snapshot(for: workspace, onBranch: await headBranch(of: workspace), maxAge: maxAge)
+            try await snapshot(for: workspace, onBranch: await headBranch(of: workspace), maxAge: .zero)
         }
     }
 }
