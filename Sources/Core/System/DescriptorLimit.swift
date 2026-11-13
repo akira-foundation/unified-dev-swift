@@ -18,13 +18,15 @@ public enum DescriptorLimit {
     public static func raise() -> Bool {
         var limit = rlimit()
         guard getrlimit(RLIMIT_NOFILE, &limit) == 0 else {
-            log.error("could not read the descriptor limit: \(String(cString: strerror(errno)), privacy: .public)")
+            let code = errno
+            log.error("could not read the descriptor limit: \(String(cString: strerror(code)), privacy: .public)")
             return false
         }
         guard let wanted = target(soft: limit.rlim_cur, hard: limit.rlim_max) else { return true }
         limit.rlim_cur = wanted
         guard setrlimit(RLIMIT_NOFILE, &limit) == 0 else {
-            log.error("could not raise the descriptor limit to \(wanted, privacy: .public): \(String(cString: strerror(errno)), privacy: .public)")
+            let code = errno
+            log.error("could not raise the descriptor limit to \(wanted, privacy: .public): \(String(cString: strerror(code)), privacy: .public)")
             return false
         }
         return true
