@@ -167,8 +167,11 @@ direction. A `notify_when_done` asked for before the move still arrives.
 ## Switching
 
 The switcher is a menu in the title bar, to the left of the button that shows and hides the sidebar.
-With the sidebar open it shows the profile's mark and name, the name cut with an ellipsis when the
-column is narrow and left out when the column is too narrow to read it. With the sidebar hidden, and
+With the sidebar open it shows the profile's mark and name. The sidebar cannot be dragged narrower
+than the width that holds the traffic lights, the switcher with its mark and whole name, and the
+sidebar toggle, nor narrower than the footer needs to keep New workspace labelled. A long name is cut
+with an ellipsis inside a menu of capped width, so it cannot push that minimum up without bound.
+`ProfileToolbarLabel` and `WindowWidths.holding(sidebarContent:)` decide it. With the sidebar hidden, and
 in full screen while the bar is hidden, it shows the mark alone and still opens. The mark alone sits on
 glass, like the button beside it. Revealing the bar in full screen brings the name back. The help tag
 and the accessibility label carry the whole name.
@@ -196,7 +199,10 @@ from.
 ## The bell
 
 The bell in the window toolbar lists notifications from every profile, newest first, and shows how
-many are unseen. Each row carries its profile's mark and name. Clicking one switches profile when it
+many are unseen. Its toolbar item is titled Notifications, with the unseen count, so the overflow
+menu, VoiceOver and the toolbar's customisation sheet can name it. The popover sizes to what it lists:
+short with a centred empty state when there is nothing, and scrolling under a fixed header past a
+maximum height. Mark All as Read is offered only while something is unseen. Each row carries its profile's mark and name. Clicking one switches profile when it
 has to and opens the workspace and the chat it was about, and a macOS banner goes to the same place.
 
 It records turns finishing, an agent that needs something, an agent that stops, a setup script that
