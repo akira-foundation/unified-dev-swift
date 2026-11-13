@@ -1,3 +1,4 @@
+import AppKit
 import Core
 import SwiftUI
 
@@ -64,6 +65,11 @@ struct ProfileSwitcherMenu: View {
     var active: Profile
     var label: ProfileToolbarLabel
     var items: ProfileSwitcherItems
+
+    static func nameWidth(_ name: String) -> CGFloat {
+        let font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
+        return ceil((name as NSString).size(withAttributes: [.font: font]).width)
+    }
 
     var body: some View {
         styledMenu

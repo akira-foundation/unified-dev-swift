@@ -68,12 +68,23 @@ enum NotificationBellProbe {
         for scheme in [ColorScheme.light, .dark] {
             if await shoot("list", rows: rows, scheme: scheme) { written += 1 }
             if await shoot("empty", rows: [], scheme: scheme) { written += 1 }
+            if await shoot("long", rows: longRows, scheme: scheme) { written += 1 }
+            if await shoot("all-read", rows: rows.map(\.asRead), scheme: scheme) { written += 1 }
         }
-        exit(written == 4 ? 0 : 1)
+        exit(written == 8 ? 0 : 1)
+    }
+
+    private static var longRows: [InboxNotification] {
+        (0..<4).flatMap { round in
+            rows.map { row in
+                var copy = row
+                copy.id = InboxNotificationID("\(row.id.rawValue)-\(round)")
+                return copy
+            }
+        }
     }
 
     private static func shoot(_ name: String, rows: [InboxNotification], scheme: ColorScheme) async -> Bool {
-        let size = CGSize(width: 360, height: 420)
         let view = NotificationBellList(
             rows: rows, profiles: [unified, akira, debtges], now: now, onOpen: { _ in }, onMarkAll: {}
         )
@@ -82,19 +93,38 @@ enum NotificationBellProbe {
             .background(Palette.surface)
             .transaction { $0.disablesAnimations = true })
         host.sizingOptions = []
+        let tall = CGSize(width: NotificationBellReading.popoverWidth, height: 1_200)
         let window = NSWindow(
-            contentRect: CGRect(origin: .zero, size: size), styleMask: [.borderless], backing: .buffered, defer: false
+            contentRect: CGRect(origin: .zero, size: tall), styleMask: [.borderless], backing: .buffered, defer: false
         )
         window.appearance = NSAppearance(named: scheme == .dark ? .darkAqua : .aqua)
         window.contentViewController = host
+        host.view.frame = CGRect(origin: .zero, size: tall)
+        host.view.layoutSubtreeIfNeeded()
+        try? await Task.sleep(for: .milliseconds(300))
+        let size = host.sizeThatFits(in: tall)
+        report("\(name)-\(scheme): \(Int(size.width))x\(Int(size.height))")
+        window.setContentSize(size)
         host.view.frame = CGRect(origin: .zero, size: size)
         host.view.layoutSubtreeIfNeeded()
-        try? await Task.sleep(for: .milliseconds(400))
+        try? await Task.sleep(for: .milliseconds(300))
         host.view.displayIfNeeded()
         guard let bitmap = host.view.bitmapImageRepForCachingDisplay(in: host.view.bounds) else { return false }
         host.view.cacheDisplay(in: host.view.bounds, to: bitmap)
         guard let png = bitmap.representation(using: .png, properties: [:]) else { return false }
         return (try? png.write(to: URL(filePath: "\(directory)/\(name)-\(scheme).png"))) != nil
+    }
+
+    private static func report(_ line: String) {
+        FileHandle.standardError.write(Data((line + "\n").utf8))
+    }
+}
+
+private extension InboxNotification {
+    var asRead: InboxNotification {
+        var copy = self
+        copy.readAt = copy.readAt ?? copy.createdAt
+        return copy
     }
 }
 

@@ -112,4 +112,35 @@ struct ProfileToolbarLabelTests {
             #expect(resolved.accessibilityLabel == "Profile, \(long)")
         }
     }
+
+    @Test("the title bar asks for the marks, the toggle and the whole of a short name")
+    func titleBarFitsAShortName() {
+        #expect(ProfileToolbarLabel.menuWidthAtMinimum(forNameWidth: 46.3) == 91)
+        #expect(ProfileToolbarLabel.titleBarWidth(forNameWidth: 46.3) == 243)
+    }
+
+    @Test("a very short name still gets the smallest menu that reads as one")
+    func shortNameGetsTheSmallestMenu() {
+        #expect(ProfileToolbarLabel.menuWidthAtMinimum(forNameWidth: 8) == ProfileToolbarLabel.smallestMenuWithName)
+    }
+
+    @Test("a long name is truncated inside a capped menu rather than widening the sidebar without bound")
+    func longNameIsCapped() {
+        #expect(ProfileToolbarLabel.menuWidthAtMinimum(forNameWidth: 900) == ProfileToolbarLabel.widestMenuAtMinimum)
+        #expect(ProfileToolbarLabel.titleBarWidth(forNameWidth: 900) == 312)
+    }
+
+    @Test(
+        "a sidebar at the width its title bar asks for shows the name in the menu it asked for",
+        arguments: [CGFloat(8), 46.3, 105, 900]
+    )
+    func minimumShowsTheName(nameWidth: CGFloat) {
+        let resolved = ProfileToolbarLabel.resolve(
+            profileName: "Akira",
+            drawsSidebar: true,
+            sidebarWidth: ProfileToolbarLabel.titleBarWidth(forNameWidth: nameWidth)
+        )
+        #expect(resolved.menuWidth == ProfileToolbarLabel.menuWidthAtMinimum(forNameWidth: nameWidth))
+        #expect(!resolved.sitsOnGlass)
+    }
 }

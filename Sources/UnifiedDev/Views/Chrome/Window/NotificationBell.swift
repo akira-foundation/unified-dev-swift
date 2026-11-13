@@ -11,12 +11,12 @@ struct NotificationBellButton: View {
         Button {
             isShowing.toggle()
         } label: {
-            if let badge = NotificationBellReading.badge(unseen: inbox.unseen) {
-                Label(badge, systemImage: "bell.badge")
-                    .labelStyle(.titleAndIcon)
-            } else {
-                Image(systemName: "bell")
+            Label {
+                Text(NotificationBellReading.title(unseen: inbox.unseen))
+            } icon: {
+                NotificationBellIcon(badge: NotificationBellReading.badge(unseen: inbox.unseen))
             }
+            .labelStyle(.iconOnly)
         }
         .help("Notifications")
         .accessibilityLabel(NotificationBellReading.accessibilityLabel(unseen: inbox.unseen))
@@ -35,6 +35,21 @@ struct NotificationBellButton: View {
     }
 }
 
+struct NotificationBellIcon: View {
+    let badge: String?
+
+    var body: some View {
+        if let badge {
+            HStack(spacing: Metrics.spacingSmall) {
+                Image(systemName: "bell.badge")
+                Text(badge).monospacedDigit()
+            }
+        } else {
+            Image(systemName: "bell")
+        }
+    }
+}
+
 struct NotificationBellList: View {
     let rows: [InboxNotification]
     let profiles: [Profile]
@@ -42,30 +57,23 @@ struct NotificationBellList: View {
     let onOpen: (InboxNotification) -> Void
     let onMarkAll: () -> Void
 
+    @State private var contentHeight: CGFloat = 0
+
+    private var unseen: Int { NotificationInbox.unseenCount(rows) }
+
     var body: some View {
-        Group {
+        VStack(spacing: 0) {
+            header
             if rows.isEmpty {
-                ContentUnavailableView("No Notifications", systemImage: "bell")
+                ContentUnavailableView("No Notifications", systemImage: "bell.slash")
+                    .padding(.bottom)
             } else {
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(rows) { row in
-                            NotificationBellRow(
-                                reading: InboxRowReading(row, profileName: profile(of: row)?.name, now: now),
-                                isUnseen: row.counts,
-                                profile: profile(of: row),
-                                onOpen: { onOpen(row) }
-                            )
-                            Divider()
-                        }
-                    }
-                }
+                Divider()
+                list
             }
         }
-        .safeAreaInset(edge: .top, spacing: 0) {
-            header
-        }
-        .frame(width: 360, height: 420)
+        .frame(width: NotificationBellReading.popoverWidth)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private var header: some View {
@@ -73,11 +81,33 @@ struct NotificationBellList: View {
             Text("Notifications")
                 .font(.headline)
             Spacer()
-            Button("Mark All as Read", action: onMarkAll)
-                .buttonStyle(.borderless)
-                .disabled(NotificationInbox.unseenCount(rows) == 0)
+            if NotificationBellReading.offersMarkAllRead(unseen: unseen) {
+                Button("Mark All as Read", action: onMarkAll)
+                    .buttonStyle(.borderless)
+            }
         }
-        .padding(12)
+        .padding(.horizontal)
+        .padding(.vertical, 12)
+    }
+
+    private var list: some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                ForEach(rows) { row in
+                    NotificationBellRow(
+                        reading: InboxRowReading(row, profileName: profile(of: row)?.name, now: now),
+                        isUnseen: row.counts,
+                        profile: profile(of: row),
+                        onOpen: { onOpen(row) }
+                    )
+                    if row.id != rows.last?.id {
+                        Divider().padding(.leading)
+                    }
+                }
+            }
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
+        }
+        .frame(height: NotificationBellReading.listHeight(content: contentHeight))
     }
 
     private func profile(of row: InboxNotification) -> Profile? {
@@ -122,7 +152,7 @@ private struct NotificationBellRow: View {
                     }
                 }
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal)
             .padding(.vertical, 8)
             .contentShape(Rectangle())
             .opacity(reading.isDimmed ? 0.55 : 1)
