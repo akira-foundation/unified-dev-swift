@@ -12,6 +12,7 @@ enum BusyProbe {
     private static var busyCount: Int { ProbeHarness.count("--busy-workspaces", or: 5) }
     private static var seconds: Int { ProbeHarness.count("--busy-seconds", or: 60) }
     private static var writeEvery: Int { ProbeHarness.count("--busy-write-every", or: 2) }
+    private static var quietSelection: Bool { ProbeHarness.isPresent("--busy-quiet-selected") }
 
     static func schedule() {
         Task { @MainActor in await run() }
@@ -23,11 +24,17 @@ enum BusyProbe {
         guard busy.count == busyCount else {
             harness.fail("wanted \(busyCount) workspaces on disk and found \(busy.count)")
         }
-        if let first = busy.first { app.selection = .workspace(first.id) }
+        let quiet = app.workspaces.first { workspace in
+            !busy.contains { $0.id == workspace.id } && FileManager.default.fileExists(atPath: workspace.path)
+        }
+        if quietSelection, quiet == nil { harness.fail("wanted a quiet workspace on disk beside the busy ones") }
+        let selected = quietSelection ? quiet : busy.first
+        if let selected { app.selection = .workspace(selected.id) }
 
         let ticker = Task { @MainActor in
             while !Task.isCancelled {
                 await app.runDiffRefreshTick(activity: .foreground)
+                if quietSelection { await app.selectedModel?.refreshChanges(.quiet) }
                 try? await Task.sleep(for: .seconds(DiffRefreshSchedule.tick))
             }
         }
@@ -69,6 +76,9 @@ enum BusyProbe {
             "reloads": .integer(tally.reloads),
             "reloadsPerMinute": .number(Double(tally.reloads) / minutes),
             "inboxReloads": .integer(tally.inboxReloads),
+            "changeReads": .integer(tally.changeReads),
+            "changeGenerations": .integer(tally.changeGenerations),
+            "quietSelection": .bool(quietSelection),
             "inboxReloadsPerMinute": .number(Double(tally.inboxReloads) / minutes),
             "mainThreadCpuMs": .number(mainCPU * 1000),
             "mainThreadCpuMsPerMinute": .number(mainCPU * 1000 / minutes),

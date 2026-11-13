@@ -122,6 +122,7 @@ final class WorkspaceModel {
     var isLoadingChanges = false
     private(set) var hasReadChanges = false
     private(set) var changesGeneration = 0
+    @ObservationIgnored private var changesRecord = ChangesGeneration()
     @ObservationIgnored private var patches = PatchCache()
     @ObservationIgnored private var presentations = DiffPresentationCache()
     @ObservationIgnored private var panePositions: [TranscriptPaneState.Key: TranscriptPaneState] = [:]
@@ -1179,17 +1180,25 @@ final class WorkspaceModel {
 
         guard changesTask == task, !task.isCancelled else { return }
         changesTask = nil
-        isLoadingChanges = false
+        if isLoadingChanges { isLoadingChanges = false }
+        if !hasReadChanges { hasReadChanges = true }
 
         switch outcome {
         case .failure(let failure):
-            hasReadChanges = true
-            changesError = failure.message
+            if changesError != failure.message { changesError = failure.message }
 
         case .success(let answer):
-            hasReadChanges = true
-            changesGeneration &+= 1
-            reconcileCanvasDocuments()
+            #if DEBUG
+            ActivityTally.changeReads += 1
+            #endif
+            let snapshot = ChangesSnapshot(files: answer.files, revisions: answer.revisions, scope: scope)
+            if changesRecord.record(snapshot) {
+                changesGeneration = changesRecord.value
+                #if DEBUG
+                ActivityTally.changeGenerations += 1
+                #endif
+                reconcileCanvasDocuments()
+            }
             if changesError != nil { changesError = nil }
             if changedFiles != answer.files { changedFiles = answer.files }
             if viewedRevisions != answer.revisions { viewedRevisions = answer.revisions }
