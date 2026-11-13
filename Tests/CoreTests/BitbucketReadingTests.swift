@@ -77,7 +77,19 @@ struct BitbucketReadingTests {
         }
         #expect(failure.reason == .authentication)
         #expect(failure.message == Bitbucket.signedOutMessage)
+        #expect(failure.forge == .bitbucket)
+        #expect(failure.headline(hasPullRequest: false) == "Bitbucket could not refresh")
+        #expect(failure.headline(hasPullRequest: true) == "Showing the last Bitbucket update")
         #expect(await calls.seen.count == 1)
+    }
+
+    @Test("a failure read from gh still names GitHub")
+    func gitHubFailureHeadline() {
+        let failure = GitHubReadFailure(reason: .unavailable, message: "gh: HTTP 502")
+
+        #expect(failure.forge == .gitHub)
+        #expect(failure.headline(hasPullRequest: false) == "GitHub could not refresh")
+        #expect(failure.headline(hasPullRequest: true) == "Showing the last GitHub update")
     }
 
     @Test("a sign-in with no context of its own gets one made for it, bound to the repository's workspace")

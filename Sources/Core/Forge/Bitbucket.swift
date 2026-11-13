@@ -27,7 +27,9 @@ public enum Bitbucket {
         do {
             return PullRequestReading(try await snapshot(for: workspace, maxAge: maxAge))
         } catch {
-            return PullRequestReading(pullRequest: .unavailable(failure(error)), checks: nil)
+            var unread = Self.failure(error)
+            unread.forge = .bitbucket
+            return PullRequestReading(pullRequest: .unavailable(unread), checks: nil)
         }
     }
 

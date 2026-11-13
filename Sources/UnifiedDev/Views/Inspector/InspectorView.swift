@@ -35,7 +35,6 @@ struct InspectorView: View {
                 RefreshFailureRow(
                     failure: failure,
                     hasPullRequest: model.pullRequest != nil,
-                    worktree: model.workspace.path,
                     onDismiss: { WorkspacePullRequests.shared.dismissFailure(for: model.workspace.id) }
                 )
             }
@@ -115,14 +114,9 @@ struct InspectorView: View {
 private struct RefreshFailureRow: View {
     var failure: GitHubReadFailure
     var hasPullRequest: Bool
-    var worktree: String
     var onDismiss: @MainActor () -> Void
 
     @State private var isExpanded = false
-    @State private var forge: ForgeKind = .gitHub
-
-    private var hostName: String { forge.displayName }
-
     var body: some View {
         VStack(alignment: .leading, spacing: InspectorLayout.tight) {
             header
@@ -134,9 +128,6 @@ private struct RefreshFailureRow: View {
         .padding(.horizontal, InspectorLayout.inset)
         .padding(.vertical, Metrics.spacing)
         .accessibilityElement(children: .contain)
-        .task(id: worktree) {
-            forge = await Forge.kind(forDirectory: worktree)
-        }
     }
 
     private var header: some View {
@@ -148,10 +139,7 @@ private struct RefreshFailureRow: View {
                     Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                         .foregroundStyle(Palette.textTertiary)
                         .accessibilityHidden(true)
-                    Label(
-                        hasPullRequest ? "Showing the last \(hostName) update" : "\(hostName) could not refresh",
-                        systemImage: "exclamationmark.triangle"
-                    )
+                    Label(failure.headline(hasPullRequest: hasPullRequest), systemImage: "exclamationmark.triangle")
                     .lineLimit(1)
                 }
                 .font(Typo.caption)
