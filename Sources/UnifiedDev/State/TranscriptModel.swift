@@ -107,6 +107,12 @@ final class TranscriptModel {
 
     private(set) var backgroundWork: String?
 
+    #if DEBUG
+    func probeApply(_ signal: SubagentSignal) {
+        subagents.apply(signal)
+    }
+    #endif
+
     var draft = ""
 
     private(set) var pendingDeliveries: [Delivery] = []
