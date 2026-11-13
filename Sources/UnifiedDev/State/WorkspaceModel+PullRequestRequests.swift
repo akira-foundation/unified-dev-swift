@@ -12,7 +12,8 @@ extension WorkspaceModel {
             pullRequest: pullRequest,
             localWork: localWork,
             hasRemote: hasRemote ?? true,
-            continued: continued
+            continued: continued,
+            checkRuns: checkRuns?.runs ?? []
         )
     }
 

@@ -10,7 +10,8 @@ public extension PullRequestStanding {
         pullRequest: PullRequest?,
         localWork: LocalWork? = nil,
         hasRemote: Bool = true,
-        continued: ContinuedBranch? = nil
+        continued: ContinuedBranch? = nil,
+        checkRuns: [CheckRun] = []
     ) -> PullRequestStanding {
         let count = aheadSentence(ahead, base: baseBranch, isCapped: aheadIsCapped)
 
@@ -37,7 +38,7 @@ public extension PullRequestStanding {
         if pullRequest.isMerged { return merged(pullRequest, baseBranch: target) }
         if pullRequest.isClosed { return closed(pullRequest) }
 
-        return open(pullRequest, baseBranch: target, localWork: localWork)
+        return open(pullRequest, baseBranch: target, localWork: localWork, checkRuns: checkRuns)
     }
 
     private static func withoutPullRequest(
@@ -108,7 +109,8 @@ public extension PullRequestStanding {
     private static func open(
         _ pullRequest: PullRequest,
         baseBranch: String,
-        localWork: LocalWork?
+        localWork: LocalWork?,
+        checkRuns: [CheckRun]
     ) -> PullRequestStanding {
         let status = pullRequest.status(local: localWork)
         let act = act(for: status.remedy, checks: pullRequest.checks)
@@ -119,7 +121,7 @@ public extension PullRequestStanding {
 
         return PullRequestStanding(
             headline: pullRequest.title,
-            secondary: secondary(status, pullRequest, baseBranch: baseBranch),
+            secondary: secondary(status, pullRequest, baseBranch: baseBranch, checkRuns: checkRuns),
             number: pullRequest.number,
             url: pullRequest.url,
             state: status.text,
@@ -145,7 +147,7 @@ public extension PullRequestStanding {
     }
 
     private static func secondary(
-        _ status: PullRequestStatus, _ pullRequest: PullRequest, baseBranch: String
+        _ status: PullRequestStatus, _ pullRequest: PullRequest, baseBranch: String, checkRuns: [CheckRun]
     ) -> String {
         if pullRequest.hasConflicts { return "This branch conflicts with \(baseBranch)" }
 
@@ -160,7 +162,9 @@ public extension PullRequestStanding {
         }
 
         switch pullRequest.checks {
-        case .failing, .pending, .unavailable:
+        case .pending:
+            return ChecksInFlight.line(checkRuns) ?? detail ?? status.text
+        case .failing, .unavailable:
             return detail ?? status.text
         case .passing, .none:
             return [detail, status.text == "Ready to merge"
