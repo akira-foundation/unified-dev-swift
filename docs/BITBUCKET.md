@@ -58,6 +58,12 @@ hold two different Bitbucket Cloud sign-ins by pointing `BKT_CONFIG_DIR` at two 
 way `GH_CONFIG_DIR` does for `gh`. Sign-in per profile has to carry the token itself, through
 `BKT_TOKEN`, from the profile's own Keychain item. That is the next piece of work, not this one.
 
+The welcome window's setup check lists the Bitbucket CLI after the GitHub CLI, for everybody and as
+optional: missing or signed out, it offers `brew install bitbucket-cli` and then
+`bkt auth login https://bitbucket.org --kind cloud --web`, and the window still reads as all set
+without it. Signed in means `bkt auth status --json` lists a Cloud host, the same reading the bar
+makes.
+
 ## Contexts
 
 Every `bkt` command that touches a repository needs a context, a named binding of a host to a
@@ -66,7 +72,9 @@ workspace; `bkt auth login` creates none, and with no context `bkt pr list` answ
 reads a repository, naming the active Bitbucket Cloud context, or the first one bound to
 `api.bitbucket.org`. When there is
 none it creates one called `unifieddev` with `bkt context create unifieddev --host
-api.bitbucket.org`, once. bkt makes a new context the active one only when no context is active,
+api.bitbucket.org --workspace <owner>`, once, naming the workspace from the remote: bkt refuses a
+Cloud context without `--workspace`, measured on 0.38.1 with `--workspace is required for Bitbucket
+Cloud contexts`. bkt makes a new context the active one only when no context is active,
 so a terminal already pointed at another context keeps it. The workspace and the repository are not taken from the context: the
 app names them in the path it asks for, from the remote.
 
