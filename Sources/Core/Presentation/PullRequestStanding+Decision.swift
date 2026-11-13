@@ -152,18 +152,19 @@ public extension PullRequestStanding {
         if pullRequest.hasConflicts { return "This branch conflicts with \(baseBranch)" }
 
         let detail = status.detail.flatMap { $0.isEmpty ? nil : $0 }
+        let inFlight = pullRequest.checks == .pending ? ChecksInFlight.line(checkRuns) : nil
         switch status.remedy {
         case .push, .commitAndPush:
             return detail ?? status.text
         case .markReadyForReview:
-            return ["Draft", detail].compactMap { $0 }.joined(separator: ", ")
+            return ["Draft", inFlight ?? detail].compactMap { $0 }.joined(separator: ", ")
         case .fixConflicts, .merge:
             break
         }
 
         switch pullRequest.checks {
         case .pending:
-            return ChecksInFlight.line(checkRuns) ?? detail ?? status.text
+            return inFlight ?? detail ?? status.text
         case .failing, .unavailable:
             return detail ?? status.text
         case .passing, .none:
