@@ -99,6 +99,15 @@ struct QuotaReportSilentHolderTests {
 
         #expect(readings.unanswered.isEmpty)
     }
+
+    @Test("an agent that has gone forgets when it last reported")
+    func anAbsentAgentForgetsItsStamp() {
+        var readings = QuotaReadings()
+        readings.adopt(QuotaReport(lastReported: [.codex: now], holders: [.codex: codexClient]))
+        readings.adopt(QuotaReport(holders: [.codex: codexClient]))
+
+        #expect(readings.lastReported.isEmpty)
+    }
 }
 
 @Suite("Rules that keep one account's numbers from another's")
@@ -169,6 +178,19 @@ struct QuotaAccountRulesTests {
         let shown = QuotaShown.make(stored: [], readings: readings, scope: scope(claudeUltra), reading: [claudeUltra])
 
         #expect(shown.pending.isEmpty)
+    }
+
+    @Test("an agent known only by a plan or a last report is shown as being read for a new account", arguments: [
+        QuotaReport(accounts: [AgentAccount(provider: .claudeCode, observedAt: now)], holders: [.claudeCode: claudeClient]),
+        QuotaReport(lastReported: [.claudeCode: now], holders: [.claudeCode: claudeClient]),
+    ])
+    func anAgentHeardFromIsPending(report: QuotaReport) {
+        var readings = QuotaReadings()
+        readings.adopt(report)
+
+        let shown = QuotaShown.make(stored: [], readings: readings, scope: scope(claudeUltra), reading: [claudeUltra])
+
+        #expect(shown.pending == [.claudeCode])
     }
 
     @Test("a seeded reading for a named account has an id of its own")
