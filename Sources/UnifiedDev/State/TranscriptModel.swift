@@ -79,6 +79,11 @@ final class TranscriptModel {
     var isAwaitingPermission: Bool { storedIsAwaitingPermission }
     private var storedIsAwaitingPermission = false
     private(set) var isLoaded = false
+    @ObservationIgnored private var rowsReleased = false
+    @ObservationIgnored private var releasedNotes: [Int: String] = [:]
+    @ObservationIgnored private var viewers = 0
+    @ObservationIgnored private var lastShown = 0
+    @ObservationIgnored private static var showings = 0
 
     private(set) var contextUsage: ContextWindowUsage?
 
@@ -126,7 +131,7 @@ final class TranscriptModel {
     }
 
     var hasNothingToShow: Bool {
-        rows.allSatisfy { AppRequest.isHidden(kind: $0.kind, payload: $0.payload) }
+        !rowsReleased && rows.allSatisfy { AppRequest.isHidden(kind: $0.kind, payload: $0.payload) }
             && sending == nil && Delivery.messages(in: pendingDeliveries).isEmpty
     }
 
@@ -302,6 +307,11 @@ final class TranscriptModel {
 
     func load() async {
         guard let store, !isLoaded else {
+            if let store, rowsReleased {
+                await loader.run { [self] in await restoreRows(from: store) }
+                await appendLatestMessages()
+                return
+            }
             SwitchTrace.mark("transcript.reused", workspace: workspace?.id)
             SwitchTrace.markOnScreen("transcript.reused", workspace: workspace?.id)
             return
@@ -313,35 +323,8 @@ final class TranscriptModel {
         SwitchTrace.mark("transcript.read.start", workspace: workspace?.id)
         let messages = (try? await store.messages(sessionID: session.id)) ?? []
         SwitchTrace.mark("transcript.read.done", workspace: workspace?.id)
-        let decisions = (try? await store.permissionAskDecisions(sessionID: session.id)) ?? [:]
-        let answers = (try? await store.permissionAskAnswers(sessionID: session.id)) ?? [:]
-        let inWorkspace = session.workspaceID != nil
-
-        let built = await Task.detached(priority: .userInitiated) {
-            var rows: [TranscriptRow] = []
-            var index: [String: Int] = [:]
-            var highestMessageSeq = -1
-            for message in messages {
-                highestMessageSeq = max(highestMessageSeq, message.seq)
-                Self.absorb(
-                    DecidedMessage(message),
-                    decisions: decisions,
-                    answers: answers,
-                    inWorkspace: inWorkspace,
-                    into: &rows,
-                    indexByRefID: &index
-                )
-            }
-            return (rows: rows, index: index, highestMessageSeq: highestMessageSeq)
-        }.value
-
-        foldCache.reset()
-        freshCalls = []
-        questionIndex = PinnedQuestionIndex()
-        rows = built.rows
-        presentationRevision += 1
-        indexByRefID = built.index
-        highestSeenMessageSeq = built.highestMessageSeq
+        let built = await builtRows(from: messages, store: store)
+        adopt(built)
 
         let unread = firstUnreadSeq
         Task.detached(priority: .utility) { [rows = built.rows, worktree = cwd] in
@@ -362,6 +345,92 @@ final class TranscriptModel {
         await history.load(store: store, sessionID: session.id, workspaceID: workspace?.id)
         if workspace != nil { await history.cleanupRetired(store: store, sessionID: session.id, cwd: cwd) }
         isLoaded = true
+    }
+
+    private typealias BuiltRows = (rows: [TranscriptRow], index: [String: Int], highestMessageSeq: Int)
+
+    private func builtRows(from messages: [Message], store: Store) async -> BuiltRows {
+        let decisions = (try? await store.permissionAskDecisions(sessionID: session.id)) ?? [:]
+        let answers = (try? await store.permissionAskAnswers(sessionID: session.id)) ?? [:]
+        let inWorkspace = session.workspaceID != nil
+        return await Task.detached(priority: .userInitiated) {
+            var rows: [TranscriptRow] = []
+            var index: [String: Int] = [:]
+            var highestMessageSeq = -1
+            for message in messages {
+                highestMessageSeq = max(highestMessageSeq, message.seq)
+                Self.absorb(
+                    DecidedMessage(message),
+                    decisions: decisions,
+                    answers: answers,
+                    inWorkspace: inWorkspace,
+                    into: &rows,
+                    indexByRefID: &index
+                )
+            }
+            return (rows: rows, index: index, highestMessageSeq: highestMessageSeq)
+        }.value
+    }
+
+    private func adopt(_ built: BuiltRows) {
+        foldCache.reset()
+        freshCalls = []
+        questionIndex = PinnedQuestionIndex()
+        rows = built.rows
+        presentationRevision += 1
+        indexByRefID = built.index
+        highestSeenMessageSeq = built.highestMessageSeq
+        rowsReleased = false
+        releasedNotes = [:]
+    }
+
+    var retention: TranscriptRetention.Chat {
+        TranscriptRetention.Chat(
+            session: session.id,
+            workspace: workspace?.id,
+            holdsRows: isLoaded && !rowsReleased && !rows.isEmpty,
+            isShown: viewers > 0,
+            isBusy: isRunning || isAwaitingPermission || isStreaming || sending != nil
+                || !pendingDeliveries.isEmpty || subagents.isWorking || history.isFinalisingTurn,
+            lastShown: lastShown
+        )
+    }
+
+    func beginShowing() {
+        viewers += 1
+        Self.showings += 1
+        lastShown = Self.showings
+    }
+
+    func endShowing() {
+        viewers = max(0, viewers - 1)
+    }
+
+    func releaseRows() {
+        guard isLoaded, !rowsReleased else { return }
+        releasedNotes = Dictionary(
+            rows.filter { !$0.permissionNote.isEmpty }.map { ($0.seq, $0.permissionNote) }
+        ) { first, _ in first }
+        rows = []
+        indexByRefID = [:]
+        foldCache.reset()
+        freshCalls = []
+        questionIndex = PinnedQuestionIndex()
+        presentationRevision += 1
+        rowsReleased = true
+    }
+
+    private func restoreRows(from store: Store) async {
+        guard rowsReleased else { return }
+        let ceiling = highestSeenMessageSeq
+        guard let stored = try? await store.messages(sessionID: session.id) else { return }
+        let built = await builtRows(from: stored.filter { $0.seq <= ceiling }, store: store)
+        guard rowsReleased else { return }
+        var restored = built.rows
+        for index in restored.indices {
+            if let note = releasedNotes[restored[index].seq] { restored[index].permissionNote = note }
+        }
+        adopt((rows: restored, index: built.index, highestMessageSeq: max(ceiling, built.highestMessageSeq)))
     }
 
     nonisolated private static func absorb(
@@ -2020,6 +2089,8 @@ final class TranscriptModel {
         await loader.wait()
         let fresh = await latestDecided(from: store, announced: announced)
         guard !fresh.isEmpty else { return }
+        if rowsReleased { await loader.run { [self] in await restoreRows(from: store) } }
+        guard !rowsReleased else { return }
         let appendedFrom = rows.count
         var calls: [String] = []
         for decided in fresh where decided.message.seq > highestSeenMessageSeq {

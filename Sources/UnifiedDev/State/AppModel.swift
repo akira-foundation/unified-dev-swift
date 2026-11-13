@@ -51,6 +51,7 @@ final class AppModel {
                 noteSubagentsChanged(workspaceID: id)
             }
             SwitchTrace.mark("selection.set")
+            scheduleTranscriptRelease()
             if let id = newValue.workspaceID { workspaceModels[id]?.refreshSettings() }
             guard let id = newValue.workspaceID, workspaceModels[id] == nil,
                   let workspace = workspaces.first(where: { $0.id == id }) else {
@@ -108,6 +109,7 @@ final class AppModel {
     @ObservationIgnored var spendAccountsSpan: SpendSpan?
     @ObservationIgnored var spendIndexTask: Task<Void, Never>?
     @ObservationIgnored var archiveRetentionTask: Task<Void, Never>?
+    @ObservationIgnored var transcriptReleaseTask: Task<Void, Never>?
     @ObservationIgnored var spendIndexer: SpendIndexer?
     @ObservationIgnored var lastSpendReadAt: Date?
     var homeFilter = HomeFilter(scope: .archived)

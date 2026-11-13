@@ -126,6 +126,7 @@ final class WorkspaceModel {
     private(set) var changesGeneration = 0
     @ObservationIgnored private var changesRecord = ChangesGeneration()
     @ObservationIgnored private var patches = PatchCache()
+    @ObservationIgnored private var releasedHeldFiles = false
     @ObservationIgnored private var presentations = DiffPresentationCache()
     @ObservationIgnored private var panePositions: [TranscriptPaneState.Key: TranscriptPaneState] = [:]
     @ObservationIgnored private var transcriptPlaceWrite: Task<Void, Never>?
@@ -224,6 +225,7 @@ final class WorkspaceModel {
     private(set) var settings = RepoSettings()
 
     func refreshSettings() {
+        releasedHeldFiles = false
         guard settingsRefresh.request() else { return }
         settingsTask = Task { [weak self] in await self?.drainSettingsRefreshes() }
     }
@@ -481,6 +483,19 @@ final class WorkspaceModel {
 
     func existingTranscript(for sessionID: SessionID) -> TranscriptModel? {
         transcripts[sessionID]
+    }
+
+    var openTranscripts: [TranscriptModel] {
+        Array(transcripts.values)
+    }
+
+    func releaseHeldFiles() {
+        guard !releasedHeldFiles else { return }
+        releasedHeldFiles = true
+        patches = PatchCache()
+        presentations = DiffPresentationCache()
+        let path = workspace.path
+        Task { await FileIndex.shared.invalidate(workspacePath: path) }
     }
 
     func prepareTranscript(for sessionID: SessionID) {
