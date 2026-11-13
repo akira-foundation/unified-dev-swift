@@ -203,8 +203,4 @@ extension GitHub {
         }
         return nil
     }
-
-    public static func readPullRequest(for workspace: Workspace, maxAge: Duration = .zero) async -> PullRequestRead {
-        do { return .current(try await pullRequest(for: workspace, maxAge: maxAge)) } catch { return .unavailable(.classify(error)) }
-    }
 }

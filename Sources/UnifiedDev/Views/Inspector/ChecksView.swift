@@ -4,8 +4,6 @@ import Core
 struct ChecksView: View {
     let model: WorkspaceModel
 
-    private static let pollInterval = Duration.seconds(20)
-
     @State private var runs: [CheckRun] = []
     @State private var groups: [CheckRunGroup] = []
     @State private var hasLoaded = false
@@ -31,6 +29,7 @@ struct ChecksView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .task(id: "\(model.workspace.id)|\(reload)") { await poll() }
+        .onChange(of: model.checkRuns, initial: true) { _, read in show(read) }
     }
 
     private var list: some View {
@@ -183,19 +182,23 @@ struct ChecksView: View {
         }
     }
 
+    private func show(_ read: CheckRunsRead?) {
+        checksUnavailable = read == .unreadable
+        runs = read?.runs ?? []
+        groups = CheckRunGroup.build(from: runs)
+    }
+
     private func poll() async {
+        let reader = PullRequestReader.checksTab
         while !Task.isCancelled {
             let state = await GitHubAvailability.shared.check(directory: model.workspace.path)
             github = state
 
             if state == .ready {
-                let found = await GitHubBridge.checks(for: model.workspace)
-                checksUnavailable = found == nil
-                runs = found ?? []
-                groups = CheckRunGroup.build(from: runs)
+                await model.refreshPullRequest(maxAge: reader.maxAge)
             }
             hasLoaded = true
-            try? await Task.sleep(for: Self.pollInterval)
+            try? await Task.sleep(for: reader.interval)
         }
     }
 }
