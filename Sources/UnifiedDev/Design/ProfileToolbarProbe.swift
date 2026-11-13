@@ -43,16 +43,24 @@ enum ProfileToolbarProbe {
         symbol: "building.2"
     )
 
-    private static let scenes = [
+    private static func minimum(_ profile: Profile) -> CGFloat {
+        ProfileToolbarLabel.titleBarWidth(forNameWidth: ProfileSwitcherMenu.nameWidth(profile.name))
+    }
+
+    private static var scenes: [Scene] { [
         Scene(name: "open", profiles: [unified, akira], active: akira.id),
         Scene(name: "collapsed", profiles: [unified, akira], active: akira.id, drawsSidebar: false),
         Scene(name: "one-profile", profiles: [unified], active: unified.id),
         Scene(name: "long-name", profiles: [unified, longNamed], active: longNamed.id),
         Scene(name: "long-name-wide", profiles: [unified, longNamed], active: longNamed.id, sidebarWidth: 340),
-        Scene(name: "smallest-with-name", profiles: [unified, akira], active: akira.id, sidebarWidth: 226),
-        Scene(name: "minimum", profiles: [unified, akira], active: akira.id, sidebarWidth: 200),
+        Scene(name: "minimum-unified", profiles: [unified, akira], active: unified.id, sidebarWidth: minimum(unified)),
+        Scene(name: "minimum-akira", profiles: [unified, akira], active: akira.id, sidebarWidth: minimum(akira)),
+        Scene(
+            name: "minimum-long-name", profiles: [unified, longNamed], active: longNamed.id,
+            sidebarWidth: minimum(longNamed)
+        ),
         Scene(name: "full-screen-bar-hidden", profiles: [unified, akira], active: akira.id, barIsHidden: true),
-    ]
+    ] }
 
     private static func run() async {
         try? FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)

@@ -15,6 +15,7 @@ struct RootView: View {
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var centreWidth: CGFloat = 0
     @State private var sidebarWidth = Metrics.sidebarWidth
+    @State private var sidebarFooterWidth: CGFloat = 0
     @State private var fullScreenBarIsHidden = false
     @State private var isStartingProject = false
 
@@ -25,11 +26,12 @@ struct RootView: View {
             NavigationSplitView(columnVisibility: $columnVisibility) {
                 SidebarView()
                     .navigationSplitViewColumnWidth(
-                        min: UnifiedDevApp.sidebarMinimumWidth,
-                        ideal: Metrics.sidebarWidth,
+                        min: widths.sidebarMinimum,
+                        ideal: max(Metrics.sidebarWidth, widths.sidebarMinimum),
                         max: columns.sidebarCeiling
                     )
                     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { sidebarWidth = $0 }
+                    .onPreferenceChange(SidebarFooterWidth.self) { sidebarFooterWidth = $0 }
                     .toolbar {
                         if columns.drawsSidebar, fullScreenBarIsHidden {
                             ProfileSwitcherToolbar(
@@ -245,9 +247,16 @@ struct RootView: View {
             reservesInspectorRoom: app.selectedWorkspace != nil,
             hidesSidebar: app.isSidebarHidden,
             hidesInspector: app.inspectorVisibility.hidesInspector,
-            widths: UnifiedDevApp.widths,
+            widths: widths,
             availableWidth: availableWidth
         )
+    }
+
+    private var widths: WindowWidths {
+        let titleBar = app.activeProfile.map {
+            ProfileToolbarLabel.titleBarWidth(forNameWidth: ProfileSwitcherMenu.nameWidth($0.name))
+        }
+        return UnifiedDevApp.widths.holding(sidebarContent: [titleBar, sidebarFooterWidth].compactMap { $0 })
     }
 
     private func confirmArchive(_ request: ArchiveRequest) {

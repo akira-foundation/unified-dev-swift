@@ -5,6 +5,10 @@ public struct ProfileToolbarLabel: Equatable, Sendable {
 
     public static let smallestMenuWithName: CGFloat = 74
 
+    public static let menuBesideName: CGFloat = 44
+
+    public static let widestMenuAtMinimum: CGFloat = 160
+
     public let menuWidth: CGFloat?
 
     public let sitsOnGlass: Bool
@@ -19,15 +23,24 @@ public struct ProfileToolbarLabel: Equatable, Sendable {
         isFullScreen && trafficLightsOpacity < 0.5
     }
 
+    public static func menuWidthAtMinimum(forNameWidth nameWidth: CGFloat) -> CGFloat {
+        min(max((nameWidth + menuBesideName).rounded(.up), smallestMenuWithName), widestMenuAtMinimum)
+    }
+
+    public static func titleBarWidth(forNameWidth nameWidth: CGFloat) -> CGFloat {
+        occupiedBesideMenu + menuWidthAtMinimum(forNameWidth: nameWidth)
+    }
+
     public static func resolve(profileName: String, drawsSidebar: Bool, barIsHidden: Bool = false, sidebarWidth: CGFloat) -> ProfileToolbarLabel {
         let room = (sidebarWidth - occupiedBesideMenu).rounded(.down)
-        let showsName = drawsSidebar && !barIsHidden && room >= smallestMenuWithName
+        let showsName = drawsSidebar && !barIsHidden
+        let menu = max(room, smallestMenuWithName)
         return ProfileToolbarLabel(
-            menuWidth: showsName ? room : nil,
+            menuWidth: showsName ? menu : nil,
             sitsOnGlass: !showsName,
             help: "Switch profile, \(profileName)",
             accessibilityLabel: "Profile, \(profileName)",
-            measureKey: "\(profileName)|\(showsName ? room : 0)|\(barIsHidden)"
+            measureKey: "\(profileName)|\(showsName ? menu : 0)|\(barIsHidden)"
         )
     }
 }
