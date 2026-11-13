@@ -43,6 +43,10 @@ public final class WorktreeWatcher: Sendable {
         }
     }
 
+    var isWatching: Bool {
+        watched.withLock { $0.stream != nil }
+    }
+
     public func watch(roots: [String], branches: [String: Set<String>] = [:]) {
         let wanted = Self.ordered(roots)
         watched.withLock { state in
@@ -109,9 +113,9 @@ public final class WorktreeWatcher: Sendable {
             Self.latency,
             flags
         ) else {
-            let code = errno
+            let restored = Self.reopenNullDevice(ifClosed: STDIN_FILENO)
             Self.log.error(
-                "could not watch \(roots.count, privacy: .public) roots: \(String(cString: strerror(code)), privacy: .public)"
+                "could not watch \(roots.count, privacy: .public) roots, standard input restored: \(restored, privacy: .public)"
             )
             return nil
         }
@@ -129,6 +133,17 @@ public final class WorktreeWatcher: Sendable {
     static func creationFlags(fileEvents: Bool) -> FSEventStreamCreateFlags {
         let flags = kFSEventStreamCreateFlagUseCFTypes | kFSEventStreamCreateFlagNoDefer
         return FSEventStreamCreateFlags(fileEvents ? flags | kFSEventStreamCreateFlagFileEvents : flags)
+    }
+
+    @discardableResult
+    static func reopenNullDevice(ifClosed descriptor: Int32) -> Bool {
+        guard fcntl(descriptor, F_GETFD) == -1 else { return false }
+        let opened = open("/dev/null", O_RDWR)
+        guard opened >= 0 else { return false }
+        guard opened != descriptor else { return true }
+        let moved = dup2(opened, descriptor) == descriptor
+        close(opened)
+        return moved
     }
 
     private static func tearDown(_ stream: FSEventStreamRef?) {

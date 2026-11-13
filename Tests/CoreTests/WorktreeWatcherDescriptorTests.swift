@@ -4,24 +4,44 @@ import Testing
 
 @Suite("Worktree watcher descriptors", .serialized)
 struct WorktreeWatcherDescriptorTests {
+    private struct Fixture {
+        let base: URL
+        let roots: [String]
+
+        init(roots count: Int) throws {
+            let unique = FileManager.default.temporaryDirectory
+                .appending(path: "ud-watch-descriptors-\(UUID().uuidString)", directoryHint: .isDirectory)
+            try FileManager.default.createDirectory(at: unique, withIntermediateDirectories: true)
+            base = URL(filePath: WorktreeWatcher.resolve(unique.path), directoryHint: .isDirectory)
+            let nested = base.appending(path: "a/b/c/d", directoryHint: .isDirectory)
+            roots = try (0..<count).map { index in
+                let root = nested.appending(path: "root-\(index)", directoryHint: .isDirectory)
+                try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+                return root.path
+            }
+        }
+
+        func cleanUp() {
+            try? FileManager.default.removeItem(at: base)
+        }
+
+        func descriptorsInside() -> Int {
+            let prefix = base.path
+            return (0..<4096).filter { descriptor in
+                var path = [CChar](repeating: 0, count: Int(MAXPATHLEN))
+                guard fcntl(Int32(descriptor), F_GETPATH, &path) != -1 else { return false }
+                return String(cString: path).hasPrefix(prefix)
+            }.count
+        }
+    }
+
     private static func openDescriptors() -> Int {
         (0..<4096).filter { fcntl(Int32($0), F_GETFD) != -1 }.count
     }
 
     private static func standardInput() -> ino_t? {
         var status = stat()
-        return fstat(0, &status) == 0 ? status.st_ino : nil
-    }
-
-    private static func roots(_ count: Int) throws -> (base: URL, paths: [String]) {
-        let base = FileManager.default.temporaryDirectory
-            .appending(path: "ud-watch-descriptors-\(UUID().uuidString)/a/b/c/d", directoryHint: .isDirectory)
-        let paths = try (0..<count).map { index in
-            let root = base.appending(path: "root-\(index)", directoryHint: .isDirectory)
-            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-            return root.path
-        }
-        return (base, paths)
+        return fstat(STDIN_FILENO, &status) == 0 ? status.st_ino : nil
     }
 
     @Test("streams are created without watching the roots themselves")
@@ -33,37 +53,58 @@ struct WorktreeWatcherDescriptorTests {
         }
     }
 
-    @Test("watching many roots holds no descriptor per root")
+    @Test("a live stream over many roots holds no descriptor inside them")
     func watchingHoldsNoDescriptorPerRoot() throws {
-        let made = try Self.roots(30)
-        defer { try? FileManager.default.removeItem(at: made.base.deletingLastPathComponent().deletingLastPathComponent()) }
+        let fixture = try Fixture(roots: 30)
+        defer { fixture.cleanUp() }
         let watcher = WorktreeWatcher(onFilesChanged: { _ in }, onChange: { _ in })
         defer { watcher.stop() }
 
-        let before = Self.openDescriptors()
-        watcher.watch(roots: made.paths)
-        let watching = Self.openDescriptors()
+        watcher.watch(roots: fixture.roots)
 
-        #expect(watching - before < made.paths.count)
+        #expect(watcher.isWatching)
+        #expect(fixture.descriptorsInside() == 0)
     }
 
     @Test("rebuilding the streams for changing roots neither leaks descriptors nor touches standard input")
     func rebuildsDoNotLeak() throws {
-        let made = try Self.roots(12)
-        defer { try? FileManager.default.removeItem(at: made.base.deletingLastPathComponent().deletingLastPathComponent()) }
+        let fixture = try Fixture(roots: 12)
+        defer { fixture.cleanUp() }
         let watcher = WorktreeWatcher(onFilesChanged: { _ in }, onChange: { _ in })
-        let input = Self.standardInput()
+        let input = try #require(Self.standardInput())
 
-        watcher.watch(roots: made.paths)
+        watcher.watch(roots: fixture.roots)
         let settled = Self.openDescriptors()
         for round in 0..<60 {
-            watcher.watch(roots: Array(made.paths.dropFirst(round % made.paths.count)))
+            watcher.watch(roots: Array(fixture.roots.dropFirst(round % fixture.roots.count)))
         }
-        watcher.watch(roots: made.paths)
+        watcher.watch(roots: fixture.roots)
+        let watching = watcher.isWatching
         let after = Self.openDescriptors()
         watcher.stop()
 
-        #expect(after - settled < made.paths.count)
+        #expect(watching)
+        #expect(after - settled < 30)
         #expect(Self.standardInput() == input)
+    }
+
+    @Test("a closed descriptor is reopened on the null device, and an open one is left alone")
+    func reopensAClosedDescriptorOnTheNullDevice() throws {
+        let probe = open("/dev/null", O_RDONLY)
+        try #require(probe >= 0)
+        let spare = dup2(probe, 900)
+        close(probe)
+        try #require(spare == 900)
+        close(spare)
+        defer { close(spare) }
+
+        let reopened = WorktreeWatcher.reopenNullDevice(ifClosed: spare)
+        let again = WorktreeWatcher.reopenNullDevice(ifClosed: spare)
+
+        var status = stat()
+        var null = stat()
+        #expect(reopened)
+        #expect(!again)
+        #expect(fstat(spare, &status) == 0 && stat("/dev/null", &null) == 0 && status.st_rdev == null.st_rdev)
     }
 }
