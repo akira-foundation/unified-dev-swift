@@ -7,6 +7,7 @@ struct PullRequestBarLine: View {
     var worktree: String
 
     @State private var login: GitHubLogin?
+    @State private var forge = ForgeKind.gitHub
 
     private var github: GitHubAvailability.State {
         login.map { GitHubAvailability.shared.state(for: $0) } ?? .unknown
@@ -22,6 +23,7 @@ struct PullRequestBarLine: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityText)
         .task(id: worktree) {
+            forge = await Forge.kind(forDirectory: worktree)
             let resolved = await GitHub.login(forDirectory: worktree)
             login = resolved
             await GitHubAvailability.shared.check(login: resolved)
@@ -42,8 +44,8 @@ struct PullRequestBarLine: View {
                     .font(Typo.caption)
                     .monospacedDigit()
                     .fixedSize()
-                    .help("Open #\(number) on \(ForgeRepository.kind(ofRemote: url).displayName): \(standing.headline)")
-                    .accessibilityHint("Opens on \(ForgeRepository.kind(ofRemote: url).displayName)")
+                    .help("Open #\(number) on \(standing.hostName): \(standing.headline)")
+                    .accessibilityHint("Opens on \(standing.hostName)")
             }
         }
     }
@@ -80,7 +82,9 @@ struct PullRequestBarLine: View {
 
     private var aside: Aside {
         if let note = branchActions.note { return .sentence(note) }
-        if standing.number == nil, !standing.path.isEmpty, !github.isUsable { return .connectGitHub }
+        if forge == .gitHub, standing.number == nil, !standing.path.isEmpty, !github.isUsable {
+            return .connectGitHub
+        }
         return .sentence(standing.secondary)
     }
 

@@ -16,6 +16,11 @@ public enum Bitbucket {
 
     private static let readings = SharedReadings<ReadingKey, PullRequestSnapshot?>()
 
+    public static func readingIfHosted(for workspace: Workspace, maxAge: Duration) async -> PullRequestReading? {
+        guard await Forge.kind(forDirectory: workspace.path) == .bitbucket else { return nil }
+        return await readPullRequestAndChecks(for: workspace, maxAge: maxAge)
+    }
+
     public static func readPullRequestAndChecks(for workspace: Workspace, maxAge: Duration) async -> PullRequestReading {
         do {
             return PullRequestReading(try await snapshot(for: workspace, maxAge: maxAge))
@@ -36,16 +41,17 @@ public enum Bitbucket {
             guard let payload = try await pullRequest(
                 of: workspace, onBranch: head, in: repository, context: context
             ) else { return nil }
-            let runs = try await statuses(
+            let runs = try? await statuses(
                 of: payload.source?.commit?.hash, in: repository, context: context, directory: workspace.path
             )
-            return PullRequestSnapshot(pullRequest: payload.pullRequest(runs: runs), runs: runs)
+            return PullRequestSnapshot(pullRequest: payload.pullRequest(runs: runs), runs: runs ?? [])
         }
     }
 
     static func choose(
-        _ candidates: [BitbucketPullRequestPayload], createdAt: Date
+        _ found: [BitbucketPullRequestPayload], createdAt: Date
     ) -> BitbucketPullRequestPayload? {
+        let candidates = found.filter { $0.isFromFork != true }
         if let open = candidates.first(where: { $0.unifiedState == "OPEN" }) { return open }
         return candidates.first { candidate in
             guard let closed = BitbucketDates.parse(candidate.updatedOn) else { return false }
@@ -84,7 +90,7 @@ public enum Bitbucket {
             "api", "\(path(of: repository))/pullrequests",
             "--param", "q=source.branch.name=\"\(escaped)\"",
             "--param", "state=OPEN", "--param", "state=MERGED", "--param", "state=DECLINED",
-            "--param", "sort=-updated_on", "--param", "pagelen=10",
+            "--param", "sort=-updated_on", "--param", "pagelen=50",
             "--context", context,
         ]
     }
@@ -111,7 +117,7 @@ public enum Bitbucket {
     static func failure(_ error: Error) -> GitHubReadFailure {
         if let failure = error as? GitHubReadFailure { return failure }
         let message = String(describing: error)
-        let lower = message.lowercased()
+        let lower = ((error as? ShellError)?.stderr ?? message).lowercased()
         let authentication = lower.contains("401") || lower.contains("unauthorized")
             || lower.contains("bkt auth login") || lower.contains("token expired")
         return GitHubReadFailure(
@@ -148,7 +154,7 @@ public enum Bitbucket {
         let arguments = ["api", "\(path(of: repository))/pullrequests/\(number)", "--context", context]
         let result = try await run(arguments, directory: directory)
         guard result.ok else {
-            if result.stderr.contains("404") { return nil }
+            if (result.stderr + result.stdout).contains("404") { return nil }
             throw shellError(arguments, result: result)
         }
         return try decodePullRequest(result.stdout)

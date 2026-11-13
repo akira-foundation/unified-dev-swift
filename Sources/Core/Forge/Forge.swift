@@ -12,16 +12,16 @@ public enum Forge {
     }
 
     public static func repository(forDirectory directory: String) async -> ForgeRepository? {
-        let read: @Sendable () async -> ForgeRepository? = {
-            guard let remote = await baseRemoteURL(in: directory) else { return nil }
+        let read: @Sendable () async throws -> ForgeRepository? = {
+            guard let remote = try await baseRemoteURL(in: directory) else { return nil }
             return ForgeRepository.parse(remoteURL: remote)
         }
-        if remoteOverride != nil { return await read() }
+        if remoteOverride != nil { return try? await read() }
         return try? await repositories.value(for: directory, notOlderThan: rememberedFor, read: read)
     }
 
-    private static func baseRemoteURL(in directory: String) async -> String? {
+    private static func baseRemoteURL(in directory: String) async throws -> String? {
         if let remoteOverride { return await remoteOverride(directory) }
-        return (try? await Git.repositoryContext(in: directory))?.baseRemoteURL
+        return try await Git.repositoryContext(in: directory).baseRemoteURL
     }
 }

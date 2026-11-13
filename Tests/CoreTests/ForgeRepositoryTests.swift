@@ -46,6 +46,7 @@ struct ForgeRepositoryTests {
 
     @Test("a path that is not owner and name gives no repository", arguments: [
         "https://bitbucket.org/debtges", "https://bitbucket.org/debtges/ledger/src/main", "git@bitbucket.org:-x/ledger.git",
+        "git@bitbucket.org:../ledger.git", "git@bitbucket.org:debtges/...git",
     ])
     func malformedPaths(remote: String) {
         #expect(ForgeRepository.parse(remoteURL: remote) == nil)

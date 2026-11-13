@@ -113,7 +113,7 @@ public extension PullRequest {
 
     var status: PullRequestStatus {
         let decided = hostNeutralStatus
-        guard forge == .bitbucket, isOpen, !hasConflicts else { return decided }
+        guard forge == .bitbucket, !isMerged, !isClosed, !hasConflicts else { return decided }
         var held = decided
         held.canMerge = false
         held.blockedReason = Self.bitbucketMergeHeld
@@ -165,7 +165,7 @@ public extension PullRequest {
             detail: checksDetail,
             canMerge: !isMergeabilityUnknown,
             blockedReason: isMergeabilityUnknown
-                ? "GitHub is still checking this branch against the base branch."
+                ? "\(hostName) is still checking this branch against the base branch."
                 : nil
         )
     }
@@ -182,9 +182,9 @@ public extension PullRequest {
         guard !branch.isEmpty else { return nil }
         switch authority {
         case .project:
-            return "After merging, \(branch) will be deleted on GitHub. Your local branch stays."
+            return "After merging, \(branch) will be deleted on \(hostName). Your local branch stays."
         case .appOnly:
-            return "After merging, the agent leaves \(branch) on GitHub, unless the repository deletes merged branches"
+            return "After merging, the agent leaves \(branch) on \(hostName), unless the repository deletes merged branches"
                 + " itself. Your local branch stays."
         }
     }
@@ -193,7 +193,7 @@ public extension PullRequest {
         var warnings: [String] = []
         if let local, local.isAhead {
             warnings.append(
-                "GitHub does not have everything in this worktree: "
+                "\(hostName) does not have everything in this worktree: "
                     + Self.localDetail(local)
                     + ". None of that is part of what is merged, and the agent is told to leave it"
                     + " alone rather than commit it first."
@@ -234,7 +234,7 @@ public extension PullRequest {
     }
 
     private var checksDetail: String? {
-        if checks == .unavailable { return "GitHub did not let this token read check runs" }
+        if checks == .unavailable { return "\(hostName) did not let this token read check runs" }
         guard checks != .none, !checksSummary.isEmpty else { return nil }
         return checksSummary
     }

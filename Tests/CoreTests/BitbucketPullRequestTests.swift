@@ -135,6 +135,26 @@ struct BitbucketPullRequestTests {
         #expect(Bitbucket.choose([merged, open], createdAt: .distantPast)?.id == 5486)
     }
 
+    @Test("a fork's pull request from a branch of the same name is not this workspace's")
+    func ignoresForks() throws {
+        let fork = try Bitbucket.decodePullRequest(Self.pullRequestJSON(id: 5490, sourceRepository: "someone/aui"))
+        let own = try Bitbucket.decodePullRequest(Self.pullRequestJSON(id: 5400, state: "MERGED"))
+
+        #expect(Bitbucket.choose([fork], createdAt: .distantPast) == nil)
+        #expect(Bitbucket.choose([fork, own], createdAt: .distantPast)?.id == 5400)
+    }
+
+    @Test("a pull request with no page link still names Bitbucket, so its merge stays held")
+    func missingLinkStaysBitbucket() throws {
+        let json = Self.pullRequestJSON().replacingOccurrences(
+            of: #""links": {"html": {"href": "https://bitbucket.org/atlassian/aui/pull-requests/5486"}},"#, with: ""
+        )
+        let pullRequest = try Bitbucket.decodePullRequest(json).pullRequest(runs: [])
+
+        #expect(pullRequest.url == "https://bitbucket.org/atlassian/aui/pull-requests/5486")
+        #expect(!pullRequest.status.canMerge)
+    }
+
     @Test("a branch name reused after its pull request merged does not bring that pull request back")
     func ignoresStaleClosed() throws {
         let merged = try Bitbucket.decodePullRequest(
@@ -169,6 +189,14 @@ struct BitbucketPullRequestTests {
         #expect(draft.status.remedy == .merge)
         #expect(!draft.status.canMerge)
         #expect(pullRequest.hostName == "Bitbucket")
+    }
+
+    @Test("a state Bitbucket has not been seen to send still holds the merge")
+    func unknownStateHeld() throws {
+        let pullRequest = try Bitbucket.decodePullRequest(Self.pullRequestJSON(state: "QUEUED")).pullRequest(runs: [])
+
+        #expect(pullRequest.state == "UNKNOWN")
+        #expect(!pullRequest.status.canMerge)
     }
 
     @Test("a GitHub pull request still merges as it did")

@@ -62,27 +62,32 @@ way `GH_CONFIG_DIR` does for `gh`. Sign-in per profile has to carry the token it
 
 Every `bkt` command that touches a repository needs a context, a named binding of a host to a
 workspace; `bkt auth login` creates none, and with no context `bkt pr list` answers
-`no active context; run bkt context use <name>`. The app passes `--context` on every call, naming
-the active Bitbucket Cloud context, or the first one bound to `api.bitbucket.org`. When there is
+`no active context; run bkt context use <name>`. The app passes `--context` on every call that
+reads a repository, naming the active Bitbucket Cloud context, or the first one bound to
+`api.bitbucket.org`. When there is
 none it creates one called `unifieddev` with `bkt context create unifieddev --host
-api.bitbucket.org`, once. The workspace and the repository are not taken from the context: the
+api.bitbucket.org`, once. bkt makes a new context the active one only when no context is active,
+so a terminal already pointed at another context keeps it. The workspace and the repository are not taken from the context: the
 app names them in the path it asks for, from the remote.
 
 ## What the bar reads
 
 Reads go through `bkt api`, because the REST answers are what could be measured without a
-credential and `bkt pr view --json` returns the same field names inside a wrapper. Two calls per
-refresh, shared between the pull request bar and the checks tab:
+credential and `bkt pr view --json` returns the same field names inside a wrapper. Each refresh,
+shared between the pull request bar and the checks tab, runs `bkt auth status --json` and then:
 
 1. `/repositories/{workspace}/{repo}/pullrequests` with
    `q=source.branch.name="<branch>"`, the three states `OPEN`, `MERGED` and `DECLINED`, and
-   `sort=-updated_on`. Bitbucket answers only `OPEN` when no state is named. A branch name is
-   reused: `issue/10.2.x/upmerge` on `atlassian/aui` carried one open pull request and nine merged
-   ones, so an open one wins and a closed one counts only if it closed after the workspace was
-   made. With none on the branch and a number recorded on the workspace, the pull request is read
+   `sort=-updated_on`, one page of 50, which is the most Bitbucket returns. Bitbucket answers only
+   `OPEN` when no state is named, and `bkt api` sends every repeated `--param` and percent-encodes
+   them. A branch name is reused: `issue/10.2.x/upmerge` on `atlassian/aui` carried one open pull
+   request and nine merged ones, so an open one wins and a closed one counts only if it was last
+   updated after the workspace was made. A pull request from a fork whose branch has the same name
+   is somebody else's and is skipped. With none on the branch and a number recorded on the workspace, the pull request is read
    by number.
-2. `/repositories/{workspace}/{repo}/commit/{hash}/statuses` for the source commit. The 12
-   character hash a pull request reports is accepted.
+2. `/repositories/{workspace}/{repo}/commit/{hash}/statuses` for the source commit, one page of
+   100. The 12 character hash a pull request reports is accepted. When the statuses cannot be read
+   the pull request is still shown, with its checks unreadable.
 
 | Bitbucket | Unified Dev |
 | --- | --- |
@@ -94,7 +99,7 @@ refresh, shared between the pull request bar and the checks tab:
 | `author.nickname` | author |
 | source and destination `full_name` differ | from a fork |
 | a participant with `changes_requested`, or else one approved | `CHANGES_REQUESTED`, `APPROVED` |
-| `updated_on` of a merged or declined pull request | when it closed; Bitbucket records no `closed_on` |
+| `updated_on` of a merged or declined pull request | when it closed; Bitbucket records no `closed_on`, and `updated_on` also moves on a later comment |
 
 Bitbucket returns no mergeability with a pull request (`bkt pr mergeability` is a separate call
 and was not measured), so a conflict is not shown.
@@ -103,7 +108,7 @@ and was not measured), so a conflict is not shown.
 
 A commit status is `INPROGRESS`, `SUCCESSFUL`, `FAILED` or `STOPPED`, with a `key`, a `name`, a
 `url` and its timestamps. They become a check running, passed, failed and cancelled, and roll up
-exactly as GitHub's do. Bitbucket has no notion of a required status that the API returns, so
+exactly as GitHub's do, which counts a cancelled check, and so a stopped build, as failed. Bitbucket has no notion of a required status that the API returns, so
 every one counts as required.
 
 **Pipelines needs no second source.** Every Pipelines run writes a commit status of its own: on
@@ -129,4 +134,7 @@ for the same reason. Still to do, each against a real repository:
 - starting a workspace from a pull request with `bkt pr checkout <id>`, which adds a remote for a
   fork on its own;
 - a failed build's log for Ask to fix, from `bkt pipeline logs` for Pipelines only;
-- sign-in per profile in Profile Settings, as above.
+- sign-in per profile in Profile Settings, as above;
+- the readers that still ask `gh` whatever the host: the workspace list and merge tools of the
+  bridge, the pull request auto fix, and the check failure request. They find nothing on a
+  Bitbucket workspace, as they did before Bitbucket was read at all.

@@ -109,6 +109,15 @@ struct BitbucketReadingTests {
         #expect(found == nil)
     }
 
+    @Test("a branch with 401 in its name is not mistaken for a refused token")
+    func branchNamedLikeAStatus() {
+        let failure = Bitbucket.failure(
+            ShellError(command: "bkt api q=source.branch.name=\"fix-401\"", status: 1, stderr: "HTTP 500 Internal Server Error")
+        )
+
+        #expect(failure.reason == .unavailable)
+    }
+
     @Test("a refused token reads as a sign-in to redo", arguments: ["HTTP 401 Unauthorized", "token expired"])
     func refusedToken(stderr: String) {
         let failure = Bitbucket.failure(ShellError(command: "bkt api", status: 1, stderr: stderr))

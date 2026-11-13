@@ -81,13 +81,19 @@ struct BitbucketPullRequestPayload: Decodable {
         return head.caseInsensitiveCompare(base) != .orderedSame
     }
 
-    func pullRequest(runs: [CheckRun]) -> PullRequest {
-        let (checks, summary) = GitHub.rollup(runs)
+    var pageFallback: String {
+        let repository = destination?.repository?.fullName ?? ""
+        return "https://bitbucket.org/\(repository)/pull-requests/\(id ?? 0)"
+    }
+
+    func pullRequest(runs read: [CheckRun]?) -> PullRequest {
+        let runs = read ?? []
+        let (checks, summary) = read.map(GitHub.rollup) ?? (.unavailable, GitHub.checksUnavailableSummary)
         let closed = unifiedState == "MERGED" || unifiedState == "CLOSED"
         return PullRequest(
             number: id ?? 0,
             title: title ?? "",
-            url: links?.html?.href ?? "",
+            url: links?.html?.href ?? pageFallback,
             state: unifiedState,
             isDraft: draft ?? false,
             checks: checks,
@@ -99,8 +105,8 @@ struct BitbucketPullRequestPayload: Decodable {
             headCommit: source?.commit?.hash,
             author: author.flatMap { $0.nickname ?? $0.username ?? $0.displayName },
             isFromFork: isFromFork,
-            hasUnfinishedChecks: runs.contains { CheckState($0) == .running || CheckState($0) == .queued },
-            hasFixableCheckFailure: runs.contains { CheckState($0) == .failed }
+            hasUnfinishedChecks: read.map { _ in runs.contains { CheckState($0) == .running || CheckState($0) == .queued } },
+            hasFixableCheckFailure: read.map { _ in runs.contains { CheckState($0) == .failed } }
         )
     }
 }
