@@ -160,7 +160,7 @@ public enum Bitbucket {
         let arguments = ["api", "\(path(of: repository))/pullrequests/\(number)", "--context", context]
         let result = try await run(arguments, directory: directory)
         guard result.ok else {
-            if (result.stderr + result.stdout).contains(notFound) { return nil }
+            if printedStatus(of: result)?.hasPrefix(notFound) == true { return nil }
             throw shellError(arguments, result: result)
         }
         return try decodePullRequest(result.stdout)
@@ -173,11 +173,18 @@ public enum Bitbucket {
         let arguments = statusArguments(commit: commit, in: repository, context: context)
         let result = try await run(arguments, directory: directory)
         guard result.ok else {
-            let output = result.stderr + result.stdout
-            if refusals.contains(where: output.contains) { return nil }
+            let status = printedStatus(of: result) ?? ""
+            if refusals.contains(where: status.hasPrefix) { return nil }
             throw shellError(arguments, result: result)
         }
         return try decodeStatuses(result.stdout)
+    }
+
+    static func printedStatus(of result: ShellResult) -> String? {
+        (result.stderr + "\n" + result.stdout)
+            .split(whereSeparator: \.isNewline)
+            .first { $0.hasPrefix("Error: ") }
+            .map { String($0.dropFirst("Error: ".count)) }
     }
 
     private static func path(of repository: ForgeRepository) -> String {

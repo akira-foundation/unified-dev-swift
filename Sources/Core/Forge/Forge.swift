@@ -22,6 +22,7 @@ public enum Forge {
     private static let rememberedFor = Duration.seconds(300)
 
     @TaskLocal static var remoteOverride: (@Sendable (String) async -> String?)?
+    @TaskLocal static var otherRemotesOverride: [String] = []
 
     public static func kind(forDirectory directory: String) async -> ForgeKind {
         await repository(forDirectory: directory)?.kind ?? .gitHub
@@ -34,7 +35,7 @@ public enum Forge {
     public static func checkout(forDirectory directory: String) async -> ForgeCheckout? {
         if let remoteOverride {
             let remote = await remoteOverride(directory)
-            return ForgeCheckout(baseRemote: remote, remotes: remote.map { [$0] } ?? [])
+            return ForgeCheckout(baseRemote: remote, remotes: (remote.map { [$0] } ?? []) + otherRemotesOverride)
         }
         return try? await checkouts.value(for: directory, notOlderThan: rememberedFor) {
             let context = try await Git.repositoryContext(in: directory)

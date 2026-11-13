@@ -115,7 +115,7 @@ struct BitbucketFallbackTests {
     func failureMentioningFourOhFour() async {
         let reading = await read(workspace(number: 9999), calls: Calls()) { arguments in
             arguments[1].hasSuffix("/pullrequests/9999")
-                ? ShellResult(status: 1, stdout: "", stderr: "Error: 500 Internal Server Error: request 404a1f")
+                ? ShellResult(status: 1, stdout: "", stderr: "Error: 500 Internal Server Error: upstream said 404 Not Found")
                 : ShellResult(status: 0, stdout: Self.emptyPage, stderr: "")
         }
 
@@ -125,11 +125,25 @@ struct BitbucketFallbackTests {
         }
     }
 
+    @Test("a pull request from a fork this checkout pushes to is this workspace's")
+    func ownFork() async throws {
+        let fork = BitbucketPullRequestTests.pullRequestJSON(id: 5490, sourceRepository: "someone/aui")
+        let reading = await Forge.$otherRemotesOverride.withValue(["git@bitbucket.org:someone/aui.git"]) {
+            await read(workspace(), calls: Calls()) { arguments in
+                arguments[1].hasSuffix("/statuses")
+                    ? ShellResult(status: 0, stdout: Self.emptyPage, stderr: "")
+                    : ShellResult(status: 0, stdout: "{\"values\": [\(fork)]}", stderr: "")
+            }
+        }
+
+        #expect(try #require(pullRequest(of: reading)).number == 5490)
+    }
+
     @Test("a build list that fails for another reason is an error, not an empty list")
     func buildsFailLoudly() async {
         let reading = await read(workspace(), calls: Calls()) { arguments in
             if arguments[1].hasSuffix("/statuses") {
-                return ShellResult(status: 1, stdout: "", stderr: "Error: 502 Bad Gateway")
+                return ShellResult(status: 1, stdout: "", stderr: "Error: 502 Bad Gateway: body quoted 403 Forbidden")
             }
             return ShellResult(status: 0, stdout: "{\"values\": [\(BitbucketPullRequestTests.pullRequestJSON())]}", stderr: "")
         }
