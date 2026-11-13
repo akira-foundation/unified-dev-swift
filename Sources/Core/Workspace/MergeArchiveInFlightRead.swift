@@ -1,61 +1,63 @@
 import Foundation
 
 public enum MergeArchiveInFlightRead {
-    public typealias PullRequestLookup = @Sendable (_ branch: String, _ worktree: String) async throws
-        -> [BranchPullRequest]
+    private static let gitTimeout = Duration.seconds(20)
+    private static let branchPrefix = "refs/heads/"
 
-    public static func objection(
-        worktree: String,
-        mergedBranch: String?,
-        lookup: PullRequestLookup = { try await GitHub.branchPullRequests($0, worktree: $1) }
-    ) async -> String? {
+    public static func objection(worktree: String, mergedHead: String?) async -> String? {
         do {
-            let branches = try await branches(worktree: worktree, mergedBranch: mergedBranch, lookup: lookup)
-            return MergeArchiveInFlight.objection(branches)
+            let names = try await candidates(in: worktree)
+            guard names.count <= MergeArchiveInFlight.branchLimit else {
+                return MergeArchiveInFlight.tooManyBranches
+            }
+            let remoteTips = try await lines(
+                ["for-each-ref", "--format=%(objectname)", "refs/remotes"], in: worktree
+            )
+            var standings: [BranchInFlight] = []
+            for name in names {
+                let pullRequests = try await GitHub.pullRequestsWithHead(name, worktree: worktree)
+                let heads = await present(
+                    MergeArchiveInFlight.publishedHeads(pullRequests, mergedHead: mergedHead), in: worktree
+                )
+                let unpushed = try await Git.commitCount(
+                    of: branchPrefix + name, excluding: remoteTips + heads, in: worktree
+                )
+                standings.append(
+                    MergeArchiveInFlight.standing(branch: name, pullRequests: pullRequests, unpushedCommits: unpushed)
+                )
+            }
+            return MergeArchiveInFlight.objection(standings)
         } catch {
-            return "Unified Dev could not read the other branches of this worktree, so it cannot tell "
-                + "whether work is still in flight there."
+            return MergeArchiveInFlight.unreadable
         }
     }
 
-    static func branches(
-        worktree: String, mergedBranch: String?, lookup: PullRequestLookup
-    ) async throws -> [BranchInFlight] {
-        let reflog = try await Git.run(["reflog", "show", "--format=%gs", "HEAD"], in: worktree)
-        let current = try await Git.run(["symbolic-ref", "--quiet", "--short", "HEAD"], in: worktree)
-        let local = try await Git.check(
-            ["for-each-ref", "--format=%(refname:short)", "refs/heads"], in: worktree
+    static func candidates(in worktree: String) async throws -> [String] {
+        let reflog = try await lines(["reflog", "show", "--format=%gs", "HEAD"], in: worktree)
+        let head = try await Git.run(["symbolic-ref", "--quiet", "HEAD"], in: worktree, timeout: gitTimeout)
+        let local = try await lines(["for-each-ref", "--format=%(refname)", "refs/heads"], in: worktree)
+        return MergeArchiveInFlight.candidates(
+            checkedOut: MergeArchiveInFlight.checkedOutBranches(reflogSubjects: reflog.joined(separator: "\n")),
+            current: head.ok ? branchName(head.trimmed) : nil,
+            localBranches: Set(local.compactMap(branchName))
         )
-        let checkedOut = current.ok ? current.trimmed : nil
-        let names = MergeArchiveInFlight.candidates(
-            checkedOut: reflog.ok ? MergeArchiveInFlight.checkedOutBranches(reflogSubjects: reflog.stdout) : [],
-            current: checkedOut,
-            localBranches: Set(local.stdout.split(whereSeparator: \.isNewline).map(String.init)),
-            merged: mergedBranch ?? checkedOut ?? ""
-        )
-        var standings: [BranchInFlight] = []
-        for name in names {
-            let pullRequests = try await lookup(name, worktree)
-            let unpushed = try await unpushedCommits(
-                of: name, excluding: MergeArchiveInFlight.excludedHeads(pullRequests), in: worktree
-            )
-            standings.append(
-                MergeArchiveInFlight.standing(branch: name, pullRequests: pullRequests, unpushedCommits: unpushed)
-            )
-        }
-        return standings
     }
 
-    private static func unpushedCommits(
-        of branch: String, excluding heads: [String], in worktree: String
-    ) async throws -> Int {
+    private static func branchName(_ ref: String) -> String? {
+        ref.hasPrefix(branchPrefix) ? String(ref.dropFirst(branchPrefix.count)) : nil
+    }
+
+    private static func present(_ commits: [String], in worktree: String) async -> [String] {
         var known: [String] = []
-        for head in heads where Git.isCommitID(head) {
-            if await Git.revision(of: head, in: worktree) != nil { known.append(head) }
+        for commit in commits where Git.isCommitID(commit) {
+            if await Git.revision(of: commit, in: worktree) != nil { known.append(commit) }
         }
-        let count = try await Git.check(
-            ["rev-list", "--count", "refs/heads/\(branch)", "--not", "--remotes"] + known, in: worktree
-        )
-        return Int(count.trimmed) ?? 0
+        return known
+    }
+
+    private static func lines(_ arguments: [String], in worktree: String) async throws -> [String] {
+        let result = try await Git.run(arguments, in: worktree, timeout: gitTimeout)
+        guard result.ok else { throw Git.error(arguments, result.status, result.stderr, result.stdout) }
+        return result.stdout.split(whereSeparator: \.isNewline).map(String.init)
     }
 }

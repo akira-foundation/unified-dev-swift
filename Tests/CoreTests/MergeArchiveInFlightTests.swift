@@ -4,11 +4,14 @@ import Foundation
 
 @Suite("When a merged pull request would archive a worktree that still has work in flight")
 struct MergeArchiveInFlightTests {
+    private let nextStep = "Archive it by hand once that work is done."
+
     @Test("a merge with nothing else in flight raises no objection")
     func nothingInFlight() {
         let branches = [
             MergeArchiveInFlight.standing(
-                branch: "fix/579-a", pullRequests: [BranchPullRequest(number: 579, isOpen: false)], unpushedCommits: 0
+                branch: "fix/579-a", pullRequests: [PullRequestHeadMatch(number: 579, closedAt: Date())],
+                unpushedCommits: 0
             ),
             MergeArchiveInFlight.standing(branch: "develop", pullRequests: [], unpushedCommits: 0),
         ]
@@ -20,99 +23,109 @@ struct MergeArchiveInFlightTests {
     func openPullRequestsObject() {
         let branches = [
             MergeArchiveInFlight.standing(
-                branch: "fix/580-b", pullRequests: [BranchPullRequest(number: 580, isOpen: true)], unpushedCommits: 0
+                branch: "fix/580-b", pullRequests: [PullRequestHeadMatch(number: 580, closedAt: nil, isOpen: true)],
+                unpushedCommits: 0
             ),
             MergeArchiveInFlight.standing(
-                branch: "fix/579-a", pullRequests: [BranchPullRequest(number: 579, isOpen: true)], unpushedCommits: 3
+                branch: "fix/579-a", pullRequests: [PullRequestHeadMatch(number: 579, closedAt: nil, isOpen: true)],
+                unpushedCommits: 3
             ),
         ]
-        #expect(MergeArchiveInFlight.objection(branches) == "#579 and #580 are still open.")
-        #expect(MergeArchiveInFlight.objection(Array(branches.prefix(1))) == "#580 is still open.")
+        #expect(MergeArchiveInFlight.objection(branches) == "#579 and #580 are still open. \(nextStep)")
+        #expect(MergeArchiveInFlight.objection(Array(branches.prefix(1))) == "#580 is still open. \(nextStep)")
     }
 
     @Test("a local branch with commits not on its remote is named to the owner")
     func unpushedBranchObjects() {
         let one = MergeArchiveInFlight.standing(branch: "fix/453-local", pullRequests: [], unpushedCommits: 1)
         let two = MergeArchiveInFlight.standing(branch: "fix/454-local", pullRequests: [], unpushedCommits: 2)
-        let open = MergeArchiveInFlight.standing(
-            branch: "fix/583-c", pullRequests: [BranchPullRequest(number: 583, isOpen: true)], unpushedCommits: 0
-        )
-        #expect(MergeArchiveInFlight.objection([one]) == "fix/453-local has 1 commit that is not pushed.")
-        #expect(MergeArchiveInFlight.objection([open, one, two]) == """
-            #583 is still open. fix/453-local has 1 commit that is not pushed. \
-            fix/454-local has 2 commits that are not pushed.
+        #expect(MergeArchiveInFlight.objection([one, two]) == """
+            fix/453-local has 1 commit that is not pushed. \
+            fix/454-local has 2 commits that are not pushed. \(nextStep)
             """)
     }
 
-    @Test("the branches of a worktree come from its own checkouts, without the merged one or deleted ones")
+    @Test("the branches of a worktree are its checkouts and its current branch, if they still exist")
     func candidatesFromReflog() {
         let reflog = """
             checkout: moving from fix/580-b to fix/586-d
             commit: something
-            checkout: moving from develop to fix/580-b
-            checkout: moving from 1234abcd to develop
+            checkout: moving from 1234abcd to fix/580-b
             """
         let checkedOut = MergeArchiveInFlight.checkedOutBranches(reflogSubjects: reflog)
-        #expect(checkedOut == ["fix/586-d", "fix/580-b", "develop", "1234abcd"])
+        #expect(checkedOut == ["fix/586-d", "fix/580-b", "1234abcd"])
         #expect(MergeArchiveInFlight.candidates(
             checkedOut: checkedOut,
-            current: "fix/586-d",
-            localBranches: ["fix/586-d", "fix/580-b", "develop", "someone-elses"],
-            merged: "fix/586-d"
-        ) == ["fix/580-b", "develop"])
+            current: "renamed",
+            localBranches: ["fix/586-d", "renamed", "someone-elses"]
+        ) == ["renamed", "fix/586-d"])
     }
 
-    @Test("reading a real worktree objects to an open pull request and to an unpushed branch, not to a merged one")
-    func readsARealWorktree() async throws {
+    @Test("the merged commit counts as published for every branch, beside each branch's own pull request heads")
+    func publishedHeads() {
+        let pullRequests = [PullRequestHeadMatch(number: 1, closedAt: nil, headCommit: "aaa")]
+        #expect(MergeArchiveInFlight.publishedHeads(pullRequests, mergedHead: "bbb") == ["aaa", "bbb"])
+        #expect(MergeArchiveInFlight.publishedHeads([], mergedHead: nil).isEmpty)
+    }
+
+    @Test("a wait for a turn or a command keeps the merged commit until it is settled")
+    func waitsKeepTheMergedHead() {
+        let id = WorkspaceID("w588")
+        var waits = MergeArchiveWaits()
+        waits.record(.waitForCommand, for: id, pullRequest: 586, mergedHead: "abc")
+        #expect(waits.mergedHeads[id] == "abc")
+        _ = waits.settle(id, isAgentMidTurn: false, isCommandRunning: false, wasStopped: false)
+        #expect(waits.mergedHeads[id] == nil)
+        waits.record(.archiveAfterTurn, for: id, pullRequest: 586, mergedHead: "def")
+        #expect(waits.mergedHeads[id] == "def")
+    }
+
+    @Test("a real worktree with another open pull request and an unpushed branch is not archived")
+    func objectsInARealWorktree() async throws {
         let fixture = try await Fixture()
         defer { fixture.cleanUp() }
         try await fixture.branch("fix/579-open", push: true)
-        try await fixture.branch("fix/560-squashed", push: false)
-        let squashedTip = try await fixture.tip()
         try await fixture.branch("fix/453-local", push: false)
         try await fixture.branch("fix/586-merged", push: true)
+        try await fixture.git(["tag", "fix/586-merged"])
 
-        let lookup: MergeArchiveInFlightRead.PullRequestLookup = { branch, _ in
-            switch branch {
-            case "fix/579-open": [BranchPullRequest(number: 579, isOpen: true)]
-            case "fix/560-squashed": [BranchPullRequest(number: 560, isOpen: false, headCommit: squashedTip)]
-            case "fix/586-merged": [BranchPullRequest(number: 586, isOpen: false)]
-            default: []
-            }
-        }
-        let objection = await MergeArchiveInFlightRead.objection(
-            worktree: fixture.repo.path, mergedBranch: "fix/586-merged", lookup: lookup
-        )
-        #expect(objection == "#579 is still open. fix/453-local has 1 commit that is not pushed.")
-
-        try await fixture.git(["branch", "-D", "fix/453-local"])
-        let closedLookup: MergeArchiveInFlightRead.PullRequestLookup = { branch, worktree in
-            try await lookup(branch, worktree).map { BranchPullRequest(number: $0.number, isOpen: false, headCommit: $0.headCommit) }
-        }
-        #expect(await MergeArchiveInFlightRead.objection(
-            worktree: fixture.repo.path, mergedBranch: nil, lookup: closedLookup
-        ) == nil)
-    }
-
-    @Test("gh's answer for a branch reads open and merged pull requests with their heads")
-    func decodesGitHubAnswer() throws {
-        let json = #"[{"number":579,"state":"OPEN","headRefOid":"abc"},{"number":560,"state":"MERGED"},{"state":"OPEN"}]"#
-        #expect(try GitHub.decodeBranchPullRequests(from: Data(json.utf8)) == [
-            BranchPullRequest(number: 579, isOpen: true, headCommit: "abc"),
-            BranchPullRequest(number: 560, isOpen: false),
+        let objection = try await fixture.objection(mergedHead: nil, answers: [
+            "fix/579-open": #"[{"number":579,"state":"OPEN"}]"#,
+            "fix/586-merged": #"[{"number":586,"state":"MERGED"}]"#,
         ])
+        #expect(objection == "#579 is still open. fix/453-local has 1 commit that is not pushed. \(nextStep)")
     }
 
-    @Test("a lookup that fails holds the archive back rather than guessing")
-    func failedLookupObjects() async throws {
+    @Test("a real worktree whose other branches all landed is archived, squashed heads included")
+    func archivesWhenEverythingLanded() async throws {
         let fixture = try await Fixture()
         defer { fixture.cleanUp() }
-        try await fixture.branch("fix/579-open", push: true)
+        try await fixture.branch("fix/560-squashed", push: false)
+        let squashed = try await fixture.tip()
+        try await fixture.branch("fix/586-merged", push: false)
+        let merged = try await fixture.tip()
+
+        let missing = String(repeating: "f", count: 40)
+        let answers = [
+            "fix/560-squashed": #"[{"number":560,"state":"MERGED","headRefOid":"\#(squashed)"},"#
+                + #"{"number":561,"state":"CLOSED","headRefOid":"\#(missing)"}]"#,
+        ]
+        #expect(try await fixture.objection(mergedHead: merged, answers: answers) == nil)
+        #expect(try await fixture.objection(mergedHead: nil, answers: answers)
+            == "fix/586-merged has 1 commit that is not pushed. \(nextStep)")
+    }
+
+    @Test("a pull request read that fails holds the archive back and says so")
+    func failedReadObjects() async throws {
+        let fixture = try await Fixture()
+        defer { fixture.cleanUp() }
         try await fixture.branch("fix/586-merged", push: true)
-        let objection = await MergeArchiveInFlightRead.objection(
-            worktree: fixture.repo.path, mergedBranch: "fix/586-merged"
-        ) { _, _ in throw GitHubError("offline") }
-        #expect(objection?.contains("could not read the other branches") == true)
+        let objection = await GitHub.$commandOverride.withValue({ _, _ in
+            ShellResult(status: 1, stdout: "", stderr: "offline")
+        }) {
+            await MergeArchiveInFlightRead.objection(worktree: fixture.repo.path, mergedHead: nil)
+        }
+        #expect(objection == MergeArchiveInFlight.unreadable)
     }
 
     private struct Fixture {
@@ -142,6 +155,17 @@ struct MergeArchiveInFlightTests {
 
         func git(_ arguments: [String]) async throws {
             try await Shell.check("git", arguments, cwd: repo.path)
+        }
+
+        func objection(mergedHead: String?, answers: [String: String]) async throws -> String? {
+            await GitHub.$commandOverride.withValue({ arguments, _ in
+                guard arguments.contains(where: { $0.split(separator: ",").contains("state") }),
+                      let index = arguments.firstIndex(of: "--head"), arguments.indices.contains(index + 1)
+                else { return ShellResult(status: 1, stdout: "", stderr: "unexpected gh call") }
+                return ShellResult(status: 0, stdout: answers[arguments[index + 1]] ?? "[]", stderr: "")
+            }) {
+                await MergeArchiveInFlightRead.objection(worktree: repo.path, mergedHead: mergedHead)
+            }
         }
 
         func cleanUp() {

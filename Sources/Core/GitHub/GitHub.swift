@@ -91,12 +91,13 @@ struct HeadPayload: Decodable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case number, closedAt, headRepositoryOwner, headRepository
+        case number, closedAt, state, headRepositoryOwner, headRepository
         case headCommit = "headRefOid"
     }
 
     let number: Int?
     let closedAt: String?
+    let state: String?
     let headRepositoryOwner: Owner?
     let headRepository: Repository?
     let headCommit: String?
@@ -522,7 +523,12 @@ public enum GitHub {
             .compactMap { payload in
                 guard let number = payload.number, number > 0 else { return nil }
                 guard owns(payload, expected: expected) else { return nil }
-                return PullRequestHeadMatch(number: number, closedAt: parseDate(payload.closedAt))
+                return PullRequestHeadMatch(
+                    number: number,
+                    closedAt: parseDate(payload.closedAt),
+                    isOpen: payload.state?.uppercased() == "OPEN",
+                    headCommit: payload.headCommit
+                )
             }
             .sorted { $0.number > $1.number }
     }
@@ -532,7 +538,7 @@ public enum GitHub {
     ) async throws -> [HeadPayload] {
         let arguments = [
             "pr", "list", "--head", head, "--state", "all", "--limit", "100",
-            "--json", "number,closedAt,headRefOid,headRepository,headRepositoryOwner",
+            "--json", "number,closedAt,state,headRefOid,headRepository,headRepositoryOwner",
         ]
         let result = try await run(
             "gh", arguments, cwd: worktree, timeout: .seconds(20), repositoryContext: context
@@ -651,7 +657,7 @@ public enum GitHub {
         return result
     }
 
-    static func shellError(arguments: [String], result: ShellResult) -> ShellError {
+    private static func shellError(arguments: [String], result: ShellResult) -> ShellError {
         ShellError(
             command: "gh " + arguments.joined(separator: " "),
             status: result.status,

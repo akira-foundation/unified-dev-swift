@@ -1,17 +1,5 @@
 import Foundation
 
-public struct BranchPullRequest: Sendable, Equatable {
-    public let number: Int
-    public let isOpen: Bool
-    public let headCommit: String?
-
-    public init(number: Int, isOpen: Bool, headCommit: String? = nil) {
-        self.number = number
-        self.isOpen = isOpen
-        self.headCommit = headCommit
-    }
-}
-
 public struct BranchInFlight: Sendable, Equatable {
     public let branch: String
     public let openPullRequests: [Int]
@@ -22,24 +10,31 @@ public struct BranchInFlight: Sendable, Equatable {
         self.openPullRequests = openPullRequests
         self.unpushedCommits = unpushedCommits
     }
-
-    public var isInFlight: Bool { !openPullRequests.isEmpty || unpushedCommits > 0 }
 }
 
 public enum MergeArchiveInFlight {
+    public static let branchLimit = 30
+
+    public static let unreadable = "Unified Dev could not read the other branches of this worktree, so it "
+        + "cannot tell whether work is still in flight there. Archive it by hand once you have checked."
+
+    public static let tooManyBranches = "This worktree has checked out more than \(branchLimit) branches, "
+        + "too many to check for work in flight. Archive it by hand once you have checked."
+
     public static func objection(_ branches: [BranchInFlight]) -> String? {
         let open = Array(Set(branches.flatMap(\.openPullRequests))).sorted()
         let unpushed = branches.filter { $0.openPullRequests.isEmpty && $0.unpushedCommits > 0 }
         var sentences: [String] = []
         if !open.isEmpty {
-            let numbers = list(open.map { "#\($0)" })
-            sentences.append("\(numbers) \(open.count == 1 ? "is" : "are") still open.")
+            sentences.append("\(list(open.map { "#\($0)" })) \(open.count == 1 ? "is" : "are") still open.")
         }
         for branch in unpushed {
-            let commits = branch.unpushedCommits == 1 ? "1 commit" : "\(branch.unpushedCommits) commits"
-            sentences.append("\(branch.branch) has \(commits) that \(branch.unpushedCommits == 1 ? "is" : "are") not pushed.")
+            let one = branch.unpushedCommits == 1
+            let commits = one ? "1 commit" : "\(branch.unpushedCommits) commits"
+            sentences.append("\(branch.branch) has \(commits) that \(one ? "is" : "are") not pushed.")
         }
-        return sentences.isEmpty ? nil : sentences.joined(separator: " ")
+        guard !sentences.isEmpty else { return nil }
+        return (sentences + ["Archive it by hand once that work is done."]).joined(separator: " ")
     }
 
     public static func checkedOutBranches(reflogSubjects: String) -> [String] {
@@ -55,23 +50,21 @@ public enum MergeArchiveInFlight {
         return seen
     }
 
-    public static func candidates(
-        checkedOut: [String], current: String?, localBranches: Set<String>, merged: String
-    ) -> [String] {
+    public static func candidates(checkedOut: [String], current: String?, localBranches: Set<String>) -> [String] {
         var ordered: [String] = []
         for name in [current].compactMap(\.self) + checkedOut
-        where name != merged && localBranches.contains(name) && !ordered.contains(name) {
+        where localBranches.contains(name) && !ordered.contains(name) {
             ordered.append(name)
         }
         return ordered
     }
 
-    public static func excludedHeads(_ pullRequests: [BranchPullRequest]) -> [String] {
-        pullRequests.compactMap(\.headCommit).filter { !$0.isEmpty }
+    public static func publishedHeads(_ pullRequests: [PullRequestHeadMatch], mergedHead: String?) -> [String] {
+        (pullRequests.compactMap(\.headCommit) + [mergedHead].compactMap(\.self)).filter { !$0.isEmpty }
     }
 
     public static func standing(
-        branch: String, pullRequests: [BranchPullRequest], unpushedCommits: Int
+        branch: String, pullRequests: [PullRequestHeadMatch], unpushedCommits: Int
     ) -> BranchInFlight {
         BranchInFlight(
             branch: branch,
