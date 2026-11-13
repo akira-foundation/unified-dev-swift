@@ -60,8 +60,8 @@ way `GH_CONFIG_DIR` does for `gh`. Sign-in per profile has to carry the token it
 
 The welcome window's setup check lists the Bitbucket CLI after the GitHub CLI, for everybody and as
 optional: missing or signed out, it offers `brew install bitbucket-cli` and then
-`bkt auth login https://bitbucket.org --kind cloud --web`, and the window still reads as all set
-without it. Signed in means `bkt auth status --json` lists a Cloud host, the same reading the bar
+`bkt auth login https://bitbucket.org --kind cloud --web`. Without it nothing is blocked: the window
+reads ready to go, and the sentence under the headline does not name it. Signed in means `bkt auth status --json` lists a Cloud host, the same reading the bar
 makes.
 
 ## Contexts
