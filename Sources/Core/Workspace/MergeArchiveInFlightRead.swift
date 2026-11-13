@@ -3,6 +3,7 @@ import Foundation
 public enum MergeArchiveInFlightRead {
     private static let gitTimeout = Duration.seconds(20)
     private static let branchPrefix = "refs/heads/"
+    private static let detachedStatus: Int32 = 1
 
     public static func objection(worktree: String, mergedHead: String?) async -> String? {
         do {
@@ -10,6 +11,7 @@ public enum MergeArchiveInFlightRead {
             guard names.count <= MergeArchiveInFlight.branchLimit else {
                 return MergeArchiveInFlight.tooManyBranches
             }
+            await Git.pruneStaleRemoteRefs(in: worktree)
             let remoteTips = try await lines(
                 ["for-each-ref", "--format=%(objectname)", "refs/remotes"], in: worktree
             )
@@ -35,6 +37,9 @@ public enum MergeArchiveInFlightRead {
     static func candidates(in worktree: String) async throws -> [String] {
         let reflog = try await lines(["reflog", "show", "--format=%gs", "HEAD"], in: worktree)
         let head = try await Git.run(["symbolic-ref", "--quiet", "HEAD"], in: worktree, timeout: gitTimeout)
+        guard head.ok || head.status == detachedStatus else {
+            throw Git.error(["symbolic-ref"], head.status, head.stderr, head.stdout)
+        }
         let local = try await lines(["for-each-ref", "--format=%(refname)", "refs/heads"], in: worktree)
         return MergeArchiveInFlight.candidates(
             checkedOut: MergeArchiveInFlight.checkedOutBranches(reflogSubjects: reflog.joined(separator: "\n")),

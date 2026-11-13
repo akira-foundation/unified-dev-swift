@@ -121,7 +121,10 @@ extension AppModel {
         if let inFlight = await MergeArchiveInFlightRead.objection(
             worktree: workspace.path, mergedHead: mergedHead
         ) {
-            Log.archive.info("\(workspace.name, privacy: .public) merged with work still in flight")
+            guard !isArchiving(workspace.id) else { return }
+            Log.archive.info(
+                "\(workspace.name, privacy: .public) merged and was held back: \(inFlight, privacy: .public)"
+            )
             refuseArchiveOnMerge(workspace, because: inFlight)
             return
         }

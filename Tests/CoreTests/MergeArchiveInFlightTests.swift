@@ -10,7 +10,7 @@ struct MergeArchiveInFlightTests {
     func nothingInFlight() {
         let branches = [
             MergeArchiveInFlight.standing(
-                branch: "fix/579-a", pullRequests: [PullRequestHeadMatch(number: 579, closedAt: Date())],
+                branch: "fix/579-a", pullRequests: [PullRequestHeadMatch(number: 579, closedAt: Date(), isOpen: false)],
                 unpushedCommits: 0
             ),
             MergeArchiveInFlight.standing(branch: "develop", pullRequests: [], unpushedCommits: 0),
@@ -31,8 +31,21 @@ struct MergeArchiveInFlightTests {
                 unpushedCommits: 3
             ),
         ]
-        #expect(MergeArchiveInFlight.objection(branches) == "#579 and #580 are still open. \(nextStep)")
+        #expect(MergeArchiveInFlight.objection(branches) == """
+            #579 and #580 are still open. fix/579-a has 3 commits that are not pushed. \(nextStep)
+            """)
         #expect(MergeArchiveInFlight.objection(Array(branches.prefix(1))) == "#580 is still open. \(nextStep)")
+    }
+
+    @Test("three open pull requests are listed with commas and a final and")
+    func listsThree() {
+        let branches = [583, 579, 580].map {
+            MergeArchiveInFlight.standing(
+                branch: "fix/\($0)", pullRequests: [PullRequestHeadMatch(number: $0, closedAt: nil, isOpen: true)],
+                unpushedCommits: 0
+            )
+        }
+        #expect(MergeArchiveInFlight.objection(branches) == "#579, #580 and #583 are still open. \(nextStep)")
     }
 
     @Test("a local branch with commits not on its remote is named to the owner")
@@ -51,6 +64,8 @@ struct MergeArchiveInFlightTests {
             checkout: moving from fix/580-b to fix/586-d
             commit: something
             checkout: moving from 1234abcd to fix/580-b
+            checkout: moving from nowhere
+            checkout: moving from  to fix/580-b
             """
         let checkedOut = MergeArchiveInFlight.checkedOutBranches(reflogSubjects: reflog)
         #expect(checkedOut == ["fix/586-d", "fix/580-b", "1234abcd"])
@@ -59,11 +74,14 @@ struct MergeArchiveInFlightTests {
             current: "renamed",
             localBranches: ["fix/586-d", "renamed", "someone-elses"]
         ) == ["renamed", "fix/586-d"])
+        #expect(MergeArchiveInFlight.candidates(
+            checkedOut: checkedOut, current: "fix/586-d", localBranches: ["fix/586-d", "fix/580-b"]
+        ) == ["fix/586-d", "fix/580-b"])
     }
 
     @Test("the merged commit counts as published for every branch, beside each branch's own pull request heads")
     func publishedHeads() {
-        let pullRequests = [PullRequestHeadMatch(number: 1, closedAt: nil, headCommit: "aaa")]
+        let pullRequests = [PullRequestHeadMatch(number: 1, closedAt: nil, isOpen: false, headCommit: "aaa")]
         #expect(MergeArchiveInFlight.publishedHeads(pullRequests, mergedHead: "bbb") == ["aaa", "bbb"])
         #expect(MergeArchiveInFlight.publishedHeads([], mergedHead: nil).isEmpty)
     }
@@ -78,6 +96,10 @@ struct MergeArchiveInFlightTests {
         #expect(waits.mergedHeads[id] == nil)
         waits.record(.archiveAfterTurn, for: id, pullRequest: 586, mergedHead: "def")
         #expect(waits.mergedHeads[id] == "def")
+        _ = waits.settle(id, isAgentMidTurn: false, isCommandRunning: false, wasStopped: true)
+        #expect(waits.mergedHeads[id] == nil)
+        waits.record(.leave, for: id, pullRequest: 586, mergedHead: "ghi")
+        #expect(waits.mergedHeads[id] == nil)
     }
 
     @Test("a real worktree with another open pull request and an unpushed branch is not archived")
@@ -113,6 +135,36 @@ struct MergeArchiveInFlightTests {
         #expect(try await fixture.objection(mergedHead: merged, answers: answers) == nil)
         #expect(try await fixture.objection(mergedHead: nil, answers: answers)
             == "fix/586-merged has 1 commit that is not pushed. \(nextStep)")
+    }
+
+    @Test("a branch whose remote was deleted after its last fetch counts as not pushed")
+    func staleRemoteBranchIsNotPublished() async throws {
+        let fixture = try await Fixture()
+        defer { fixture.cleanUp() }
+        try await fixture.branch("fix/453-gone", push: true)
+        try await Shell.check("git", ["branch", "-D", "fix/453-gone"], cwd: fixture.remote)
+        try await fixture.branch("fix/586-merged", push: true)
+        #expect(try await fixture.objection(mergedHead: nil, answers: [:])
+            == "fix/453-gone has 1 commit that is not pushed. \(nextStep)")
+    }
+
+    @Test("more branches than can be checked holds the archive back")
+    func tooManyBranches() async throws {
+        let fixture = try await Fixture()
+        defer { fixture.cleanUp() }
+        for index in 0...MergeArchiveInFlight.branchLimit {
+            try await fixture.git(["checkout", "-q", "-b", "fix/\(index)", "main"])
+        }
+        #expect(try await fixture.objection(mergedHead: nil, answers: [:]) == MergeArchiveInFlight.tooManyBranches)
+    }
+
+    @Test("a directory git cannot read holds the archive back")
+    func unreadableWorktree() async throws {
+        let directory = TestScratch.unique("unifieddev-not-git")
+        try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: directory) }
+        #expect(await MergeArchiveInFlightRead.objection(worktree: directory, mergedHead: nil)
+            == MergeArchiveInFlight.unreadable)
     }
 
     @Test("a pull request read that fails holds the archive back and says so")

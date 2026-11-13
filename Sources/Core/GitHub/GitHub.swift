@@ -526,7 +526,7 @@ public enum GitHub {
                 return PullRequestHeadMatch(
                     number: number,
                     closedAt: parseDate(payload.closedAt),
-                    isOpen: payload.state?.uppercased() == "OPEN",
+                    isOpen: payload.state.map { $0.caseInsensitiveCompare("OPEN") == .orderedSame } ?? true,
                     headCommit: payload.headCommit
                 )
             }

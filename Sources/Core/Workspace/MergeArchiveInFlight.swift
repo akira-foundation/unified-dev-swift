@@ -15,15 +15,18 @@ public struct BranchInFlight: Sendable, Equatable {
 public enum MergeArchiveInFlight {
     public static let branchLimit = 30
 
-    public static let unreadable = "Unified Dev could not read the other branches of this worktree, so it "
-        + "cannot tell whether work is still in flight there. Archive it by hand once you have checked."
+    public static let unreadable = "Unified Dev could not check this workspace's other branches for work "
+        + "still in flight. Nothing was archived; try again shortly."
 
-    public static let tooManyBranches = "This worktree has checked out more than \(branchLimit) branches, "
-        + "too many to check for work in flight. Archive it by hand once you have checked."
+    public static let tooManyBranches = "This workspace has checked out more than \(branchLimit) branches, "
+        + "too many to check for work still in flight. Nothing was archived; archive it by hand once you "
+        + "have checked them."
+
+    public static let nextStep = "Archive it by hand once that work is done."
 
     public static func objection(_ branches: [BranchInFlight]) -> String? {
         let open = Array(Set(branches.flatMap(\.openPullRequests))).sorted()
-        let unpushed = branches.filter { $0.openPullRequests.isEmpty && $0.unpushedCommits > 0 }
+        let unpushed = branches.filter { $0.unpushedCommits > 0 }
         var sentences: [String] = []
         if !open.isEmpty {
             sentences.append("\(list(open.map { "#\($0)" })) \(open.count == 1 ? "is" : "are") still open.")
@@ -34,7 +37,7 @@ public enum MergeArchiveInFlight {
             sentences.append("\(branch.branch) has \(commits) that \(one ? "is" : "are") not pushed.")
         }
         guard !sentences.isEmpty else { return nil }
-        return (sentences + ["Archive it by hand once that work is done."]).joined(separator: " ")
+        return (sentences + [nextStep]).joined(separator: " ")
     }
 
     public static func checkedOutBranches(reflogSubjects: String) -> [String] {

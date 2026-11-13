@@ -32,7 +32,7 @@ public struct PullRequestHeadMatch: Sendable, Hashable {
     public let isOpen: Bool
     public let headCommit: String?
 
-    public init(number: Int, closedAt: Date?, isOpen: Bool = false, headCommit: String? = nil) {
+    public init(number: Int, closedAt: Date?, isOpen: Bool, headCommit: String? = nil) {
         self.number = number
         self.closedAt = closedAt
         self.isOpen = isOpen
