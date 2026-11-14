@@ -695,6 +695,7 @@ public actor Store {
             { try UndatedArchives.stamp($0) },
             ProfileGitHubColumn.migrate,
             QuotaAccountColumn.migrate,
+            sql(TranscriptChapterColumns.createTable),
         ]
 
         guard current >= 0, current <= migrations.count else {
@@ -2329,6 +2330,19 @@ public actor Store {
                 [.text(sessionID), .text(body)]
             )
         }
+    }
+
+    public func chapters(sessionID: SessionID) throws -> [TranscriptChapter] {
+        try db.query(TranscriptChapterColumns.forSession, [.text(sessionID)])
+            .compactMap(TranscriptChapterColumns.chapter(from:))
+    }
+
+    public func pin(_ chapter: TranscriptChapter, sessionID: SessionID) throws {
+        try db.run(TranscriptChapterColumns.pin, [.text(sessionID), .int(Int64(chapter.seq)), .text(chapter.title)])
+    }
+
+    public func unpinChapter(seq: Int, sessionID: SessionID) throws {
+        try db.run(TranscriptChapterColumns.unpin, [.text(sessionID), .int(Int64(seq))])
     }
 
     public func replyQuotes(sessionID: SessionID) throws -> [ReplyQuote] {

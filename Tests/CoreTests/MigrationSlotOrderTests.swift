@@ -21,8 +21,8 @@ struct MigrationSlotOrderTests {
         return (path, current)
     }
 
-    @Test func theFourthToLastMigrationCreatesTheInboxTable() throws {
-        let seeded = try storeWithoutInboxTable(rewoundBy: 4)
+    @Test func theFifthToLastMigrationCreatesTheInboxTable() throws {
+        let seeded = try storeWithoutInboxTable(rewoundBy: 5)
 
         _ = try Store(path: seeded.path)
 
@@ -30,8 +30,8 @@ struct MigrationSlotOrderTests {
         #expect(try SQLiteDatabase(path: seeded.path).readUserVersion() == seeded.current)
     }
 
-    @Test func theLastThreeMigrationsDoNotCreateTheInboxTable() throws {
-        let seeded = try storeWithoutInboxTable(rewoundBy: 3)
+    @Test func theLastFourMigrationsDoNotCreateTheInboxTable() throws {
+        let seeded = try storeWithoutInboxTable(rewoundBy: 4)
 
         _ = try Store(path: seeded.path)
 
