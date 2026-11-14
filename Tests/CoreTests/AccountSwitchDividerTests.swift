@@ -65,3 +65,22 @@ struct AccountSwitchDividerTests {
         #expect(HandoffMark.decode(divider.payload)?.sentence == "Continued with Claude Code under Work · opus")
     }
 }
+
+@Suite("What another agent reads of an account switch")
+struct AccountSwitchDividerReadingTests {
+    @Test func chatReadGivesTheDividerWithoutTheAccount() throws {
+        let mark = HandoffMark.continued(agent: .claudeCode, model: "opus", from: .claudeCode, account: "ada@client.example")
+        let divider = Message(sessionID: SessionID("s"), seq: 1, kind: .handoff, payload: mark.payload)
+
+        let page = try ChatTranscriptPage.make(messages: [divider], cursor: .init(sessionID: SessionID("s")), limit: 50)
+
+        #expect(page.messages[0]["content"]?.stringValue == "Continued with Claude Code · opus")
+    }
+
+    @Test func aMarkWithoutTheAccountKeepsEverythingElse() {
+        let mark = HandoffMark.continued(agent: .codex, model: "gpt-5", from: .claudeCode, account: "ada@client.example")
+
+        #expect(mark.withoutAccount == .continued(agent: .codex, model: "gpt-5", from: .claudeCode))
+        #expect(HandoffMark.resuming.withoutAccount == .resuming)
+    }
+}

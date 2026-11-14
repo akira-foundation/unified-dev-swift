@@ -16,6 +16,11 @@ public enum HandoffMark: Codable, Sendable, Equatable {
         }
     }
 
+    public var withoutAccount: HandoffMark {
+        guard case .continued(let agent, let model, let from, _) = self else { return self }
+        return .continued(agent: agent, model: model, from: from)
+    }
+
     public var payload: Data {
         (try? JSONEncoder().encode(self)) ?? Data()
     }
