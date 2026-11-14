@@ -150,6 +150,14 @@ struct ClaudeChromeRunnerTests {
         await runner.ingest(try #require(AgentEvent.decode(line: line)))
     }
 
+    @Test("an orchestrator is refused Chrome when the agent is built, not only when its argv is")
+    func orchestratorRefusedAtConstruction() async throws {
+        let store = try makeTestStore("chrome-orchestrator")
+        try await store.setSetting(ClaudeChrome.settingKey, "1")
+        #expect(await ClaudeChrome.launches(in: store, orchestrates: false))
+        #expect(await ClaudeChrome.launches(in: store, orchestrates: true) == false)
+    }
+
     @Test("the stored switch reaches the launched process")
     func switchReachesTheLaunch() async throws {
         let (_, onLog, _, _) = try await runner(chrome: "1", label: "chrome-on")

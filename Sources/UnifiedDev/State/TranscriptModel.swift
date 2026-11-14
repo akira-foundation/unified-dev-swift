@@ -1258,7 +1258,7 @@ final class TranscriptModel {
         guard !usesInteractiveTerminal else { return nil }
         let orchestrates = await readOrchestratorRole(from: store)
         let gitHub = await store.gitHubLogin(for: scope)
-        let usesChrome = await ClaudeChrome.isEnabled(in: store)
+        let usesChrome = await ClaudeChrome.launches(in: store, orchestrates: orchestrates)
         let fingerprint = AgentRunnerFingerprint(
             session: session, account: account, orchestrates: orchestrates, segment: seat.segmentID, gitHub: gitHub,
             usesChrome: usesChrome

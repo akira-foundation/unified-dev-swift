@@ -17,6 +17,11 @@ public enum ClaudeChrome {
         guard let store else { return false }
         return isEnabled(try? await store.setting(settingKey))
     }
+
+    public static func launches(in store: Store?, orchestrates: Bool) async -> Bool {
+        guard !orchestrates else { return false }
+        return await isEnabled(in: store)
+    }
 }
 
 public struct ClaudeChromeNotice: Sendable, Hashable {
