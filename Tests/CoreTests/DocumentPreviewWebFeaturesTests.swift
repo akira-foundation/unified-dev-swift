@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Core
 
-@Suite("Which web features a document preview turns off")
+@Suite("Which web features a document preview turns off", .tags(.security))
 struct DocumentPreviewWebFeaturesTests {
     @Test("peer connections are turned off, and read back as off")
     func peerConnectionsAreTurnedOff() {
