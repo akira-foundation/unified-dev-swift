@@ -7,7 +7,6 @@
   "projects": [
     {
       "name": "harbour",
-      "accounts": { "claudeCode": "client" },
       "files": {
         "README.md": "# Harbour\n\nA scratch project for trying Unified Dev out.\n",
         "src/pier.txt": "wood\n"

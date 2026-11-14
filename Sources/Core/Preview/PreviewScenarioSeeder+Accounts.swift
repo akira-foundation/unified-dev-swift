@@ -58,7 +58,8 @@ extension PreviewScenarioSeeder {
         profiles: [String: ProfileID] = [:],
         home: URL?
     ) async throws {
-        guard let home else { return }
+        guard !scenario.accounts.isEmpty else { return }
+        guard let home else { throw PreviewScenarioError.noTranscriptHome }
         for account in scenario.accounts where account.label != nil {
             guard let place = Self.place(of: account, home: home) else { continue }
             let owner = account.profile.flatMap { profiles[$0.lowercased()] } ?? .initial
