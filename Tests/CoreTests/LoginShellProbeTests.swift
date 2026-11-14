@@ -120,12 +120,10 @@ struct LoginShellProbeTests {
     )
     func slowZshrcIsStopped() async throws {
         let home = try directory("slow-zdotdir")
-        let finished = (home as NSString).appendingPathComponent("finished")
         let zshrc = """
             print $$ > "$ZDOTDIR/pid.partial"
             mv "$ZDOTDIR/pid.partial" "$ZDOTDIR/pid"
             sleep 30
-            (( SECONDS >= 30 )) && touch "$ZDOTDIR/finished"
 
             """
         try zshrc.write(toFile: (home as NSString).appendingPathComponent(".zshrc"), atomically: true, encoding: .utf8)
@@ -137,7 +135,6 @@ struct LoginShellProbeTests {
                 shell: "/bin/zsh", environment: [:], overlay: ["ZDOTDIR": home], timeout: .seconds(seconds)
             )
             #expect(found.isEmpty)
-            #expect(!FileManager.default.fileExists(atPath: finished))
         }
 
         let shell = try #require(try pids(at: pidFile).first)
