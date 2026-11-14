@@ -52,9 +52,12 @@ struct CodexUsageLimitStopTests {
     }
 
     @Test func theCodeIsKeptOnlyWhenTheTurnFailed() throws {
-        let rows = [owner(1), try closing(try failedTurn(code: "usageLimitExceeded", status: "interrupted"))]
+        let interrupted = try closing(try failedTurn(code: "usageLimitExceeded", status: "interrupted"))
+        let failed = try closing(try failedTurn(code: "usageLimitExceeded"))
 
-        #expect(TurnStopCause.ofLastTurn(messages: rows, agent: .codex) == .other)
+        #expect(JSONValue.parse(interrupted.payload)?["codex_error"] == nil)
+        #expect(JSONValue.parse(failed.payload)?["codex_error"]?.stringValue == "usageLimitExceeded")
+        #expect(TurnStopCause.ofLastTurn(messages: [owner(1), interrupted], agent: .codex) == .other)
     }
 
     @Test func theCodexLimitIsNotReadForAnotherProvider() throws {
