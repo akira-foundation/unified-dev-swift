@@ -779,6 +779,10 @@ public actor Store {
         try db.run(SessionSegmentColumns.seed, [.text(source), .text(sessionID)])
     }
 
+    public func seed(sessionID: SessionID, from source: SessionID, through seq: Int) throws {
+        try db.run(SessionSegmentColumns.seedThrough, [.text(source), .text(sessionID), .int(Int64(seq))])
+    }
+
     public func pendingSource(sessionID: SessionID) throws -> SessionID? {
         try pendingSourceRead(sessionID: sessionID)?.id
     }
