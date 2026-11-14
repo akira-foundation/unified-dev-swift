@@ -84,3 +84,49 @@ struct AccountSwitchDividerReadingTests {
         #expect(HandoffMark.resuming.withoutAccount == .resuming)
     }
 }
+
+@Suite("The account a switch names", .tags(.persistence), .scratchDirectory)
+struct AccountSwitchNamingTests {
+    private let work = AgentAccountRow(
+        id: AgentAccountID("work"), provider: .claudeCode, directory: "/accounts/claudeCode/work", label: "Work"
+    )
+
+    private func divider(_ store: Store, _ session: Session) async throws -> HandoffMark? {
+        let row = try #require(try await store.messages(sessionID: session.id).last { $0.kind == .handoff })
+        return HandoffMark.decode(row.payload)
+    }
+
+    @Test func theProviderPickerNamesTheAccountAsTheOwnerKnowsIt() async throws {
+        let store = try makeTestStore("switch-names-account")
+        try await store.add(work)
+        let session = try await store.upsert(Session(workspaceID: nil, agentSessionID: "c1", model: "opus"))
+        let home = AgentAccountHome(work)
+
+        _ = try await AgentSwitch.retireAndSwitch(
+            runner: nil, store: store, sessionID: session.id,
+            controls: ComposerControls(model: "opus", effort: "", agentKind: .claudeCode), account: home,
+            standings: [AccountFixture.standing(home, email: "ada@client.example")]
+        )
+
+        #expect(try await divider(store, session)?.sentence == "Continued with Claude Code under ada@client.example · opus")
+    }
+
+    @Test func aMoveAtSendTimeNamesTheAccountAsTheOwnerKnowsIt() async throws {
+        let store = try makeTestStore("record-names-account")
+        let lab = AgentAccountRow(id: AgentAccountID("lab"), provider: .claudeCode, directory: "/accounts/claudeCode/lab")
+        try await store.add(work)
+        try await store.add(lab)
+        var session = try await store.upsert(Session(workspaceID: nil, agentSessionID: "c1", model: "opus"))
+        try await store.update(sessionID: session.id, accountID: lab.id)
+        session = try #require(try await store.session(id: session.id))
+        let home = AgentAccountHome(work)
+        let settlement = AgentSessionSettlement.decide(session: session, account: home, purpose: .sending)
+
+        try await AgentSessionRecord.write(
+            settlement, session: session.id, account: home,
+            standings: [AccountFixture.standing(home, email: "ada@client.example")], in: store
+        )
+
+        #expect(try await divider(store, session)?.sentence == "Continued with Claude Code under ada@client.example · opus")
+    }
+}

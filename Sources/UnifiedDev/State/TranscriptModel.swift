@@ -1338,8 +1338,7 @@ final class TranscriptModel {
         do {
             try await AgentSessionRecord.write(
                 settlement, session: session.id, account: account,
-                accountName: account.map { AgentAccountNames.spoken(of: $0, among: app.agentAccounts.standings) },
-                in: store
+                standings: app.agentAccounts.standings, in: store
             )
         } catch {
             runnerFailure = AgentSessionSettlement.writeFailure(error.readableMessage)
@@ -1566,7 +1565,7 @@ final class TranscriptModel {
             session = try await AgentSwitch.retireAndSwitch(
                 runner: dying, store: store, sessionID: session.id,
                 controls: workMode.applied(to: controls), account: account,
-                accountName: account.map { AgentAccountNames.spoken(of: $0, among: app.agentAccounts.standings) }
+                standings: app.agentAccounts.standings
             )
         } catch {
             noteAgentSwitchFailed(to: controls.agentKind, error)

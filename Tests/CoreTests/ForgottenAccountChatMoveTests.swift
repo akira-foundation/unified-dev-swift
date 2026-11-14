@@ -74,7 +74,8 @@ struct ForgottenAccountChatMoveTests {
         )
 
         try await AgentSessionRecord.write(
-            settlement, session: session.id, account: home, accountName: "the default account", in: store
+            settlement, session: session.id, account: home,
+            standings: [AccountFixture.standing(home)], in: store
         )
 
         let divider = try #require(try await store.messages(sessionID: session.id).last { $0.kind == .handoff })
