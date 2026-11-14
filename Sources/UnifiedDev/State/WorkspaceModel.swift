@@ -287,7 +287,8 @@ final class WorkspaceModel {
         title: String? = nil,
         controls: ComposerControls? = nil,
         draft: String = "",
-        seededFrom source: SessionID? = nil
+        seededFrom source: SessionID? = nil,
+        through seq: Int? = nil
     ) async -> Session? {
         guard !app.isArchiving(workspace.id), let store else { return nil }
         let openingControls: ComposerControls
@@ -311,10 +312,29 @@ final class WorkspaceModel {
         guard let stored = try? await store.upsert(session) else { return nil }
         await openingControls.store(sessionID: stored.id, in: store)
         if !draft.isEmpty { try? await store.saveDraft(sessionID: stored.id, body: draft) }
-        if let source { try? await store.seed(sessionID: stored.id, from: source) }
+        switch (source, seq) {
+        case let (source?, seq?): try? await store.seed(sessionID: stored.id, from: source, through: seq)
+        case let (source?, nil): try? await store.seed(sessionID: stored.id, from: source)
+        case (nil, _): break
+        }
         await reloadSessions()
         activeSessionID = stored.id
         return stored
+    }
+
+    func fork(_ transcript: TranscriptModel, through seq: Int) {
+        let source = transcript.session
+        Task { @MainActor in
+            guard let store, let controls = try? await ComposerControls.carried(from: source, in: store),
+                  let made = await createSession(
+                      title: MessageMenu.forkTitle(of: source.title), controls: controls,
+                      seededFrom: source.id, through: seq
+                  ) else {
+                app.notice = Notice(message: "Could not fork the conversation from that message.", tone: .error)
+                return
+            }
+            WorkspaceTabsStore.shared.reveal(.chat(made.id), in: self)
+        }
     }
 
     func createChat(title: String? = nil) async -> PaneContent? {

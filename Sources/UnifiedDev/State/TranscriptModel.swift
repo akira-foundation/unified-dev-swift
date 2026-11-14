@@ -161,6 +161,10 @@ final class TranscriptModel {
 
     @ObservationIgnored private var removedReplyQuotes: Set<ReplyQuoteID> = []
 
+    private(set) var chapters: [TranscriptChapter] = []
+
+    @ObservationIgnored private var chapterWrite: Task<Void, Never>?
+
     private(set) var messageRevealRequests = 0
 
     private(set) var messageRevealSeq: Int?
@@ -196,6 +200,36 @@ final class TranscriptModel {
                 Log.composer.error(
                     "a reply quote could not be saved: \(error.readableMessage, privacy: .public)"
                 )
+            }
+        }
+    }
+
+    func isChapter(_ seq: Int) -> Bool {
+        chapters.contains { $0.seq == seq }
+    }
+
+    func pinChapter(_ row: TranscriptRow) {
+        guard let chapter = TranscriptChapter(seq: row.seq, kind: row.kind, payload: row.payload) else { return }
+        chapters = TranscriptChapter.ordered(chapters.filter { $0.seq != row.seq } + [chapter])
+        let sessionID = session.id
+        writeChapters { try await $0.pin(chapter, sessionID: sessionID) }
+    }
+
+    func unpinChapter(seq: Int) {
+        chapters.removeAll { $0.seq == seq }
+        let sessionID = session.id
+        writeChapters { try await $0.unpinChapter(seq: seq, sessionID: sessionID) }
+    }
+
+    private func writeChapters(_ write: @escaping @Sendable (Store) async throws -> Void) {
+        guard let store else { return }
+        let previous = chapterWrite
+        chapterWrite = Task {
+            await previous?.value
+            do {
+                try await write(store)
+            } catch {
+                Log.composer.error("a chapter could not be saved: \(error.readableMessage, privacy: .public)")
             }
         }
     }
@@ -345,6 +379,8 @@ final class TranscriptModel {
         await replyQuoteWrite?.value
         let storedQuotes = (try? await store.replyQuotes(sessionID: session.id)) ?? []
         replyQuotes = ReplyQuote.merging(stored: storedQuotes, into: replyQuotes, removed: removedReplyQuotes)
+        await chapterWrite?.value
+        chapters = (try? await store.chapters(sessionID: session.id)) ?? []
         await refreshQueue()
         await history.load(store: store, sessionID: session.id, workspaceID: workspace?.id)
         if workspace != nil { await history.cleanupRetired(store: store, sessionID: session.id, cwd: cwd) }

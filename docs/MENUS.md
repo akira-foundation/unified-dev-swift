@@ -318,6 +318,12 @@ in its own doc comment.
 | Answer an agent's question | question card | **no** | `↩` on the default |
 | Run this repository's setup script again | failed or ignored setup row | yes | none |
 | Ignore a failed setup, keeping its log | failed setup row | **no** | none |
+| Start a side chat, Reply | bar over a selection in a message | **no** | none |
+| Copy, Copy message, Copy message as Markdown | message menu | Copy only, in Edit | `⌘C` on Copy |
+| Attach selection as context | message menu | **no** | `⇧⌘L` |
+| Pin as chapter, Unpin chapter | message menu | **no** | none |
+| Go to a chapter | chapters button, top right of a chat pane, shown once one is pinned | **no** | none |
+| Fork from here | message menu, in an active workspace's own chat | **no** | none |
 
 ### Home and the sidebar
 

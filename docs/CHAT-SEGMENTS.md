@@ -283,6 +283,11 @@ Codex"; in Ask it takes the title every new Ask conversation takes. The source k
 In a workspace the new chat is a tab of the same workspace. In Ask it opens beside the source as a
 second conversation.
 
+Fork from here, on the menu of a message in a workspace chat, opens the same kind of new chat with the
+source's agent, model and settings, titled "<title> (fork)". It is seeded the same way, except that
+`sessions.source_through_seq` is the seq of the message it was opened from rather than the source's
+newest, so the first turn is told the conversation up to and including that message and nothing after it.
+
 The source's id stays on the chat for good, in `sessions.source_session_id`, with the newest `seq` the
 source had at the fork in `sessions.source_through_seq`. Nothing the source says after that is told, so a
 turn still running on it does not read as interrupted. A fork of a fork is told its own source's rows and
