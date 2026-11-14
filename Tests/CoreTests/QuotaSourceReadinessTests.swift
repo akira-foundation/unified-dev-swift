@@ -4,12 +4,16 @@ import Testing
 @testable import Core
 
 final class QuotaReadinessRecorder: Sendable {
+    let installs = TestScratch.unique("agent-installed-by-the-login-shell")
     private let answered = Mutex(0)
     private let seenAtSpawn = Mutex<[Int]>([])
 
     var wait: @Sendable () async -> Void {
         { [self] in
             await Task.yield()
+            FileManager.default.createFile(
+                atPath: installs, contents: Data("#!/bin/sh\n".utf8), attributes: [.posixPermissions: 0o755]
+            )
             answered.withLock { $0 += 1 }
         }
     }
@@ -27,21 +31,21 @@ final class QuotaReadinessRecorder: Sendable {
     var spawns: [Int] { seenAtSpawn.withLock { $0 } }
 }
 
-@Suite("The quota sources wait for the login shell they are handed")
+@Suite("The quota sources wait for the login shell they are handed", .scratchDirectory)
 struct QuotaSourceReadinessTests {
     enum Provider: String, CaseIterable, Sendable {
         case claudeCode, codex
 
-        func source(_ readiness: QuotaReadinessRecorder, executable: String = "/bin/sh") -> any AgentQuotaSource {
+        func source(_ readiness: QuotaReadinessRecorder) -> any AgentQuotaSource {
             switch self {
             case .claudeCode:
                 ClaudeCodeQuotaSource(
-                    executable: executable, environment: [:], accountPath: "/nonexistent/claude.json",
+                    executable: readiness.installs, environment: [:], accountPath: "/nonexistent/claude.json",
                     makeProcess: readiness.factory, loginShellReady: readiness.wait
                 )
             case .codex:
                 CodexQuotaSource(
-                    executable: executable, environment: [:],
+                    executable: readiness.installs, environment: [:],
                     makeProcess: readiness.factory, loginShellReady: readiness.wait
                 )
             }
@@ -57,7 +61,7 @@ struct QuotaSourceReadinessTests {
         #expect(readiness.spawns == [1])
     }
 
-    @Test("the standing waits for the readiness it was handed", arguments: Provider.allCases)
+    @Test("the standing looks for the agent only once the readiness it was handed has answered", arguments: Provider.allCases)
     func standingWaits(provider: Provider) async {
         let readiness = QuotaReadinessRecorder()
 
