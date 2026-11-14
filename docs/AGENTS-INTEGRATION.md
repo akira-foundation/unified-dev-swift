@@ -83,7 +83,9 @@ agent on the next message sent to it and starts one with or without `--chrome`. 
 never receives the flag, because these tools would act in signed in tabs that its tool guard does
 not cover. The init event is the discovery: `ClaudeChromeNotice.missing` compares what the process
 was launched with against what loaded, and the runner stores one notice row per running agent saying why
-the tools are absent. A server still `pending` is not reported.
+the tools are absent. A server still `pending` is not reported. A chat run in the terminal gets the
+same flag through `interactiveArguments`, read when the terminal launches it. A workspace an
+orchestrator starts is an ordinary workspace and gets the flag under its own permission mode.
 
 ## Codex
 

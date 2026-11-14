@@ -361,6 +361,7 @@ public actor AgentRunner {
         stderrTail = []
         let spec = launch()
         launchedWithChrome = spec.arguments.contains(ClaudeChrome.flag)
+        chromeNoticeGiven = false
         requestedResume = AgentSessionSettlement.resumable(session: session, account: account)
         launchedCommand = Shell.which(spec.executable) ?? spec.executable
         let process = makeProcess(spec)

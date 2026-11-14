@@ -8,6 +8,7 @@ struct ClaudeChromeSettingsSection: View {
 
     private var choice: Binding<Bool> {
         Binding(get: { isOn ?? false }, set: { value in
+            isOn = value
             Task { await store(value) }
         })
     }
@@ -18,7 +19,7 @@ struct ClaudeChromeSettingsSection: View {
                 .disabled(isOn == nil)
             if let failure { Text(failure).foregroundStyle(.red) }
         } footer: {
-            Text("Gives Claude Code agents the Claude in Chrome tools, which open tabs and act in your own Chrome with its sign ins. Needs the Claude extension in Chrome and a claude.ai sign in. Each chat restarts its agent with the change on the next message you send it.")
+            Text("Gives Claude Code agents the Claude in Chrome tools, which open tabs and act in your own Chrome with its sign ins. Needs the Claude extension in Chrome and a claude.ai sign in. Each chat restarts its agent with the change on the next message you send it, and a chat run in the terminal on its next launch.")
                 .settingsFootnote()
         }
         .task { await load() }
@@ -34,7 +35,6 @@ struct ClaudeChromeSettingsSection: View {
     private func store(_ value: Bool) async {
         do {
             try await app.store?.setSetting(ClaudeChrome.settingKey, ClaudeChrome.storedValue(value))
-            isOn = value
             failure = nil
         } catch {
             failure = error.localizedDescription

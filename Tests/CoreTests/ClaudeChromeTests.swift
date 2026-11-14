@@ -60,6 +60,25 @@ struct ClaudeChromeTests {
         ))
     }
 
+    @Test("a Claude Code chat run in the terminal gets the flag too, and never as an orchestrator")
+    func interactiveLaunch() throws {
+        func arguments(_ kind: AgentKind, chrome: Bool, orchestrates: Bool = false) throws -> [String] {
+            try #require(kind.interactiveArguments(
+                prompt: "", sessionID: SessionID("s"), model: "opus", effort: "",
+                orchestrates: orchestrates, chrome: chrome
+            ))
+        }
+        #expect(try arguments(.claudeCode, chrome: true).filter { $0 == "--chrome" }.count == 1)
+        #expect(try !arguments(.claudeCode, chrome: false).contains("--chrome"))
+        #expect(try !arguments(.claudeCode, chrome: true, orchestrates: true).contains("--chrome"))
+        #expect(try !arguments(.codex, chrome: true).contains("--chrome"))
+    }
+
+    @Test("no store reads as off")
+    func noStoreIsOff() async {
+        #expect(await ClaudeChrome.isEnabled(in: nil) == false)
+    }
+
     @Test("the stored setting reads as on only when it says so", arguments: [
         ("1", true), ("0", false), ("", false), ("true", false),
     ])
@@ -149,7 +168,8 @@ struct ClaudeChromeRunnerTests {
 
     @Test("loaded, or never asked for, the chat is told nothing")
     func nothingToTell() async throws {
-        let (onRunner, _, onStore, onSession) = try await runner(chrome: "1", label: "chrome-loaded")
+        let (onRunner, onLog, onStore, onSession) = try await runner(chrome: "1", label: "chrome-loaded")
+        #expect(try #require(onLog.first).arguments.contains("--chrome"))
         try await ingestInit(ClaudeChromeTests.loaded, into: onRunner)
         #expect(try await notices(onStore, onSession).isEmpty)
 
