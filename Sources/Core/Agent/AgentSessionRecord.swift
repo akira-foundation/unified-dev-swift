@@ -5,7 +5,7 @@ public enum AgentSessionRecord {
         _ settlement: AgentSessionSettlement,
         session: SessionID,
         account: AgentAccountHome?,
-        standings: [AgentAccountStanding] = [],
+        standings: [AgentAccountStanding],
         in store: Store
     ) async throws {
         guard !settlement.changesNothing else { return }

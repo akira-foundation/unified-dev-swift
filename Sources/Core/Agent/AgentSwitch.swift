@@ -87,7 +87,7 @@ public enum AgentSwitch {
     @discardableResult
     public static func retireAndSwitch(
         runner: (any SessionRunner)?, store: Store, sessionID: SessionID,
-        controls: ComposerControls, account: AgentAccountHome?, standings: [AgentAccountStanding] = []
+        controls: ComposerControls, account: AgentAccountHome?, standings: [AgentAccountStanding]
     ) async throws -> Session {
         runner?.terminateNow()
         try await AgentAccountAssignment.remember(account, in: store)
