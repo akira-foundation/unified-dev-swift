@@ -8,6 +8,7 @@ enum GitHubBridge {
     }
 
     static func readPullRequestAndChecks(for workspace: Workspace, maxAge: Duration) async -> PullRequestReading {
+        if let reading = await Bitbucket.readingIfHosted(for: workspace, maxAge: maxAge) { return reading }
         let availability = await GitHubAvailability.shared.check(directory: workspace.path)
         if availability == .notInstalled {
             return PullRequestReading(

@@ -61,7 +61,7 @@ struct PullRequestBar: View {
     @ViewBuilder
     private var menuItems: some View {
         if let pullRequest = model.pullRequest {
-            Button("Open on GitHub") { GitHubBridge.open(pullRequest.url) }
+            Button("Open on \(pullRequest.hostName)") { GitHubBridge.open(pullRequest.url) }
             Button("Copy link") { Clipboard.copy(pullRequest.url) }
             if let url = URL(string: pullRequest.url) {
                 ShareLink(item: url) { Text("Share") }

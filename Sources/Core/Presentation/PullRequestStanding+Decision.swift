@@ -236,7 +236,7 @@ public extension PullRequestStanding {
             return "Ask this workspace's agent to \(what) on \(branch), so #\(number) is what is on"
                 + " this disk. \(sentWithoutABubble)"
         case .markReadyForReview:
-            return "Ask this workspace's agent to mark #\(number) ready for review on GitHub."
+            return "Ask this workspace's agent to mark #\(number) ready for review on \(pullRequest.hostName)."
                 + " \(sentWithoutABubble)"
         case .merge:
             return "Merge #\(number) into \(baseBranch), or choose another method from the chevron."
@@ -258,7 +258,7 @@ public extension PullRequestStanding {
         PullRequestStepLink(
             step: .pullRequest,
             reach: .pullRequestPage(pullRequest.url),
-            announcement: "Opens #\(pullRequest.number) on GitHub"
+            announcement: "Opens #\(pullRequest.number) on \(pullRequest.hostName)"
         )
     }
 
