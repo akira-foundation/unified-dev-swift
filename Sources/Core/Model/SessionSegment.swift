@@ -45,12 +45,20 @@ public struct SessionSegmentTarget: Sendable, Equatable {
     public let accountID: AgentAccountID?
     public let model: String
     public let effort: String
+    public let accountName: String?
 
-    public init(agentKind: AgentKind, accountID: AgentAccountID?, model: String, effort: String) {
+    public init(
+        agentKind: AgentKind, accountID: AgentAccountID?, model: String, effort: String, accountName: String? = nil
+    ) {
         self.agentKind = agentKind
         self.accountID = accountID
         self.model = model
         self.effort = effort
+        self.accountName = accountName
+    }
+
+    public func named(_ name: String?) -> SessionSegmentTarget {
+        SessionSegmentTarget(agentKind: agentKind, accountID: accountID, model: model, effort: effort, accountName: name)
     }
 }
 

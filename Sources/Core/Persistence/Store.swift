@@ -824,7 +824,7 @@ public actor Store {
                 sessionID: sessionID,
                 kind: .handoff,
                 payload: HandoffMark.continued(
-                    agent: target.agentKind, model: target.model, from: current.agentKind
+                    agent: target.agentKind, model: target.model, from: current.agentKind, account: target.accountName
                 ).payload
             )
             try db.run(SessionSegmentColumns.enter, [

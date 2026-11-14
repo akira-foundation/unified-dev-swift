@@ -61,6 +61,13 @@ Three callers reach `switchSegment`:
   possibly of another organisation;
 - the preview scenario seeder, for a `handoff` line.
 
+The divider is a `HandoffMark.continued`, which records the agent, the model, the agent left and the
+name of the account entered, as `AgentAccountNames.spoken` gives it when the switch is made. It reads
+"Continued with Codex · gpt-5.6-sol" when the provider changes, and "Continued with Claude Code under
+ada@client.example · opus" when the switch is between accounts of the same provider, so two accounts of
+one provider can be told apart in the history. A divider stored before the name was recorded has none,
+and reads as it always did.
+
 A model change inside the same provider and account is not a segment, and stays on the session
 editor.
 

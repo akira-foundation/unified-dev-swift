@@ -30,7 +30,7 @@ public struct AgentSessionSettlement: Sendable, Equatable {
 
     public func notice(on account: AgentAccountHome?, among standings: [AgentAccountStanding], besides other: String?) -> String? {
         guard switchTarget != nil, let account else { return other }
-        let name = AgentAccountNames.title(of: account, among: standings) ?? account.directory.lastPathComponent
+        let name = AgentAccountNames.spoken(of: account, among: standings)
         let moved = "This chat moved to \(name), the account it is set to run under, and its history went with it."
         return [moved, other].compactMap(\.self).joined(separator: " ")
     }

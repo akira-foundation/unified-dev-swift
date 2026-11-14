@@ -1336,7 +1336,11 @@ final class TranscriptModel {
     private func apply(_ settlement: AgentSessionSettlement, account: AgentAccountHome?) async -> Bool {
         guard !settlement.changesNothing, let store else { return true }
         do {
-            try await AgentSessionRecord.write(settlement, session: session.id, account: account, in: store)
+            try await AgentSessionRecord.write(
+                settlement, session: session.id, account: account,
+                accountName: account.map { AgentAccountNames.spoken(of: $0, among: app.agentAccounts.standings) },
+                in: store
+            )
         } catch {
             runnerFailure = AgentSessionSettlement.writeFailure(error.readableMessage)
             return false
@@ -1561,7 +1565,8 @@ final class TranscriptModel {
         do {
             session = try await AgentSwitch.retireAndSwitch(
                 runner: dying, store: store, sessionID: session.id,
-                controls: workMode.applied(to: controls), account: account
+                controls: workMode.applied(to: controls), account: account,
+                accountName: account.map { AgentAccountNames.spoken(of: $0, among: app.agentAccounts.standings) }
             )
         } catch {
             noteAgentSwitchFailed(to: controls.agentKind, error)
