@@ -65,4 +65,5 @@ public struct SessionSegmentTarget: Sendable, Equatable {
 public struct RunnerSeat: Sendable, Equatable {
     public let session: Session
     public let segmentID: SessionSegmentID
+    public var lostItsAccount = false
 }

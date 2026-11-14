@@ -1270,7 +1270,7 @@ final class TranscriptModel {
             isSettled: runnerIsSettled,
             purpose: purpose,
             settlement: AgentSessionSettlement.decide(
-                session: session, account: account, purpose: purpose
+                session: session, account: account, purpose: purpose, lostItsAccount: seat.lostItsAccount
             )
         )
         let plan: AgentRunnerSetup.Plan

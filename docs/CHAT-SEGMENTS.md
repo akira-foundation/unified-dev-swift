@@ -35,6 +35,13 @@ without touching its segment, on the active segment of every chat whose `session
 account, together with `sessions.agent_session_id`. That history is no longer reachable, so the next
 send carries the whole conversation.
 
+Because that history now goes to whichever account the chat resolves to, possibly of another
+organisation, `forgetAgentAccount` also writes a setting `chat.lostAccount.<session id>` for every chat
+whose `sessions.account_id` was the account forgotten. `Store.runnerSeat` reads it as
+`RunnerSeat.lostItsAccount`, and `AgentSessionSettlement.decide` turns the next send of such a chat
+into a segment switch rather than a silent record, with a notice that says the account was removed and
+names the one the history went to. `switchSegment` removes the setting, and so does closing the chat.
+
 The full transcript is `messages`, by `session_id` and `seq`. Nothing about a segment duplicates
 it, which is why the delta is computed from the database and never from a CLI's files.
 
@@ -56,7 +63,8 @@ Three callers reach `switchSegment`:
   (`BackendChange.switchInPlace`) and for an account change on the same provider from the quota
   offer in the menu bar panel;
 - `AgentSessionRecord.write`, when `AgentSessionSettlement.decide` finds at send time that the
-  account recorded on the chat is not the one it now resolves to. The chat moves and a notice names
+  account recorded on the chat is not the one it now resolves to, or that the account it ran under was
+  removed. The chat moves and a notice names
   the account (`AgentSessionSettlement.notice`), because the history is going to another account,
   possibly of another organisation;
 - the preview scenario seeder, for a `handoff` line.
