@@ -12,10 +12,16 @@ public enum ClaudeChrome {
     public static func storedValue(_ enabled: Bool) -> String? {
         enabled ? "1" : nil
     }
+
+    public static func isEnabled(in store: Store?) async -> Bool {
+        guard let store else { return false }
+        return isEnabled(try? await store.setting(settingKey))
+    }
 }
 
 public struct ClaudeChromeNotice: Sendable, Hashable {
     static let type = "claude_in_chrome_missing"
+    static let stillLoading: Set<String> = ["connected", "pending"]
 
     public let status: String?
 
@@ -26,7 +32,7 @@ public struct ClaudeChromeNotice: Sendable, Hashable {
             return ClaudeChromeNotice(status: nil)
         }
         let status = server["status"]?.stringValue ?? ""
-        guard status != "connected" else { return nil }
+        guard !stillLoading.contains(status) else { return nil }
         return ClaudeChromeNotice(status: status.isEmpty ? "unknown" : status)
     }
 

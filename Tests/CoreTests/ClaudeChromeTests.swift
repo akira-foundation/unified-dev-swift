@@ -15,6 +15,7 @@ struct ClaudeChromeTests {
     static let absent = initLine(servers: #"{"name":"unifieddev-workspace-bridge","status":"connected"}"#)
     static let failed = initLine(servers: #"{"name":"claude-in-chrome","status":"failed"}"#)
     static let unstated = initLine(servers: #"{"name":"claude-in-chrome"}"#)
+    static let pending = initLine(servers: #"{"name":"claude-in-chrome","status":"pending"}"#)
 
     private func initEvent(_ line: String) throws -> Data {
         guard case .initialized(let info) = try #require(AgentEvent.decode(line: line)) else {
@@ -41,6 +42,24 @@ struct ClaudeChromeTests {
         #expect(on.filter { $0 != "--chrome" } == off)
     }
 
+    @Test("an orchestrator is never given Chrome, switched on or not")
+    func orchestratorNeverGetsTheFlag() {
+        #expect(!AgentRunner.argv(session: session, resume: nil, orchestrates: true, chrome: true).contains("--chrome"))
+        #expect(AgentRunner.argv(session: session, resume: nil, orchestrates: false, chrome: true).contains("--chrome"))
+    }
+
+    @Test("turning the switch either way makes a running agent obsolete")
+    func switchRetiresTheRunner() {
+        let off = AgentRunnerFingerprint(session: session, account: nil, orchestrates: false, segment: SessionSegmentID("s"))
+        let on = AgentRunnerFingerprint(
+            session: session, account: nil, orchestrates: false, segment: SessionSegmentID("s"), usesChrome: true
+        )
+        #expect(off != on)
+        #expect(on == AgentRunnerFingerprint(
+            session: session, account: nil, orchestrates: false, segment: SessionSegmentID("s"), usesChrome: true
+        ))
+    }
+
     @Test("the stored setting reads as on only when it says so", arguments: [
         ("1", true), ("0", false), ("", false), ("true", false),
     ])
@@ -63,6 +82,7 @@ struct ClaudeChromeTests {
         #expect(ClaudeChromeNotice.missing(requested: true, initEvent: try initEvent(Self.absent)) == ClaudeChromeNotice(status: nil))
         #expect(ClaudeChromeNotice.missing(requested: true, initEvent: try initEvent(Self.failed)) == ClaudeChromeNotice(status: "failed"))
         #expect(ClaudeChromeNotice.missing(requested: true, initEvent: try initEvent(Self.unstated)) == ClaudeChromeNotice(status: "unknown"))
+        #expect(ClaudeChromeNotice.missing(requested: true, initEvent: try initEvent(Self.pending)) == nil)
     }
 
     @Test("the notice survives being stored and says why the tools are missing")
@@ -94,7 +114,8 @@ struct ClaudeChromeRunnerTests {
         let log = LaunchLog()
         let runner = AgentRunner(
             workspacePath: "/tmp/w", session: session, store: store,
-            segmentID: try await activeSegmentID(store, session), makeProcess: log.factory
+            segmentID: try await activeSegmentID(store, session),
+            usesChrome: await ClaudeChrome.isEnabled(in: store), makeProcess: log.factory
         )
         try? await runner.send("hello")
         return (runner, log, store, session)

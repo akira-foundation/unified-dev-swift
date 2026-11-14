@@ -58,7 +58,7 @@ public actor AgentRunner {
     private var isFastMode = false
     private var configuredExecutable = AgentKind.claudeCode.executableName
     private var outputStyle: String?
-    private var usesChrome = false
+    private let usesChrome: Bool
     private var launchedWithChrome = false
     private var chromeNoticeGiven = false
     private var awaitingSideContextAcknowledgement = false
@@ -91,6 +91,7 @@ public actor AgentRunner {
         mcpConfigPath: String? = nil,
         account: AgentAccountHome? = nil,
         gitHub: GitHubLogin = .thisMac,
+        usesChrome: Bool = false,
         inheritedEnvironment: [String: String]? = nil,
         shutdownBudget: Duration = AgentRunner.defaultShutdownBudget,
         activity: ClaudeAccountActivity = .shared,
@@ -105,6 +106,7 @@ public actor AgentRunner {
         self.account = account
         self.segment = RunnerSegment(sessionID: session.id, store: store, id: segmentID)
         self.gitHub = gitHub
+        self.usesChrome = usesChrome
         self.inheritedEnvironment = inheritedEnvironment
         self.shutdownBudget = shutdownBudget
         self.makeProcess = makeProcess
@@ -164,7 +166,7 @@ public actor AgentRunner {
         if let mcpConfigPath, !mcpConfigPath.isEmpty {
             arguments += BridgeRegistration.claudeArguments(configPath: mcpConfigPath)
         }
-        if chrome { arguments.append(ClaudeChrome.flag) }
+        if chrome, !orchestrating { arguments.append(ClaudeChrome.flag) }
         if let resume, !resume.isEmpty {
             arguments += ["--resume", resume]
         }
@@ -264,7 +266,6 @@ public actor AgentRunner {
         awaitingSideContextAcknowledgement = sidePrompt != text
         await refreshFastMode()
         await refreshOutputStyle()
-        await refreshChrome()
         await refreshExecutable()
         orchestrates = await grants.isOrchestrator()
         await LoginShellPath.ready()
@@ -309,10 +310,6 @@ public actor AgentRunner {
     private func refreshOutputStyle() async {
         let stored = try? await store.setting(ComposerControls.outputStyleKey(sessionID: session.id))
         outputStyle = OutputStyle.isDefault(stored) ? nil : stored
-    }
-
-    private func refreshChrome() async {
-        usesChrome = ClaudeChrome.isEnabled(try? await store.setting(ClaudeChrome.settingKey))
     }
 
     private func refreshExecutable() async {
@@ -363,7 +360,7 @@ public actor AgentRunner {
         cancelled = false
         stderrTail = []
         let spec = launch()
-        launchedWithChrome = usesChrome
+        launchedWithChrome = spec.arguments.contains(ClaudeChrome.flag)
         requestedResume = AgentSessionSettlement.resumable(session: session, account: account)
         launchedCommand = Shell.which(spec.executable) ?? spec.executable
         let process = makeProcess(spec)
@@ -542,8 +539,7 @@ public actor AgentRunner {
     private func noteChromeMissing(from info: AgentInit) async {
         guard !chromeNoticeGiven,
               let notice = ClaudeChromeNotice.missing(requested: launchedWithChrome, initEvent: info.raw) else { return }
-        chromeNoticeGiven = true
-        await persist(kind: .notice, payload: notice.payload)
+        chromeNoticeGiven = await persist(kind: .notice, payload: notice.payload) != nil
     }
 
     @discardableResult

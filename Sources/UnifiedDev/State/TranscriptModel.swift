@@ -1258,8 +1258,10 @@ final class TranscriptModel {
         guard !usesInteractiveTerminal else { return nil }
         let orchestrates = await readOrchestratorRole(from: store)
         let gitHub = await store.gitHubLogin(for: scope)
+        let usesChrome = await ClaudeChrome.isEnabled(in: store)
         let fingerprint = AgentRunnerFingerprint(
-            session: session, account: account, orchestrates: orchestrates, segment: seat.segmentID, gitHub: gitHub
+            session: session, account: account, orchestrates: orchestrates, segment: seat.segmentID, gitHub: gitHub,
+            usesChrome: usesChrome
         )
         let setup = AgentRunnerSetup.decide(
             gate: AgentDeliveryGate.decide(
@@ -1322,11 +1324,13 @@ final class TranscriptModel {
             segmentID: seat.segmentID,
             bridge: bridge,
             account: account,
-            gitHub: gitHub
+            gitHub: gitHub,
+            usesChrome: usesChrome
         )
         self.runner = runner
         runnerFingerprint = AgentRunnerFingerprint(
-            session: session, account: account, orchestrates: orchestrates, segment: seat.segmentID, gitHub: gitHub
+            session: session, account: account, orchestrates: orchestrates, segment: seat.segmentID, gitHub: gitHub,
+            usesChrome: usesChrome
         )
         startIdleEviction()
         startPump(on: runner)
@@ -1642,7 +1646,8 @@ final class TranscriptModel {
         segmentID: SessionSegmentID,
         bridge: BridgeHandle? = nil,
         account: AgentAccountHome? = nil,
-        gitHub: GitHubLogin = .thisMac
+        gitHub: GitHubLogin = .thisMac,
+        usesChrome: Bool = false
     ) -> any SessionRunner {
         switch session.agentKind {
         case .codex:
@@ -1673,7 +1678,8 @@ final class TranscriptModel {
                 segmentID: segmentID,
                 mcpConfigPath: bridge?.mcpConfigPath,
                 account: account,
-                gitHub: gitHub
+                gitHub: gitHub,
+                usesChrome: usesChrome
             )
         }
     }

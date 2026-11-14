@@ -78,9 +78,12 @@ Chrome profile holding the extensions is refused to other processes by privacy p
 
 So the switch is the owner's, in Settings > Agents on the Claude Code row, stored as
 `agent.claudeCode.chrome` and off by default, because these tools open tabs in the owner's browser.
-`ClaudeChrome` turns it into the argument, read on every send and applied when the process starts.
-The init event is the discovery: `ClaudeChromeNotice.missing` compares what was asked for with
-what loaded, and the runner stores one notice row per runner saying why the tools are absent.
+The choice is part of `AgentRunnerFingerprint`, so turning it either way retires a chat's running
+agent on the next message sent to it and starts one with or without `--chrome`. An orchestrator
+never receives the flag, because these tools would act in signed in tabs that its tool guard does
+not cover. The init event is the discovery: `ClaudeChromeNotice.missing` compares what the process
+was launched with against what loaded, and the runner stores one notice row per running agent saying why
+the tools are absent. A server still `pending` is not reported.
 
 ## Codex
 
