@@ -19,6 +19,8 @@ enum TranscriptChapterColumns {
 
     static let unpin = "DELETE FROM transcript_chapters WHERE session_id = ? AND seq = ?"
 
+    static let unpinFrom = "DELETE FROM transcript_chapters WHERE session_id = ? AND seq >= ?"
+
     static func chapter(from row: Row) -> TranscriptChapter? {
         guard let seq = row.int("seq"), let title = row.string("title") else { return nil }
         return TranscriptChapter(seq: Int(seq), title: title)

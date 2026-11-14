@@ -61,3 +61,21 @@ struct TranscriptChapterStoreTests {
         #expect(try await store.chapters(sessionID: session.id).isEmpty)
     }
 }
+
+extension SessionSegmentRewindTests {
+    @Test("a rewind unpins the chapters it removes and keeps the ones before it")
+    func aRewindUnpinsTheChaptersItRemoves() async throws {
+        let store = try makeTestStore("chapters-rewind")
+        let session = try await makeSession(store)
+        let kept = try await append(store, session, .user, "light the lantern")
+        let rewoundTo = try await append(store, session, .user, "trim the wick")
+        let removed = try await append(store, session, .user, "polish the chimney")
+        try await store.pin(TranscriptChapter(seq: kept, title: "light"), sessionID: session.id)
+        try await store.pin(TranscriptChapter(seq: rewoundTo, title: "trim"), sessionID: session.id)
+        try await store.pin(TranscriptChapter(seq: removed, title: "polish"), sessionID: session.id)
+
+        try await rewind(store, session, to: rewoundTo)
+
+        #expect(try await store.chapters(sessionID: session.id) == [TranscriptChapter(seq: kept, title: "light")])
+    }
+}

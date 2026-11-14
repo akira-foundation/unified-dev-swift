@@ -37,4 +37,24 @@ struct MigrationSlotOrderTests {
 
         #expect(try !inboxTableExists(at: seeded.path))
     }
+
+    @Test func theLastMigrationCreatesTheChapterTable() async throws {
+        let path = TestScratch.unique("migration-chapters") + ".sqlite"
+        _ = try Store(path: path)
+        let raw = try SQLiteDatabase(path: path)
+        let current = try raw.readUserVersion()
+        try raw.execute("DROP TABLE transcript_chapters;")
+        try raw.setUserVersion(current - 1)
+
+        let reopened = try Store(path: path)
+        let repo = try await reopened.upsert(Repo(name: "r", path: TestScratch.unique("repo")))
+        let workspace = try await reopened.upsert(Workspace(
+            repoID: repo.id, name: "w", branch: "feature/w",
+            path: TestScratch.unique("worktree"), baseBranch: "main"
+        ))
+        let session = try await reopened.upsert(Session(workspaceID: workspace.id))
+        try await reopened.pin(TranscriptChapter(seq: 1, title: "one"), sessionID: session.id)
+
+        #expect(try await reopened.chapters(sessionID: session.id) == [TranscriptChapter(seq: 1, title: "one")])
+    }
 }

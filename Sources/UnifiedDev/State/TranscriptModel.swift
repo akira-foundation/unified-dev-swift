@@ -165,6 +165,8 @@ final class TranscriptModel {
 
     @ObservationIgnored private var chapterWrite: Task<Void, Never>?
 
+    @ObservationIgnored private var chapterEdits = 0
+
     private(set) var messageRevealRequests = 0
 
     private(set) var messageRevealSeq: Int?
@@ -211,12 +213,14 @@ final class TranscriptModel {
     func pinChapter(_ row: TranscriptRow) {
         guard let chapter = TranscriptChapter(seq: row.seq, kind: row.kind, payload: row.payload) else { return }
         chapters = TranscriptChapter.ordered(chapters.filter { $0.seq != row.seq } + [chapter])
+        chapterEdits += 1
         let sessionID = session.id
         writeChapters { try await $0.pin(chapter, sessionID: sessionID) }
     }
 
     func unpinChapter(seq: Int) {
         chapters.removeAll { $0.seq == seq }
+        chapterEdits += 1
         let sessionID = session.id
         writeChapters { try await $0.unpinChapter(seq: seq, sessionID: sessionID) }
     }
@@ -380,7 +384,9 @@ final class TranscriptModel {
         let storedQuotes = (try? await store.replyQuotes(sessionID: session.id)) ?? []
         replyQuotes = ReplyQuote.merging(stored: storedQuotes, into: replyQuotes, removed: removedReplyQuotes)
         await chapterWrite?.value
-        chapters = (try? await store.chapters(sessionID: session.id)) ?? []
+        let editsBeforeReading = chapterEdits
+        let storedChapters = (try? await store.chapters(sessionID: session.id)) ?? []
+        if chapterEdits == editsBeforeReading { chapters = storedChapters }
         await refreshQueue()
         await history.load(store: store, sessionID: session.id, workspaceID: workspace?.id)
         if workspace != nil { await history.cleanupRetired(store: store, sessionID: session.id, cwd: cwd) }

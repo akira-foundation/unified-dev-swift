@@ -27,6 +27,12 @@ struct TranscriptChapterTests {
         #expect(title.hasSuffix("lantern\u{2026}"))
     }
 
+    @Test func aSingleWordTooLongToFitIsCutWhereTheLimitFalls() throws {
+        let word = String(repeating: "w", count: TranscriptChapter.titleLimit * 2)
+        let title = try #require(TranscriptChapter.title(of: word))
+        #expect(title == String(repeating: "w", count: TranscriptChapter.titleLimit - 1) + "\u{2026}")
+    }
+
     @Test func aTitleThatFitsIsKeptWhole() {
         let line = String(repeating: "a", count: TranscriptChapter.titleLimit)
         #expect(TranscriptChapter.title(of: line) == line)
@@ -42,8 +48,8 @@ struct TranscriptChapterTests {
         #expect(chapter == TranscriptChapter(seq: 1, title: "How often?"))
     }
 
-    @Test func aToolRowCannotBeAChapter() {
-        #expect(TranscriptChapter(seq: 2, kind: .toolUse, payload: answer("x")) == nil)
+    @Test func anAnswerWithNoTextCannotBeAChapter() {
+        #expect(TranscriptChapter(seq: 2, kind: .assistantText, payload: answer("   ")) == nil)
     }
 
     @Test func chaptersReadInTheOrderOfTheConversation() {
