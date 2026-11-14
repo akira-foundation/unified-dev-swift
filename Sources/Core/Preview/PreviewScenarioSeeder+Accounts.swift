@@ -27,6 +27,18 @@ extension PreviewScenarioSeeder {
         return written
     }
 
+    static func target(
+        of handoff: PreviewScenario.Handoff, among accounts: [PreviewScenario.Account]
+    ) -> SessionSegmentTarget {
+        let account = handoff.account.flatMap { label in
+            accounts.first { $0.provider == handoff.agent && $0.label == label }
+        }
+        return SessionSegmentTarget(
+            agentKind: handoff.agent, accountID: account?.id, model: handoff.model, effort: "",
+            accountName: account?.email
+        )
+    }
+
     static func place(of account: PreviewScenario.Account, home: URL) -> AgentAccountHome? {
         guard let label = account.label else { return AgentAccountHome.defaultHome(for: account.provider, home: home) }
         return AgentAccountHome(
@@ -41,9 +53,8 @@ extension PreviewScenarioSeeder {
         )
     }
 
-    func seedAccountChoices(
+    func seedAccountRows(
         _ scenario: PreviewScenario,
-        repos: [String: RepoID],
         profiles: [String: ProfileID] = [:],
         home: URL?
     ) async throws {
@@ -51,13 +62,25 @@ extension PreviewScenarioSeeder {
         for account in scenario.accounts where account.label != nil {
             guard let place = Self.place(of: account, home: home) else { continue }
             let owner = account.profile.flatMap { profiles[$0.lowercased()] } ?? .initial
-            try await manager.store.add(AgentAccountRow(
+            try await manager.store.addIfMissing(AgentAccountRow(
                 id: place.id, provider: place.provider, directory: place.directory.path, label: place.label,
                 profileID: owner
             ))
-            if account.isProfileDefault {
-                try await manager.store.chooseAgentAccount(ChosenAgentAccount(place), forProfile: owner)
-            }
+        }
+    }
+
+    func seedAccountChoices(
+        _ scenario: PreviewScenario,
+        repos: [String: RepoID],
+        profiles: [String: ProfileID] = [:],
+        home: URL?
+    ) async throws {
+        guard let home else { return }
+        try await seedAccountRows(scenario, profiles: profiles, home: home)
+        for account in scenario.accounts where account.label != nil && account.isProfileDefault {
+            guard let place = Self.place(of: account, home: home) else { continue }
+            let owner = account.profile.flatMap { profiles[$0.lowercased()] } ?? .initial
+            try await manager.store.chooseAgentAccount(ChosenAgentAccount(place), forProfile: owner)
         }
         for project in scenario.projects {
             guard let repoID = repos[project.name] else { continue }
