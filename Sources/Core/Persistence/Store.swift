@@ -734,6 +734,15 @@ public actor Store {
             throw AgentAccountError.isDefault(id)
         }
         try db.transaction {
+            let prefix = AgentSessionSettlement.lostAccountKeyPrefix
+            try db.run(
+                "DELETE FROM settings WHERE key LIKE ? || '%' AND substr(key, ?) NOT IN (SELECT id FROM sessions)",
+                [.text(prefix), .int(Int64(prefix.count + 1))]
+            )
+            try db.run(
+                "INSERT OR REPLACE INTO settings (key, value) SELECT ? || id, '1' FROM sessions WHERE account_id = ?",
+                [.text(prefix), .text(id)]
+            )
             try db.run(SessionSegmentColumns.forgetActiveHistory, [.text(id)])
             try db.run(SessionSegmentColumns.forgetChatHistory, [.text(id)])
             for table in AgentAccountColumns.pointingTables {
@@ -764,7 +773,11 @@ public actor Store {
     public func runnerSeat(sessionID: SessionID) throws -> RunnerSeat? {
         guard let session = try session(id: sessionID),
               let segment = try activeSegment(sessionID: sessionID) else { return nil }
-        return RunnerSeat(session: session, segmentID: segment.id)
+        return RunnerSeat(
+            session: session,
+            segmentID: segment.id,
+            lostItsAccount: try setting(AgentSessionSettlement.lostAccountKey(sessionID: sessionID)) != nil
+        )
     }
 
     public func advanceCursor(segmentID: SessionSegmentID, toSeq: Int) throws {
@@ -820,11 +833,12 @@ public actor Store {
             ])
             try db.run(AgentAccountColumns.choose("sessions"), [.text(target.accountID), .text(sessionID)])
             try setSetting(ComposerControls.defaultsAppliedKey(sessionID: sessionID), "1")
+            try setSetting(AgentSessionSettlement.lostAccountKey(sessionID: sessionID), nil)
             let divider = try insertNext(
                 sessionID: sessionID,
                 kind: .handoff,
                 payload: HandoffMark.continued(
-                    agent: target.agentKind, model: target.model, from: current.agentKind
+                    agent: target.agentKind, model: target.model, from: current.agentKind, account: target.accountName
                 ).payload
             )
             try db.run(SessionSegmentColumns.enter, [
@@ -1946,6 +1960,7 @@ public actor Store {
     public func deleteSession(id: SessionID) throws {
         try requireSessionCanClose(id: id)
         try db.run("DELETE FROM sessions WHERE id = ?", [.text(id)])
+        try setSetting(AgentSessionSettlement.lostAccountKey(sessionID: id), nil)
     }
 
     public func requireSessionCanClose(id: SessionID) throws {

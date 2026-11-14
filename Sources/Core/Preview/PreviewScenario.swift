@@ -197,10 +197,12 @@ public struct PreviewScenario: Sendable, Equatable, Codable {
     public struct Handoff: Sendable, Equatable, Codable {
         public var agent: AgentKind
         public var model: String
+        public var account: String?
 
-        public init(agent: AgentKind, model: String) {
+        public init(agent: AgentKind, model: String, account: String? = nil) {
             self.agent = agent
             self.model = model
+            self.account = account
         }
     }
 

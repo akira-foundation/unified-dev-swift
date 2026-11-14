@@ -49,6 +49,7 @@ public struct PreviewScenarioSeeder: Sendable {
 
         var outcome = Outcome(projects: 0, workspaces: 0, chats: 0, quotas: 0)
         let profileIDs = try await seedProfiles(scenario)
+        try await seedAccountRows(scenario, profiles: profileIDs, home: TranscriptHome.seedable())
         var repos: [String: RepoID] = [:]
         for project in scenario.projects {
             let path = try await makeRepository(project)
@@ -58,7 +59,9 @@ public struct PreviewScenarioSeeder: Sendable {
             repos[project.name] = repo.id
             var started: [String: WorkspaceID] = [:]
             for workspace in project.workspaces {
-                let (workspaceID, chats) = try await start(workspace, in: repo, among: started, at: now)
+                let (workspaceID, chats) = try await start(
+                    workspace, in: repo, among: started, accounts: scenario.accounts, at: now
+                )
                 started[workspace.name] = workspaceID
                 outcome.workspaces += 1
                 outcome.chats += chats
@@ -147,7 +150,7 @@ public struct PreviewScenarioSeeder: Sendable {
 
     func start(
         _ workspace: PreviewScenario.Workspace, in repo: Repo, among earlier: [String: WorkspaceID] = [:],
-        at now: Date
+        accounts: [PreviewScenario.Account] = [], at now: Date
     ) async throws -> (WorkspaceID, Int) {
         let started = try await manager.start(WorkspaceStartRequest(
             repo: repo,
@@ -173,9 +176,9 @@ public struct PreviewScenarioSeeder: Sendable {
                     continue
                 }
                 if let handoff = line.handoff {
-                    try await manager.store.switchSegment(sessionID: session.id, to: SessionSegmentTarget(
-                        agentKind: handoff.agent, accountID: nil, model: handoff.model, effort: ""
-                    ))
+                    try await manager.store.switchSegment(
+                        sessionID: session.id, to: Self.target(of: handoff, among: accounts)
+                    )
                     continue
                 }
                 _ = try await manager.store.appendNext(

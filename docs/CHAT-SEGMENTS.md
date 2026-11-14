@@ -35,6 +35,15 @@ without touching its segment, on the active segment of every chat whose `session
 account, together with `sessions.agent_session_id`. That history is no longer reachable, so the next
 send carries the whole conversation.
 
+Because that history now goes to whichever account the chat resolves to, possibly of another
+organisation, `forgetAgentAccount` also writes a setting `chat.lostAccount.<session id>` for every chat
+whose `sessions.account_id` was the account forgotten. `Store.runnerSeat` reads it as
+`RunnerSeat.lostItsAccount`, and `AgentSessionSettlement.decide` turns the next send of such a chat
+into a segment switch rather than a silent record, with a notice that says the account was removed and
+names the one the history went to. `switchSegment` removes the setting, and so does closing the chat. A
+chat that goes with its workspace or project takes no setting with it, so each forget also removes the
+marks of chats that no longer exist.
+
 The full transcript is `messages`, by `session_id` and `seq`. Nothing about a segment duplicates
 it, which is why the delta is computed from the database and never from a CLI's files.
 
@@ -56,10 +65,18 @@ Three callers reach `switchSegment`:
   (`BackendChange.switchInPlace`) and for an account change on the same provider from the quota
   offer in the menu bar panel;
 - `AgentSessionRecord.write`, when `AgentSessionSettlement.decide` finds at send time that the
-  account recorded on the chat is not the one it now resolves to. The chat moves and a notice names
+  account recorded on the chat is not the one it now resolves to, or that the account it ran under was
+  removed. The chat moves and a notice names
   the account (`AgentSessionSettlement.notice`), because the history is going to another account,
   possibly of another organisation;
 - the preview scenario seeder, for a `handoff` line.
+
+The divider is a `HandoffMark.continued`, which records the agent, the model, the agent left and the
+name of the account entered, as `AgentAccountNames.spoken` gives it when the switch is made. It reads
+"Continued with Codex · gpt-5.6-sol" when the provider changes, and "Continued with Claude Code under
+ada@client.example · opus" when the switch is between accounts of the same provider, so two accounts of
+one provider can be told apart in the history. A divider stored before the name was recorded has none,
+and reads as it always did.
 
 A model change inside the same provider and account is not a segment, and stays on the session
 editor.
@@ -226,8 +243,14 @@ or `.other`. For Claude Code it is a row of `assistantText` whose line has model
 does not. With no `api_error`, from an older CLI, it needs `is_api_error_message: true`,
 `api_error_status: 429` and text starting `You've hit your` and containing `limit`. It has to be the last
 output of the turn. Those are the names of the stream, which is where every stored row comes from. Other 429s, other errors and
-turns the owner stopped read `.other`. Codex and Grok always read `.other`. The sample is in
-`docs/PROTOCOL.md`.
+turns the owner stopped read `.other`. The sample is in `docs/PROTOCOL.md`.
+
+For Codex it is the turn's closing `result` row, with `is_error: true` and `codex_error:
+usageLimitExceeded`. `CodexTranslation` writes `codex_error` from `turn.error.codexErrorInfo` of a
+failed `turn/completed`, a typed code the app-server schema declares, so the words of the message are
+never read. Any other code, a turn with no code and a turn that was not failed read `.other`, and the
+result has to be the last output of the turn. Grok sends nothing that marks a limit and always reads
+`.other`, so a Grok turn stopped by its limit does not resume on its own.
 
 `InterruptedTurnResume.decide` queues a resume, a delivery of kind `interruptedTurnResume`, only
 when all of these hold:
