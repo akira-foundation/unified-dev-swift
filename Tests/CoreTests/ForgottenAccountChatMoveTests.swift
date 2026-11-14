@@ -84,6 +84,18 @@ struct ForgottenAccountChatMoveTests {
         #expect(try await store.runnerSeat(sessionID: session.id)?.lostItsAccount == false)
     }
 
+    @Test func forgettingAnotherAccountSweepsTheMarksOfChatsThatAreGone() async throws {
+        let store = try makeTestStore("forgotten-swept")
+        let gone = SessionID("chat-whose-workspace-went")
+        try await store.setSetting(AgentSessionSettlement.lostAccountKey(sessionID: gone), "1")
+        let session = try await chatOnTheClientAccount(store)
+
+        try await store.forgetAgentAccount(client.id)
+
+        #expect(try await store.setting(AgentSessionSettlement.lostAccountKey(sessionID: gone)) == nil)
+        #expect(try await store.setting(AgentSessionSettlement.lostAccountKey(sessionID: session.id)) == "1")
+    }
+
     @Test func closingTheChatTakesTheMarkWithIt() async throws {
         let store = try makeTestStore("forgotten-closed")
         let session = try await chatOnTheClientAccount(store)

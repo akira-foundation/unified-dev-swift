@@ -40,7 +40,9 @@ organisation, `forgetAgentAccount` also writes a setting `chat.lostAccount.<sess
 whose `sessions.account_id` was the account forgotten. `Store.runnerSeat` reads it as
 `RunnerSeat.lostItsAccount`, and `AgentSessionSettlement.decide` turns the next send of such a chat
 into a segment switch rather than a silent record, with a notice that says the account was removed and
-names the one the history went to. `switchSegment` removes the setting, and so does closing the chat.
+names the one the history went to. `switchSegment` removes the setting, and so does closing the chat. A
+chat that goes with its workspace or project takes no setting with it, so each forget also removes the
+marks of chats that no longer exist.
 
 The full transcript is `messages`, by `session_id` and `seq`. Nothing about a segment duplicates
 it, which is why the delta is computed from the database and never from a CLI's files.

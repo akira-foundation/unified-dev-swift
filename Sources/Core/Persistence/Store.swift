@@ -734,9 +734,14 @@ public actor Store {
             throw AgentAccountError.isDefault(id)
         }
         try db.transaction {
+            let prefix = AgentSessionSettlement.lostAccountKeyPrefix
+            try db.run(
+                "DELETE FROM settings WHERE key LIKE ? || '%' AND substr(key, ?) NOT IN (SELECT id FROM sessions)",
+                [.text(prefix), .int(Int64(prefix.count + 1))]
+            )
             try db.run(
                 "INSERT OR REPLACE INTO settings (key, value) SELECT ? || id, '1' FROM sessions WHERE account_id = ?",
-                [.text(AgentSessionSettlement.lostAccountKeyPrefix), .text(id)]
+                [.text(prefix), .text(id)]
             )
             try db.run(SessionSegmentColumns.forgetActiveHistory, [.text(id)])
             try db.run(SessionSegmentColumns.forgetChatHistory, [.text(id)])
