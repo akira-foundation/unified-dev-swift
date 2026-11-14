@@ -226,8 +226,14 @@ or `.other`. For Claude Code it is a row of `assistantText` whose line has model
 does not. With no `api_error`, from an older CLI, it needs `is_api_error_message: true`,
 `api_error_status: 429` and text starting `You've hit your` and containing `limit`. It has to be the last
 output of the turn. Those are the names of the stream, which is where every stored row comes from. Other 429s, other errors and
-turns the owner stopped read `.other`. Codex and Grok always read `.other`. The sample is in
-`docs/PROTOCOL.md`.
+turns the owner stopped read `.other`. The sample is in `docs/PROTOCOL.md`.
+
+For Codex it is the turn's closing `result` row, with `is_error: true` and `codex_error:
+usageLimitExceeded`. `CodexTranslation` writes `codex_error` from `turn.error.codexErrorInfo` of a
+failed `turn/completed`, a typed code the app-server schema declares, so the words of the message are
+never read. Any other code, a turn with no code and a turn that was not failed read `.other`, and the
+result has to be the last output of the turn. Grok sends nothing that marks a limit and always reads
+`.other`, so a Grok turn stopped by its limit does not resume on its own.
 
 `InterruptedTurnResume.decide` queues a resume, a delivery of kind `interruptedTurnResume`, only
 when all of these hold:
