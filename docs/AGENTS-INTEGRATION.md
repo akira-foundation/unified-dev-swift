@@ -59,6 +59,29 @@ without controlling Terminal.app or requiring Automation permission. The sheet s
 cancellation, and copying the command to run elsewhere. Account details refresh when the command
 exits and when the sheet closes. Signing in with another account changes the CLI's shared login.
 
+### Claude in Chrome
+
+The CLI's Claude in Chrome integration drives the owner's own Chrome, with its sign ins, through
+the Claude extension. It is off unless `--chrome` is passed: with no flag the `system/init` event of
+CLI 2.1.322 lists no `mcp__claude-in-chrome__*` tool, even with `tengu_chrome_auto_enable` set in
+`~/.claude.json`. With the flag the same event lists twenty such tools and a `claude-in-chrome`
+entry in `mcp_servers` with `"status":"connected"`, under `-p`, under `--strict-mcp-config` and next
+to the bridge's `--mcp-config` alike. That was measured against an API endpoint that refuses every
+connection, so the init event arrived and no turn was paid for.
+
+When the integration cannot load the turn still runs and the server is simply missing from
+`mcp_servers`. Two cases were measured: an `ANTHROPIC_API_KEY` in the environment, because the
+integration needs a claude.ai sign in, and a `CLAUDE_CONFIG_DIR` with nothing in it. Whether the
+extension is installed cannot be read from disk instead: the CLI writes the native host manifest
+into every Chromium browser's `NativeMessagingHosts` whether or not the extension is there, and the
+Chrome profile holding the extensions is refused to other processes by privacy protection.
+
+So the switch is the owner's, in Settings > Agents on the Claude Code row, stored as
+`agent.claudeCode.chrome` and off by default, because these tools open tabs in the owner's browser.
+`ClaudeChrome` turns it into the argument, read on every send and applied when the process starts.
+The init event is the discovery: `ClaudeChromeNotice.missing` compares what was asked for with
+what loaded, and the runner stores one notice row per runner saying why the tools are absent.
+
 ## Codex
 
 `~/.codex/auth.json` keys: `auth_mode` (observed `chatgpt`), `OPENAI_API_KEY` (null here),
