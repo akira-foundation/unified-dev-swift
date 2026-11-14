@@ -695,6 +695,7 @@ public actor Store {
             { try UndatedArchives.stamp($0) },
             ProfileGitHubColumn.migrate,
             QuotaAccountColumn.migrate,
+            sql(TranscriptChapterColumns.createTable),
         ]
 
         guard current >= 0, current <= migrations.count else {
@@ -788,8 +789,12 @@ public actor Store {
         try db.run(SessionSegmentColumns.reset, [.text(segmentID)])
     }
 
-    public func seed(sessionID: SessionID, from source: SessionID) throws {
-        try db.run(SessionSegmentColumns.seed, [.text(source), .text(sessionID)])
+    public func seed(sessionID: SessionID, from source: SessionID, through seq: Int? = nil) throws {
+        guard let seq else {
+            try db.run(SessionSegmentColumns.seed, [.text(source), .text(sessionID)])
+            return
+        }
+        try db.run(SessionSegmentColumns.seedThrough, [.text(source), .text(sessionID), .int(Int64(seq))])
     }
 
     public func pendingSource(sessionID: SessionID) throws -> SessionID? {
@@ -2076,6 +2081,7 @@ public actor Store {
             try db.run("DELETE FROM messages WHERE session_id = ? AND seq >= ?", [.text(sessionID), .int(Int64(seq))])
             try db.run(WorkSuggestionColumns.deleteAnchored, [.text(sessionID), .int(Int64(seq))])
             try db.run("DELETE FROM transcript_places WHERE session_id = ? AND anchor_seq >= ?", [.text(sessionID), .int(Int64(seq))])
+            try db.run(TranscriptChapterColumns.unpinFrom, [.text(sessionID), .int(Int64(seq))])
             try db.run("UPDATE deliveries SET delivered_seq = NULL WHERE target_session_id = ? AND delivered_seq >= ?", [
                 .text(sessionID), .int(Int64(seq)),
             ])
@@ -2340,6 +2346,19 @@ public actor Store {
                 [.text(sessionID), .text(body)]
             )
         }
+    }
+
+    public func chapters(sessionID: SessionID) throws -> [TranscriptChapter] {
+        try db.query(TranscriptChapterColumns.forSession, [.text(sessionID)])
+            .compactMap(TranscriptChapterColumns.chapter(from:))
+    }
+
+    public func pin(_ chapter: TranscriptChapter, sessionID: SessionID) throws {
+        try db.run(TranscriptChapterColumns.pin, [.text(sessionID), .int(Int64(chapter.seq)), .text(chapter.title)])
+    }
+
+    public func unpinChapter(seq: Int, sessionID: SessionID) throws {
+        try db.run(TranscriptChapterColumns.unpin, [.text(sessionID), .int(Int64(seq))])
     }
 
     public func replyQuotes(sessionID: SessionID) throws -> [ReplyQuote] {
