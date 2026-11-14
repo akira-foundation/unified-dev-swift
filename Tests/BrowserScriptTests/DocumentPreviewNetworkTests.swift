@@ -1,8 +1,6 @@
-@testable import Core
 import Foundation
 import Network
 import Testing
-import WebKit
 
 @MainActor
 @Suite("What a previewed document reaches over the network", .serialized, .tags(.security))
@@ -12,10 +10,10 @@ struct DocumentPreviewNetworkTests {
         let listener = try await LoopbackListener.start()
         defer { listener.stop() }
 
-        let page = try await PreviewPage.open(preconnectingTo: listener.port, blocked: true)
+        let page = try await Self.open(preconnectingTo: listener.port, blocked: true)
         try await Task.sleep(for: .seconds(3))
 
-        #expect(try await page.bodyText() == "loaded")
+        #expect(try await page.evaluate("document.body.textContent") == "loaded")
         #expect(listener.connections == 0)
     }
 
@@ -24,28 +22,17 @@ struct DocumentPreviewNetworkTests {
         let listener = try await LoopbackListener.start()
         defer { listener.stop() }
 
-        let page = try await PreviewPage.open(preconnectingTo: listener.port, blocked: false)
+        let page = try await Self.open(preconnectingTo: listener.port, blocked: false)
         let deadline = ContinuousClock.now + .seconds(10)
         while listener.connections == 0, ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(100))
         }
 
-        #expect(try await page.bodyText() == "loaded")
+        #expect(try await page.evaluate("document.body.textContent") == "loaded")
         #expect(listener.connections > 0)
     }
-}
 
-@MainActor
-private final class PreviewPage {
-    private let webView: WKWebView
-    private let handler: PreviewDocumentHandler
-
-    private init(webView: WKWebView, handler: PreviewDocumentHandler) {
-        self.webView = webView
-        self.handler = handler
-    }
-
-    static func open(preconnectingTo port: UInt16, blocked: Bool) async throws -> PreviewPage {
+    private static func open(preconnectingTo port: UInt16, blocked: Bool) async throws -> PreviewWebPage {
         let address = "http://127.0.0.1:\(port)/"
         let document = """
         <!doctype html>
@@ -59,55 +46,12 @@ private final class PreviewPage {
         </script>
         </head><body>loaded</body></html>
         """
-        let handler = PreviewDocumentHandler(document: document)
-        let configuration = WKWebViewConfiguration()
-        configuration.setURLSchemeHandler(handler, forURLScheme: DocumentPreview.scheme)
-        configuration.websiteDataStore = .nonPersistent()
-        if blocked {
-            let rules = try await WKContentRuleListStore.default().compileContentRuleList(
-                forIdentifier: DocumentPreview.networkRuleListIdentifier,
-                encodedContentRuleList: DocumentPreview.networkRules
-            )
-            configuration.userContentController.add(try #require(rules))
+        return try await PreviewWebPage.open(files: ["index.html": document]) { configuration in
+            if blocked {
+                try await PreviewWebPage.blockNetwork(in: configuration)
+            }
         }
-        let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 800, height: 600), configuration: configuration)
-        let page = PreviewPage(webView: webView, handler: handler)
-        webView.load(URLRequest(url: try #require(URL(string: "\(DocumentPreview.scheme)://worktree/index.html"))))
-        let deadline = ContinuousClock.now + .seconds(10)
-        while webView.isLoading || webView.url == nil, ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(20))
-        }
-        return page
     }
-
-    func bodyText() async throws -> String? {
-        try await webView.evaluateJavaScript("document.body.textContent") as? String
-    }
-}
-
-@MainActor
-private final class PreviewDocumentHandler: NSObject, WKURLSchemeHandler {
-    private let document: String
-
-    init(document: String) {
-        self.document = document
-    }
-
-    func webView(_ webView: WKWebView, start urlSchemeTask: any WKURLSchemeTask) {
-        let body = Data(document.utf8)
-        let headers = DocumentPreview.responseHeaders(contentType: "text/html; charset=utf-8", length: body.count)
-        guard let url = urlSchemeTask.request.url,
-              let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: headers)
-        else {
-            urlSchemeTask.didFailWithError(URLError(.badURL))
-            return
-        }
-        urlSchemeTask.didReceive(response)
-        urlSchemeTask.didReceive(body)
-        urlSchemeTask.didFinish()
-    }
-
-    func webView(_ webView: WKWebView, stop urlSchemeTask: any WKURLSchemeTask) {}
 }
 
 private final class LoopbackListener: @unchecked Sendable {
