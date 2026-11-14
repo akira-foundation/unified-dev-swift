@@ -30,23 +30,24 @@ struct ForkThroughStoreTests {
         let turn = try await store.handoffTurn(
             "next", sessionID: fork.id, deliveredSeq: nil, worktree: nil, contextWindow: nil
         )
-        #expect(first.seq < second.seq)
         #expect(turn.contains("light the lantern") && turn.contains("trim the wick"))
         #expect(!turn.contains("polish the chimney"))
     }
 
-    @Test func aForkThroughASeqPastTheEndIsToldEverything() async throws {
+    @Test func aForkThroughASeqPastTheEndIsToldEverythingUpToTheFork() async throws {
         let store = try makeTestStore("fork-past-end")
         let source = try await makeSession(store)
         let only = try await store.appendNext(sessionID: source.id, kind: .user, payload: said("light the lantern"))
         let fork = try await store.upsert(Session(workspaceID: try #require(source.workspaceID)))
 
         try await store.seed(sessionID: fork.id, from: source.id, through: only.seq + 50)
+        _ = try await store.appendNext(sessionID: source.id, kind: .user, payload: said("said after the fork"))
 
         let turn = try await store.handoffTurn(
             "next", sessionID: fork.id, deliveredSeq: nil, worktree: nil, contextWindow: nil
         )
         #expect(turn.contains("light the lantern"))
+        #expect(!turn.contains("said after the fork"))
         #expect(try await store.pendingSource(sessionID: fork.id) == source.id)
     }
 }

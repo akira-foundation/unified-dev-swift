@@ -776,11 +776,11 @@ public actor Store {
         try db.run(SessionSegmentColumns.reset, [.text(segmentID)])
     }
 
-    public func seed(sessionID: SessionID, from source: SessionID) throws {
-        try db.run(SessionSegmentColumns.seed, [.text(source), .text(sessionID)])
-    }
-
-    public func seed(sessionID: SessionID, from source: SessionID, through seq: Int) throws {
+    public func seed(sessionID: SessionID, from source: SessionID, through seq: Int? = nil) throws {
+        guard let seq else {
+            try db.run(SessionSegmentColumns.seed, [.text(source), .text(sessionID)])
+            return
+        }
         try db.run(SessionSegmentColumns.seedThrough, [.text(source), .text(sessionID), .int(Int64(seq))])
     }
 

@@ -312,10 +312,13 @@ final class WorkspaceModel {
         guard let stored = try? await store.upsert(session) else { return nil }
         await openingControls.store(sessionID: stored.id, in: store)
         if !draft.isEmpty { try? await store.saveDraft(sessionID: stored.id, body: draft) }
-        switch (source, seq) {
-        case let (source?, seq?): try? await store.seed(sessionID: stored.id, from: source, through: seq)
-        case let (source?, nil): try? await store.seed(sessionID: stored.id, from: source)
-        case (nil, _): break
+        if let source {
+            do {
+                try await store.seed(sessionID: stored.id, from: source, through: seq)
+            } catch {
+                try? await store.deleteSession(id: stored.id)
+                return nil
+            }
         }
         await reloadSessions()
         activeSessionID = stored.id
